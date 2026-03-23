@@ -16,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-bg-base text-off-white font-mono min-h-screen">
+      <body className="bg-bg-base text-mint font-mono min-h-screen" suppressHydrationWarning>
         <WalletProvider>
           <Nav />
           <main className="pt-14">{children}</main>

@@ -8,7 +8,7 @@ interface Props {
 export default function MonoLabel({ children, className = "" }: Props) {
   return (
     <span
-      className={`font-mono text-[10px] uppercase tracking-[0.05em] text-muted block ${className}`}
+      className={`font-mono text-xs uppercase tracking-[0.05em] text-muted block ${className}`}
     >
       {children}
     </span>

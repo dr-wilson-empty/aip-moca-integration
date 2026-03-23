@@ -15,12 +15,13 @@ export default function LiveLog() {
   }, [log]);
 
   const eventColor = (type: string) => {
-    if (type.includes("VERIFY") || type.includes("DID")) return "text-accent";
-    if (type.includes("ESCROW") || type.includes("LOCK")) return "text-yellow-400";
-    if (type.includes("FAIL") || type.includes("ERROR")) return "text-red-400";
+    if (type.includes("IDENTITY")) return "text-accent";
+    if (type.includes("PAYMENT")) return "text-yellow-400";
+    if (type.includes("REQUEST")) return "text-blue-400";
+    if (type.includes("PROCESSING")) return "text-mint";
+    if (type.includes("ERROR") || type.includes("FAIL")) return "text-red-400";
     if (type.includes("REFUND")) return "text-orange-400";
-    if (type.includes("SETTLEMENT") || type.includes("PAYMENT")) return "text-green-400";
-    if (type.includes("CANCEL")) return "text-yellow-400";
+    if (type.includes("COMPLETE") || type.includes("SETTLEMENT")) return "text-green-400";
     return "text-body";
   };
 

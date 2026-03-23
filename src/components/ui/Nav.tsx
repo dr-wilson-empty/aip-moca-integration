@@ -4,13 +4,12 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
-import ProtocolHealth from "@/components/ui/ProtocolHealth";
 
 const NAV_ITEMS = [
-  { href: "/connect", label: "01 // Identity" },
-  { href: "/explorer", label: "02 // Agent Cards" },
-  { href: "/dashboard", label: "03 // Task Dashboard" },
-  { href: "/log", label: "04 // Tx Log" },
+  { href: "/connect", label: "Identity" },
+  { href: "/explorer", label: "Discovery" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/log", label: "History" },
 ];
 
 export default function Nav() {
@@ -20,9 +19,7 @@ export default function Nav() {
   const [balanceFlash, setBalanceFlash] = useState<"none" | "deduct" | "refund">("none");
   const prevBalance = useRef(usdcBalance);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!mounted) return;
@@ -41,25 +38,15 @@ export default function Nav() {
       ? "text-red-400 animate-balance-flash"
       : balanceFlash === "refund"
       ? "text-accent animate-balance-flash"
-      : "text-muted";
+      : "text-mint";
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-forest-deep/60 bg-bg-base/90 backdrop-blur-sm">
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-mint/20 bg-bg-base/90 backdrop-blur-sm">
       <div className="max-w-[1920px] mx-auto px-10 h-14 flex items-center justify-between">
-        {/* Left: Logo + Protocol Health */}
-        <div className="flex items-center gap-5">
-          <span className="font-display text-off-white text-sm uppercase tracking-widest">
-            AIP
-          </span>
-          {mounted && address && (
-            <>
-              <div className="w-px h-4 bg-forest-deep/60" />
-              <ProtocolHealth />
-            </>
-          )}
-        </div>
+        <span className="font-display text-mint text-sm uppercase tracking-widest">
+          AIP
+        </span>
 
-        {/* Center: Navigation */}
         <div className="flex items-center gap-8">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
@@ -69,8 +56,8 @@ export default function Nav() {
                 key={item.href}
                 href={isLocked ? "/connect" : item.href}
                 className={`
-                  font-mono text-[10px] uppercase tracking-[0.05em] transition-colors duration-200
-                  ${isActive ? "text-accent" : "text-muted hover:text-off-white"}
+                  font-mono text-xs uppercase tracking-wider transition-colors duration-200
+                  ${isActive ? "text-mint" : "text-muted hover:text-mint"}
                   ${isLocked ? "opacity-30 pointer-events-none" : ""}
                 `}
               >
@@ -80,16 +67,15 @@ export default function Nav() {
           })}
         </div>
 
-        {/* Right: Balance + Wallet */}
         {mounted && address ? (
           <div className="flex items-center gap-4">
-            <span className={`font-mono text-[10px] uppercase transition-colors duration-300 ${balanceColor}`}>
+            <span className={`font-mono text-xs uppercase transition-colors duration-300 ${balanceColor}`}>
               {usdcBalance} USDC
             </span>
-            <div className="w-px h-4 bg-forest-deep/60" />
+            <div className="w-px h-4 bg-mint/10" />
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-              <span className="font-mono text-[10px] text-muted uppercase">
+              <span className="font-mono text-xs text-muted uppercase">
                 {address.slice(0, 4)}...{address.slice(-4)}
               </span>
             </div>

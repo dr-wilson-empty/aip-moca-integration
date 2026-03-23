@@ -73,7 +73,7 @@ export default function TaskForm() {
           const task: Task = {
             id: `task_${Math.random().toString(36).slice(2, 10)}`,
             counterpartAgent: counterpartCard.name,
-            capability: selectedCapId,
+            capability: selectedCap.description,
             input: input.trim(),
             startedAt: startTimeRef.current,
             duration: `${durationSec}s`,
@@ -101,7 +101,7 @@ export default function TaskForm() {
           const task: Task = {
             id: `task_${Math.random().toString(36).slice(2, 10)}`,
             counterpartAgent: counterpartCard.name,
-            capability: selectedCapId,
+            capability: selectedCap.description,
             input: input.trim(),
             startedAt: startTimeRef.current,
             duration: `${durationSec}s`,
@@ -126,35 +126,41 @@ export default function TaskForm() {
 
   if (!counterpartCard) {
     return (
-      <div className="border border-forest-deep/40 p-6 flex items-center justify-between">
-        <p className="font-mono text-xs text-muted">
-          No counterpart agent loaded.
-        </p>
+      <div className="border border-mint/20 bg-forest-deep/10 p-8 flex flex-col items-center gap-4 text-center">
+        <div className="w-12 h-12 border border-mint/20 rounded-full flex items-center justify-center">
+          <span className="text-mint text-lg">⬡</span>
+        </div>
+        <div>
+          <p className="font-mono text-sm text-mint mb-1">No agent selected yet</p>
+          <p className="font-mono text-xs text-muted">
+            You need to select a counterpart agent before starting a task.
+          </p>
+        </div>
         <BtnPrimary onClick={() => router.push("/explorer")}>
-          Go to Agent Card Explorer
-          <span className="text-xs">→</span>
+          Select an Agent
+          <span>→</span>
         </BtnPrimary>
       </div>
     );
   }
 
   return (
-    <div className="border border-forest-deep/60 bg-forest-deep/20 p-6 flex flex-col gap-5">
-      <div className="border-b border-forest-deep/40 pb-4 flex items-center justify-between">
+    <div className="border border-mint/20 bg-forest-deep/10 p-6 flex flex-col gap-5">
+      <div className="border-b border-mint/20 pb-4 flex items-center justify-between">
         <div>
-          <MonoLabel className="text-accent mb-1">Task Configuration</MonoLabel>
-          <p className="font-mono text-xs text-muted">
-            Target: {counterpartCard.name}
+          <span className="font-mono text-xs text-accent uppercase">Task Configuration</span>
+          <p className="font-mono text-sm text-muted mt-1">
+            Target: <span className="text-mint">{counterpartCard.name}</span>
           </p>
         </div>
         {(taskState === "COMPLETED" || taskState === "FAILED") && (
           <div className="flex gap-3">
-            <BtnPrimary onClick={handleNewTask}>
+            <BtnPrimary variant="secondary" onClick={handleNewTask}>
               New Task
             </BtnPrimary>
             <BtnPrimary onClick={() => router.push("/log")}>
               View Tx Log
-              <span className="text-xs">→</span>
+              <span>→</span>
             </BtnPrimary>
           </div>
         )}
@@ -167,45 +173,35 @@ export default function TaskForm() {
             value={selectedCapId}
             onChange={(e) => { setSelectedCapId(e.target.value); setInput(""); }}
             disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
-            className="w-full bg-forest-deep/40 border border-forest-deep/60 px-4 py-3 font-mono text-xs text-off-white outline-none focus:border-accent/60 transition-colors disabled:opacity-50 cursor-pointer"
+            className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 font-mono text-sm text-mint outline-none focus:border-mint/40 transition-colors disabled:opacity-50 cursor-pointer"
           >
             {counterpartCard.capabilities.map((cap) => (
               <option key={cap.id} value={cap.id}>
-                {cap.id} — {cap.pricing.amount} {cap.pricing.token}
+                {cap.description} — {cap.pricing.amount} {cap.pricing.token}
               </option>
             ))}
           </select>
           {selectedCap && (
-            <p className="font-mono text-[10px] text-muted mt-1">
+            <p className="font-mono text-xs text-muted mt-1">
               {selectedCap.description}
             </p>
           )}
         </div>
 
         <div>
-          <MonoLabel className="mb-2">Task Input</MonoLabel>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
-            placeholder="Describe the task for the agent..."
-            rows={3}
-            className="w-full bg-forest-deep/40 border border-forest-deep/60 px-4 py-3 font-mono text-xs text-off-white placeholder-muted/50 outline-none focus:border-accent/60 transition-colors resize-none disabled:opacity-50"
-          />
-
-          {/* Presets */}
+          {/* Presets ABOVE textarea — more visible */}
           {presets.length > 0 && !isRunning && taskState !== "COMPLETED" && taskState !== "FAILED" && (
-            <div className="mt-2">
-              <MonoLabel className="mb-1.5">Suggestions</MonoLabel>
-              <div className="flex flex-wrap gap-1.5">
+            <div className="mb-3">
+              <MonoLabel className="mb-2">Quick Start — click to use</MonoLabel>
+              <div className="flex flex-col gap-1.5">
                 {presets.map((preset) => (
                   <button
                     key={preset}
                     onClick={() => setInput(preset)}
-                    className={`font-mono text-[9px] px-2.5 py-1.5 border transition-colors ${
+                    className={`text-left font-mono text-xs px-4 py-2.5 border transition-all duration-200 ${
                       input === preset
-                        ? "border-accent/40 text-accent bg-accent/10"
-                        : "border-forest-deep/60 text-muted hover:text-off-white hover:border-forest-mid"
+                        ? "border-mint/40 text-mint bg-mint/5"
+                        : "border-forest-deep/40 text-body hover:text-mint hover:border-mint/20 hover:bg-forest-deep/30"
                     }`}
                   >
                     {preset}
@@ -214,6 +210,16 @@ export default function TaskForm() {
               </div>
             </div>
           )}
+
+          <MonoLabel className="mb-2">Or type your own</MonoLabel>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
+            placeholder={selectedCap ? `e.g. "${presets[0] ?? `Use ${selectedCap.id} to...`}"` : "Describe the task..."}
+            rows={2}
+            className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 font-mono text-sm text-mint placeholder-muted/40 outline-none focus:border-mint/40 transition-colors resize-none disabled:opacity-50"
+          />
         </div>
 
         <div className="flex items-center justify-between">
