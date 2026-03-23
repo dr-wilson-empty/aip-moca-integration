@@ -93,8 +93,20 @@ export default function TaskTable() {
 
         {/* Rows */}
         {filtered.length === 0 && (
-          <div className="px-4 py-8 text-center font-mono text-xs text-muted">
-            {tasks.length === 0 ? "No tasks yet." : "No tasks match the current filter."}
+          <div className="px-4 py-12 flex flex-col items-center gap-3 text-center">
+            <div className="w-10 h-10 border border-mint/20 rounded-full flex items-center justify-center">
+              <span className="text-mint text-sm">⬡</span>
+            </div>
+            {tasks.length === 0 ? (
+              <>
+                <p className="font-mono text-sm text-mint">No tasks yet</p>
+                <p className="font-mono text-xs text-muted">
+                  Start a task from the Dashboard to see it here.
+                </p>
+              </>
+            ) : (
+              <p className="font-mono text-sm text-muted">No tasks match the current filter.</p>
+            )}
           </div>
         )}
         {filtered.map((task) => (
@@ -106,7 +118,7 @@ export default function TaskTable() {
             <span className="font-mono text-[10px] text-off-white">{task.counterpartAgent}</span>
             <span className="font-mono text-[10px] text-muted">{task.capability}</span>
             <span className="font-mono text-[10px] text-muted">
-              {new Date(task.startedAt).toLocaleTimeString()}
+              {new Date(task.startedAt).toTimeString().slice(0, 8)}
             </span>
             <span className="font-mono text-[10px] text-body">{task.duration}</span>
             <StateBadge state={task.state} />

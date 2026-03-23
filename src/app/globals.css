@@ -11,8 +11,8 @@
 }
 
 body {
-  background-color: #0d1a14;
-  color: #e0e7e3;
+  background-color: #010001;
+  color: #E7FFEF;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
@@ -51,7 +51,7 @@ body {
   height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d1a14;
+  background: #010001;
 }
 ::-webkit-scrollbar-thumb {
   background: #2d5a41;
@@ -59,14 +59,14 @@ body {
 
 /* Wallet adapter modal — AIP theme override */
 .wallet-adapter-modal-wrapper {
-  background: #0d1a14 !important;
+  background: #010001 !important;
   border: 1px solid #2d5a41 !important;
   border-radius: 0 !important;
   font-family: 'Space Mono', monospace !important;
 }
 
 .wallet-adapter-modal-title {
-  color: #e0e7e3 !important;
+  color: #E7FFEF !important;
   font-family: 'Space Mono', monospace !important;
   font-size: 12px !important;
   text-transform: uppercase !important;
@@ -79,7 +79,7 @@ body {
 
 .wallet-adapter-modal-list .wallet-adapter-button {
   background: transparent !important;
-  color: #e0e7e3 !important;
+  color: #E7FFEF !important;
   font-family: 'Space Mono', monospace !important;
   font-size: 11px !important;
   text-transform: uppercase !important;
@@ -100,6 +100,6 @@ body {
 }
 
 .wallet-adapter-modal-overlay {
-  background: rgba(13, 26, 20, 0.85) !important;
+  background: rgba(1, 0, 1, 0.85) !important;
   backdrop-filter: blur(4px) !important;
 }

@@ -54,11 +54,11 @@ export function runMockSSE(
   const settlementTx = randomTxHash();
 
   const nodes: ProtocolNode[] = [
-    { id: "did_verify", label: "DID Verify", state: "idle" },
-    { id: "escrow_lock", label: "Escrow Lock", state: "idle" },
-    { id: "task_sent", label: "Task Sent", state: "idle" },
-    { id: "executing", label: "Executing", state: "idle" },
-    { id: "settlement", label: "Settlement", state: "idle" },
+    { id: "did_verify", label: "Verify Identity", state: "idle" },
+    { id: "escrow_lock", label: "Lock Payment", state: "idle" },
+    { id: "task_sent", label: "Send Request", state: "idle" },
+    { id: "executing", label: "Processing", state: "idle" },
+    { id: "settlement", label: "Complete", state: "idle" },
   ];
 
   let logId = 0;
@@ -72,44 +72,44 @@ export function runMockSSE(
     () => {
       nodes[0] = { ...nodes[0], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "DID_VERIFY", message: `Verifying ${params.agentName} DID: ${params.agentDid.slice(0, 24)}...` });
+      emit({ eventType: "IDENTITY", message: `Verifying ${params.agentName} identity...` });
     },
     () => {
       nodes[0] = { ...nodes[0], state: "done", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "DID_VERIFIED", message: `DID cryptographically verified in ${20 + Math.floor(Math.random() * 40)}ms` });
+      emit({ eventType: "IDENTITY", message: `Identity verified in ${20 + Math.floor(Math.random() * 40)}ms` });
       nodes[1] = { ...nodes[1], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "ESCROW_LOCK", message: `Locking ${params.usdcAmount} USDC in escrow on Solana...` });
+      emit({ eventType: "PAYMENT", message: `Locking ${params.usdcAmount} USDC in escrow...` });
     },
     () => {
       nodes[1] = { ...nodes[1], state: "done", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "ESCROW_LOCKED", message: `Escrow confirmed — tx: ${escrowTx.slice(0, 16)}...` });
+      emit({ eventType: "PAYMENT", message: `Payment locked — tx: ${escrowTx.slice(0, 16)}...` });
       nodes[2] = { ...nodes[2], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "TASK_SENT", message: `Dispatching TaskRequest [${params.capabilityId}] to ${params.agentName}...` });
+      emit({ eventType: "REQUEST", message: `Sending request to ${params.agentName}...` });
     },
     () => {
       nodes[2] = { ...nodes[2], state: "done", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "TASK_ACCEPTED", message: `${params.agentName} accepted task — status: WORKING` });
+      emit({ eventType: "REQUEST", message: `${params.agentName} accepted — working on it` });
       nodes[3] = { ...nodes[3], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "EXECUTING", message: `Agent is processing "${params.taskInput.slice(0, 40)}..."` });
+      emit({ eventType: "PROCESSING", message: `Agent is working on your request...` });
     },
     () => {
       nodes[3] = { ...nodes[3], state: "done", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "TASK_COMPLETED", message: "TaskCompleted received with artifact and attestation" });
+      emit({ eventType: "PROCESSING", message: "Task completed — result ready" });
       nodes[4] = { ...nodes[4], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "SETTLEMENT", message: "Verifying attestation on-chain..." });
+      emit({ eventType: "SETTLEMENT", message: "Verifying result and releasing payment..." });
     },
     () => {
       nodes[4] = { ...nodes[4], state: "done", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "PAYMENT_RELEASED", message: `${params.usdcAmount} USDC released to ${params.agentName} wallet — tx: ${settlementTx.slice(0, 16)}...` });
+      emit({ eventType: "COMPLETE", message: `${params.usdcAmount} USDC released to ${params.agentName}` });
       onComplete(
         defaultArtifact(params.capabilityId, params.taskInput),
         escrowTx,
@@ -150,11 +150,11 @@ export function runMockSSEFailed(
   const escrowTx = randomTxHash();
 
   const nodes: ProtocolNode[] = [
-    { id: "did_verify", label: "DID Verify", state: "idle" },
-    { id: "escrow_lock", label: "Escrow Lock", state: "idle" },
-    { id: "task_sent", label: "Task Sent", state: "idle" },
-    { id: "executing", label: "Executing", state: "idle" },
-    { id: "settlement", label: "Settlement", state: "idle" },
+    { id: "did_verify", label: "Verify Identity", state: "idle" },
+    { id: "escrow_lock", label: "Lock Payment", state: "idle" },
+    { id: "task_sent", label: "Send Request", state: "idle" },
+    { id: "executing", label: "Processing", state: "idle" },
+    { id: "settlement", label: "Complete", state: "idle" },
   ];
 
   let logId = 0;
@@ -167,50 +167,44 @@ export function runMockSSEFailed(
   const failReason = FAIL_REASONS[Math.floor(Math.random() * FAIL_REASONS.length)];
 
   const steps: Array<() => void> = [
-    // Step 1: DID Verify starts
     () => {
       nodes[0] = { ...nodes[0], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "DID_VERIFY", message: `Verifying ${params.agentName} DID: ${params.agentDid.slice(0, 24)}...` });
+      emit({ eventType: "IDENTITY", message: `Verifying ${params.agentName} identity...` });
     },
-    // Step 2: DID done → Escrow starts
     () => {
       nodes[0] = { ...nodes[0], state: "done", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "DID_VERIFIED", message: `DID cryptographically verified in ${20 + Math.floor(Math.random() * 40)}ms` });
+      emit({ eventType: "IDENTITY", message: `Identity verified in ${20 + Math.floor(Math.random() * 40)}ms` });
       nodes[1] = { ...nodes[1], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "ESCROW_LOCK", message: `Locking ${params.usdcAmount} USDC in escrow on Solana...` });
+      emit({ eventType: "PAYMENT", message: `Locking ${params.usdcAmount} USDC in escrow...` });
     },
-    // Step 3: Escrow done → Task sent
     () => {
       nodes[1] = { ...nodes[1], state: "done", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "ESCROW_LOCKED", message: `Escrow confirmed — tx: ${escrowTx.slice(0, 16)}...` });
+      emit({ eventType: "PAYMENT", message: `Payment locked — tx: ${escrowTx.slice(0, 16)}...` });
       nodes[2] = { ...nodes[2], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "TASK_SENT", message: `Dispatching TaskRequest [${params.capabilityId}] to ${params.agentName}...` });
+      emit({ eventType: "REQUEST", message: `Sending request to ${params.agentName}...` });
     },
-    // Step 4: Task accepted → Executing
     () => {
       nodes[2] = { ...nodes[2], state: "done", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "TASK_ACCEPTED", message: `${params.agentName} accepted task — status: WORKING` });
+      emit({ eventType: "REQUEST", message: `${params.agentName} accepted — working on it` });
       nodes[3] = { ...nodes[3], state: "active" };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "EXECUTING", message: `Agent is processing "${params.taskInput.slice(0, 40)}..."` });
+      emit({ eventType: "PROCESSING", message: `Agent is working on your request...` });
     },
-    // Step 5: FAILURE — Executing goes error
     () => {
       nodes[3] = { ...nodes[3], state: "error", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "TASK_FAILED", message: failReason });
+      emit({ eventType: "ERROR", message: failReason });
     },
-    // Step 6: Refund — Settlement node shows refund
     () => {
       nodes[4] = { ...nodes[4], state: "error", timestamp: now() };
       onNodeUpdate([...nodes]);
-      emit({ eventType: "ESCROW_REFUND", message: `${params.usdcAmount} USDC refunded to Agent A wallet — escrow released` });
+      emit({ eventType: "REFUND", message: `${params.usdcAmount} USDC refunded to your wallet` });
       onFail(escrowTx);
     },
   ];

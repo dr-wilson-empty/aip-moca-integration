@@ -18,11 +18,11 @@ interface ActiveTaskState {
 }
 
 const INITIAL_NODES: ProtocolNode[] = [
-  { id: "did_verify", label: "DID Verify", state: "idle" },
-  { id: "escrow_lock", label: "Escrow Lock", state: "idle" },
-  { id: "task_sent", label: "Task Sent", state: "idle" },
-  { id: "executing", label: "Executing", state: "idle" },
-  { id: "settlement", label: "Settlement", state: "idle" },
+  { id: "did_verify", label: "Verify Identity", state: "idle" },
+  { id: "escrow_lock", label: "Lock Payment", state: "idle" },
+  { id: "task_sent", label: "Send Request", state: "idle" },
+  { id: "executing", label: "Processing", state: "idle" },
+  { id: "settlement", label: "Complete", state: "idle" },
 ];
 
 export const useTaskStore = create<ActiveTaskState>()((set) => ({
