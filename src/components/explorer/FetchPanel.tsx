@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAgentStore } from "@/store/agentStore";
-import { COUNTERPART_AGENT_CARDS } from "@/lib/mock/agentCards";
 import type { AgentCard, AgentType } from "@/types/aip";
-
-const AGENTS = Object.entries(COUNTERPART_AGENT_CARDS);
 
 function TypeDot({ type }: { type: AgentType }) {
   const color = { LLM: "bg-blue-400", Task: "bg-accent", Execution: "bg-yellow-400" };
@@ -13,17 +10,41 @@ function TypeDot({ type }: { type: AgentType }) {
 }
 
 export default function FetchPanel() {
-  const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
-  const [loadingEp, setLoadingEp] = useState("");
+  const [agents, setAgents] = useState<AgentCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchingEp, setFetchingEp] = useState("");
   const { counterpartCard, setCounterpart } = useAgentStore();
 
+  // API'den agent listesini cek
+  useEffect(() => {
+    fetch("/api/agent-card?list=true")
+      .then((res) => res.json())
+      .then((data) => setAgents(data.agents ?? []))
+      .catch((err) => console.error("[FetchPanel]", err))
+      .finally(() => setLoading(false));
+  }, []);
+
   const doFetch = async (endpoint: string, card: AgentCard) => {
-    setLoadingEp(endpoint);
-    setStatus("loading");
-    await new Promise((r) => setTimeout(r, 600));
-    setCounterpart(card);
-    setStatus("success");
+    setFetchingEp(endpoint);
+    try {
+      const res = await fetch(`/api/agent-card/fetch?url=${encodeURIComponent(endpoint)}`);
+      const data = await res.json();
+      if (data.card) {
+        setCounterpart(data.card);
+      }
+    } catch (err) {
+      console.error("[FetchPanel] fetch error:", err);
+    }
+    setFetchingEp("");
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        <span className="font-mono text-xs text-muted uppercase">Loading agents...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -31,9 +52,10 @@ export default function FetchPanel() {
         {counterpartCard ? "Switch Agent" : "Select an Agent"}
       </span>
       <div className="flex flex-col gap-2">
-        {AGENTS.map(([ep, card]) => {
+        {agents.map((card) => {
+          const ep = card.endpoint;
           const isSelected = counterpartCard?.endpoint === ep;
-          const isLoading = status === "loading" && loadingEp === ep;
+          const isLoading = fetchingEp === ep;
 
           return (
             <button

@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { Task } from "@/types/aip";
-import { MOCK_TASKS } from "@/lib/mock/tasks";
 
 interface LogState {
   tasks: Task[];
@@ -8,6 +7,6 @@ interface LogState {
 }
 
 export const useLogStore = create<LogState>()((set) => ({
-  tasks: MOCK_TASKS,
+  tasks: [],
   addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),
 }));

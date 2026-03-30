@@ -6,26 +6,27 @@ import { useAgentStore } from "@/store/agentStore";
 import { useTaskStore } from "@/store/taskStore";
 import { useLogStore } from "@/store/logStore";
 import { useWalletStore } from "@/store/walletStore";
-import { runMockSSE, runMockSSEFailed } from "@/lib/mock/sse";
+import { useTaskSSE } from "@/hooks/useTaskSSE";
 import { TASK_PRESETS } from "@/lib/mock/presets";
 import MonoLabel from "@/components/ui/MonoLabel";
 import BtnPrimary from "@/components/ui/BtnPrimary";
-import type { Task, LogEntry } from "@/types/aip";
+import type { Task } from "@/types/aip";
 
 export default function TaskForm() {
   const router = useRouter();
   const { counterpartCard } = useAgentStore();
-  const { isRunning, taskState, startTask, updateNodes, addLogEntry, completeTask, failTask, resetTask } = useTaskStore();
+  const { isRunning, taskState, log, artifact, escrowTxHash, settlementTxHash, startTask, resetTask } = useTaskStore();
   const { addTask } = useLogStore();
-  const { deductBalance, refundBalance } = useWalletStore();
+  const { did, address, fetchBalance } = useWalletStore();
 
   const [selectedCapId, setSelectedCapId] = useState(
     counterpartCard?.capabilities[0]?.id ?? ""
   );
   const [input, setInput] = useState("");
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
   const startTimeRef = useRef<string>("");
-  const logCollector = useRef<LogEntry[]>([]);
+  const taskAddedRef = useRef(false);
 
   const selectedCap = counterpartCard?.capabilities.find(
     (c) => c.id === selectedCapId
@@ -33,95 +34,72 @@ export default function TaskForm() {
 
   const presets = TASK_PRESETS[selectedCapId] ?? [];
 
-  const handleStart = () => {
-    if (!selectedCap || !input.trim() || isRunning || !counterpartCard) return;
+  // SSE hook — activeTaskId set edildiginde stream'e baglanir
+  useTaskSSE(activeTaskId);
+
+  // Task tamamlandiginda veya basarisiz oldugunda log'a ekle
+  if ((taskState === "COMPLETED" || taskState === "FAILED") && !taskAddedRef.current && activeTaskId) {
+    taskAddedRef.current = true;
+    const endTime = Date.now();
+    const startMs = new Date(startTimeRef.current).getTime();
+    const durationSec = ((endTime - startMs) / 1000).toFixed(1);
+
+    const task: Task = {
+      id: activeTaskId,
+      counterpartAgent: counterpartCard?.name ?? "",
+      capability: selectedCap?.description ?? "",
+      input: input.trim(),
+      startedAt: startTimeRef.current,
+      duration: `${durationSec}s`,
+      state: taskState,
+      usdcSpent: taskState === "COMPLETED" ? (selectedCap?.pricing.amount ?? "0.00") : "0.00",
+      artifact: artifact ?? undefined,
+      escrowTxHash: escrowTxHash ?? undefined,
+      settlementTxHash: settlementTxHash ?? undefined,
+      log: [...log],
+    };
+    addTask(task);
+
+    // Bakiyeyi yenile
+    if (address) fetchBalance(address);
+  }
+
+  const handleStart = async () => {
+    if (!selectedCap || !input.trim() || isRunning || !counterpartCard || !did || !address) return;
 
     startTimeRef.current = new Date().toISOString();
-    logCollector.current = [];
+    taskAddedRef.current = false;
     startTask();
 
-    deductBalance(selectedCap.pricing.amount);
+    try {
+      const res = await fetch("/api/task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentEndpoint: counterpartCard.endpoint,
+          capability: selectedCapId,
+          input: input.trim(),
+          amount: selectedCap.pricing.amount,
+          callerDid: did,
+          callerAddress: address,
+          escrowTxHash: `escrow_${Date.now()}`,
+        }),
+      });
 
-    const collectLog = (entry: LogEntry) => {
-      logCollector.current.push(entry);
-      addLogEntry(entry);
-    };
-
-    const sseParams = {
-      agentName: counterpartCard.name,
-      agentDid: counterpartCard.did,
-      capabilityId: selectedCapId,
-      usdcAmount: selectedCap.pricing.amount,
-      taskInput: input.trim(),
-    };
-
-    const willFail = Math.random() < 0.2;
-
-    if (willFail) {
-      runMockSSEFailed(
-        sseParams,
-        updateNodes,
-        collectLog,
-        (escrowTx) => {
-          failTask(escrowTx);
-          refundBalance(selectedCap.pricing.amount);
-
-          const endTime = Date.now();
-          const startMs = new Date(startTimeRef.current).getTime();
-          const durationSec = ((endTime - startMs) / 1000).toFixed(1);
-
-          const task: Task = {
-            id: `task_${Math.random().toString(36).slice(2, 10)}`,
-            counterpartAgent: counterpartCard.name,
-            capability: selectedCap.description,
-            input: input.trim(),
-            startedAt: startTimeRef.current,
-            duration: `${durationSec}s`,
-            state: "FAILED",
-            usdcSpent: "0.00",
-            escrowTxHash: escrowTx,
-            log: [...logCollector.current],
-          };
-
-          addTask(task);
-        }
-      );
-    } else {
-      runMockSSE(
-        sseParams,
-        updateNodes,
-        collectLog,
-        (artifact, escrowTx, settlementTx) => {
-          completeTask(artifact, escrowTx, settlementTx);
-
-          const endTime = Date.now();
-          const startMs = new Date(startTimeRef.current).getTime();
-          const durationSec = ((endTime - startMs) / 1000).toFixed(1);
-
-          const task: Task = {
-            id: `task_${Math.random().toString(36).slice(2, 10)}`,
-            counterpartAgent: counterpartCard.name,
-            capability: selectedCap.description,
-            input: input.trim(),
-            startedAt: startTimeRef.current,
-            duration: `${durationSec}s`,
-            state: "COMPLETED",
-            usdcSpent: selectedCap.pricing.amount,
-            artifact,
-            escrowTxHash: escrowTx,
-            settlementTxHash: settlementTx,
-            log: [...logCollector.current],
-          };
-
-          addTask(task);
-        }
-      );
+      const data = await res.json();
+      if (data.taskId) {
+        setActiveTaskId(data.taskId);
+      }
+    } catch (err) {
+      console.error("[TaskForm] Failed to start task:", err);
     }
   };
 
   const handleNewTask = () => {
     resetTask();
     setInput("");
+    setActiveTaskId(null);
+    taskAddedRef.current = false;
   };
 
   if (!counterpartCard) {
@@ -189,7 +167,6 @@ export default function TaskForm() {
         </div>
 
         <div>
-          {/* Presets ABOVE textarea — more visible */}
           {presets.length > 0 && !isRunning && taskState !== "COMPLETED" && taskState !== "FAILED" && (
             <div className="mb-3">
               <MonoLabel className="mb-2">Quick Start — click to use</MonoLabel>
