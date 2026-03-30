@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Nav from "@/components/ui/Nav";
 import WalletProvider from "@/components/connect/WalletProvider";
+import WalletSync from "@/components/connect/WalletSync";
 
 export const metadata: Metadata = {
   title: "AIP — Agent Internet Protocol",
@@ -18,6 +19,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-bg-base text-mint font-mono min-h-screen" suppressHydrationWarning>
         <WalletProvider>
+          <WalletSync />
           <Nav />
           <main className="pt-14">{children}</main>
         </WalletProvider>

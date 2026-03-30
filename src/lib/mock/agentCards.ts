@@ -32,6 +32,7 @@ export const COUNTERPART_AGENT_CARDS: Record<string, AgentCard> = {
     version: "1.2.0",
     endpoint: "https://alpha.agent-demo.dev/a2a",
     type: "Task",
+    walletAddress: "4LRAyGnJv2DwxiWVg6RDtYsfCjx2Ha3d3A19fsogCopG",
     capabilities: [
       {
         id: "text.summarize",
@@ -51,6 +52,7 @@ export const COUNTERPART_AGENT_CARDS: Record<string, AgentCard> = {
     version: "2.0.1",
     endpoint: "https://beta.agent-demo.dev/a2a",
     type: "Task",
+    walletAddress: "Auo6b8cQvuBJxcKUuhWuNSeE4Yzm4dPL93CjGES6NF1E",
     capabilities: [
       {
         id: "data.retrieve",
@@ -65,6 +67,7 @@ export const COUNTERPART_AGENT_CARDS: Record<string, AgentCard> = {
     version: "1.0.3",
     endpoint: "https://gamma.agent-demo.dev/a2a",
     type: "Execution",
+    walletAddress: "J53oVBJG87JNYok3cVyscgAMxhx5D8yfvGZ7hpGMeNXA",
     capabilities: [
       {
         id: "code.audit",

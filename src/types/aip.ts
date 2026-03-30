@@ -26,6 +26,7 @@ export interface AgentCard {
   endpoint: string;
   type: AgentType;
   capabilities: Capability[];
+  walletAddress?: string; // Solana wallet for receiving payments
 }
 
 export interface ProtocolNode {
