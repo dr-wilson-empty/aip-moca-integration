@@ -7,7 +7,7 @@ import { useTaskStore } from "@/store/taskStore";
 import { useLogStore } from "@/store/logStore";
 import { useWalletStore } from "@/store/walletStore";
 import { useTaskSSE } from "@/hooks/useTaskSSE";
-import { useEscrowTransaction } from "@/hooks/useEscrowTransaction";
+import { useX402Payment } from "@/hooks/useX402Payment";
 import { TASK_PRESETS } from "@/lib/mock/presets";
 import MonoLabel from "@/components/ui/MonoLabel";
 import BtnPrimary from "@/components/ui/BtnPrimary";
@@ -19,7 +19,7 @@ export default function TaskForm() {
   const { isRunning, taskState, log, artifact, escrowTxHash, settlementTxHash, startTask, resetTask } = useTaskStore();
   const { addTask } = useLogStore();
   const { did, address, fetchBalance } = useWalletStore();
-  const { lockEscrow, error: escrowError } = useEscrowTransaction();
+  const { submitTaskWithPayment, error: paymentError } = useX402Payment();
 
   const [selectedCapId, setSelectedCapId] = useState(
     counterpartCard?.capabilities[0]?.id ?? ""
@@ -79,33 +79,22 @@ export default function TaskForm() {
     startTask();
 
     try {
-      // Gercek Solana escrow transaction'i dene
-      let escrowTxHash = `mock_escrow_${Date.now()}`;
-      const escrowResult = await lockEscrow(selectedCap.pricing.amount);
-      if (escrowResult) {
-        escrowTxHash = escrowResult.txHash;
-      }
-      // Escrow basarisiz olsa bile demo akisi devam eder (mock hash ile)
-
-      const res = await fetch("/api/task", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentEndpoint: counterpartCard.endpoint,
-          capability: selectedCapId,
-          input: input.trim(),
-          amount: selectedCap.pricing.amount,
-          callerDid: did,
-          callerAddress: address,
-          escrowTxHash,
-        }),
+      // x402 Payment Flow:
+      // 1. POST /api/task (no payment) → 402 + requirements
+      // 2. Sign USDC tx with Phantom
+      // 3. POST /api/task + X-PAYMENT → verify + settle + start task
+      const result = await submitTaskWithPayment({
+        agentEndpoint: counterpartCard.endpoint,
+        capability: selectedCapId,
+        input: input.trim(),
+        amount: selectedCap.pricing.amount,
+        callerDid: did,
+        callerAddress: address,
       });
 
-      const data = await res.json();
-      if (data.taskId) {
-        setActiveTaskId(data.taskId);
+      if (result?.taskId) {
+        setActiveTaskId(result.taskId);
       } else {
-        console.error("[TaskForm] API error:", data);
         resetTask();
       }
     } catch (err) {
@@ -218,9 +207,9 @@ export default function TaskForm() {
           />
         </div>
 
-        {escrowError && (
-          <p className="font-mono text-[10px] text-yellow-400 border border-yellow-800/30 bg-yellow-900/10 px-3 py-2 rounded-md">
-            Escrow tx skipped (no Devnet USDC): using mock — {escrowError.slice(0, 60)}
+        {paymentError && (
+          <p className="font-mono text-[10px] text-red-400 border border-red-800/30 bg-red-900/10 px-3 py-2 rounded-md">
+            x402 Payment Failed: {paymentError.slice(0, 80)}
           </p>
         )}
 

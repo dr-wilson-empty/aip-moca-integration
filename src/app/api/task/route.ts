@@ -4,6 +4,14 @@ import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/e
 import { getCardByEndpoint } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { runDemoAgent } from "@/lib/protocol/demo-agent";
+import {
+  buildPaymentRequirements,
+  verifyPaymentPayload,
+  settlePayment,
+  encodeX402Header,
+  decodeX402Header,
+  type X402PaymentPayload,
+} from "@/lib/payment/x402";
 
 seedDemoAgents();
 
@@ -36,16 +44,16 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/task
- * Gorev baslat — tam protokol akisi:
- * 1. Karsi ajan card'ini dogrula
- * 2. Task kaydini olustur
- * 3. Escrow kaydini olustur
- * 4. Demo ajan akisini baslat (arka planda)
  *
- * Body: {
- *   agentEndpoint, capability, input, amount,
- *   callerDid, callerAddress, escrowTxHash
- * }
+ * x402 Protocol Flow:
+ *
+ * 1. Istek X-PAYMENT header'i OLMADAN gelirse → 402 Payment Required dondur
+ *    Response headers: X-PAYMENT-REQUIRED (base64 JSON)
+ *
+ * 2. Istek X-PAYMENT header'i ILE gelirse → odemeyi dogrula, settle et, gorevi baslat
+ *    Response headers: X-PAYMENT-RESPONSE (base64 JSON)
+ *
+ * Body: { agentEndpoint, capability, input, amount, callerDid, callerAddress }
  */
 export async function POST(request: NextRequest) {
   seedDemoAgents();
@@ -64,7 +72,6 @@ export async function POST(request: NextRequest) {
     amount,
     callerDid,
     callerAddress,
-    escrowTxHash,
   } = body as {
     agentEndpoint?: string;
     capability?: string;
@@ -72,12 +79,11 @@ export async function POST(request: NextRequest) {
     amount?: string;
     callerDid?: string;
     callerAddress?: string;
-    escrowTxHash?: string;
   };
 
-  if (!agentEndpoint || !capability || !input || !amount || !callerDid || !callerAddress || !escrowTxHash) {
+  if (!agentEndpoint || !capability || !input || !amount || !callerDid || !callerAddress) {
     return NextResponse.json(
-      { error: "Required: agentEndpoint, capability, input, amount, callerDid, callerAddress, escrowTxHash" },
+      { error: "Required: agentEndpoint, capability, input, amount, callerDid, callerAddress" },
       { status: 400 }
     );
   }
@@ -91,24 +97,90 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Task ID uret
+  // ---------------------------------------------------------------
+  // x402 STEP 1: X-PAYMENT header var mi kontrol et
+  // ---------------------------------------------------------------
+  const paymentHeader = request.headers.get("x-payment");
+
+  if (!paymentHeader) {
+    // Odeme yok → 402 Payment Required dondur
+    const requirements = buildPaymentRequirements(
+      amount,
+      "/api/task",
+      `Task: ${capability} via ${agentCard.name}`
+    );
+
+    return new NextResponse(
+      JSON.stringify({
+        error: "Payment Required",
+        message: `This task requires ${amount} USDC payment. Sign and resend with X-PAYMENT header.`,
+        requirements,
+      }),
+      {
+        status: 402,
+        headers: {
+          "Content-Type": "application/json",
+          "X-PAYMENT-REQUIRED": encodeX402Header(requirements),
+        },
+      }
+    );
+  }
+
+  // ---------------------------------------------------------------
+  // x402 STEP 2: Odemeyi dogrula
+  // ---------------------------------------------------------------
+  let paymentPayload: X402PaymentPayload;
+  try {
+    paymentPayload = decodeX402Header<X402PaymentPayload>(paymentHeader);
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid X-PAYMENT header: not valid base64 JSON" },
+      { status: 400 }
+    );
+  }
+
+  const requirements = buildPaymentRequirements(amount, "/api/task", `Task: ${capability}`);
+  const verifyResult = verifyPaymentPayload(paymentPayload, requirements);
+
+  if (!verifyResult.isValid) {
+    return NextResponse.json(
+      { error: `Payment verification failed: ${verifyResult.error}` },
+      { status: 402 }
+    );
+  }
+
+  // ---------------------------------------------------------------
+  // x402 STEP 3: Transaction'i blockchain'e gonder (settle)
+  // ---------------------------------------------------------------
+  const settleResult = await settlePayment(paymentPayload);
+
+  if (settleResult.status === "failed") {
+    return NextResponse.json(
+      { error: `Payment settlement failed: ${settleResult.error}` },
+      { status: 402 }
+    );
+  }
+
+  const escrowTxHash = settleResult.transaction;
+
+  // ---------------------------------------------------------------
+  // STEP 4: Gorev olustur ve baslat
+  // ---------------------------------------------------------------
   const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  // Task kaydini olustur
   const task = createTask({
     id: taskId,
     callerDid,
     callerAddress,
     agentDid: agentCard.did,
     agentName: agentCard.name,
-    agentAddress: agentCard.endpoint, // Faz 1: endpoint = adres
+    agentAddress: agentCard.endpoint,
     capability,
     input,
     amount,
     escrowTxHash,
   });
 
-  // Escrow kaydini olustur
   createEscrowRecord({
     taskId,
     amount,
@@ -133,15 +205,26 @@ export async function POST(request: NextRequest) {
           return null;
         }
       } catch {
-        // Escrow islemleri basarisiz olabilir (Devnet, SOL yetersiz, vb.)
-        // PoC'da hatayi logla ama akisi durdurma
         return null;
       }
     }
   );
 
-  return NextResponse.json(
-    { ok: true, taskId, task },
-    { status: 201 }
+  // x402 payment response header
+  const paymentResponse = {
+    transaction: escrowTxHash,
+    status: "settled",
+    network: requirements.accepts[0].network,
+  };
+
+  return new NextResponse(
+    JSON.stringify({ ok: true, taskId, task }),
+    {
+      status: 201,
+      headers: {
+        "Content-Type": "application/json",
+        "X-PAYMENT-RESPONSE": encodeX402Header(paymentResponse),
+      },
+    }
   );
 }
