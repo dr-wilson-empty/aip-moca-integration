@@ -157,11 +157,13 @@ export function completeTask(taskId: string, artifact: string, settlementTxHash?
   const task = getTask(taskId);
   if (!task) throw new Error(`Task not found: ${taskId}`);
   if (task.state !== "WORKING") throw new Error(`Cannot complete task in state: ${task.state}`);
-  task.state = "COMPLETED";
   task.artifact = artifact;
   if (settlementTxHash) task.settlementTxHash = settlementTxHash;
+  // Log entry'leri state degismeden once emit et — SSE stream acik kalsin
   addLog(task, "PROCESSING", "Task completed — result ready");
   addLog(task, "SETTLEMENT", "Verifying result and releasing payment...");
+  // State'i en son set et — SSE bu event'te "end" gonderir ve kapanir
+  task.state = "COMPLETED";
   addLog(task, "COMPLETE", `${task.amount} USDC released to ${task.agentName}`);
   return task;
 }
@@ -172,9 +174,10 @@ export function failTask(taskId: string, reason: string): TaskRecord {
   if (task.state !== "WORKING" && task.state !== "SUBMITTED") {
     throw new Error(`Cannot fail task in state: ${task.state}`);
   }
-  task.state = "FAILED";
   task.failReason = reason;
   addLog(task, "ERROR", reason);
+  // State'i en son set et
+  task.state = "FAILED";
   addLog(task, "REFUND", `${task.amount} USDC refunded to your wallet`);
   return task;
 }
