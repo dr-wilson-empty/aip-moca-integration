@@ -62,37 +62,29 @@ export function useX402Payment() {
 
       try {
         // ----------------------------------------------------------
-        // STEP 1: Odemesiz istek → 402 Payment Required
+        // STEP 1: Payment requirements al (/api/task/quote)
+        // 402 yerine quote endpoint kullaniyoruz — konsol temiz kalir
         // ----------------------------------------------------------
-        const initialRes = await fetch("/api/task", {
+        const quoteRes = await fetch("/api/task/quote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(taskBody),
+          body: JSON.stringify({
+            agentEndpoint: taskBody.agentEndpoint,
+            capability: taskBody.capability,
+            amount: taskBody.amount,
+          }),
         });
 
-        if (initialRes.status !== 402) {
-          // 402 degil — beklenmeyen durum
-          const data = await initialRes.json();
-          if (data.taskId) {
-            // Belki odeme gerekmedi (teorik)
-            return { taskId: data.taskId, escrowTxHash: "" };
-          }
-          throw new Error(data.error || `Unexpected status: ${initialRes.status}`);
+        if (!quoteRes.ok) {
+          const data = await quoteRes.json();
+          throw new Error(data.error || `Quote failed: HTTP ${quoteRes.status}`);
         }
 
-        // 402 header'indan requirements'i al
-        const requirementsHeader = initialRes.headers.get("x-payment-required");
-        if (!requirementsHeader) {
-          throw new Error("402 response missing X-PAYMENT-REQUIRED header");
-        }
-
-        const requirements: X402Requirements = JSON.parse(
-          atob(requirementsHeader)
-        );
-
+        const quoteData = await quoteRes.json();
+        const requirements: X402Requirements = quoteData.requirements;
         const accepted = requirements.accepts[0];
         if (!accepted) {
-          throw new Error("No payment requirements in 402 response");
+          throw new Error("No payment requirements returned");
         }
 
         // ----------------------------------------------------------

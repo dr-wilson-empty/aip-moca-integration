@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
     taskId,
     amount,
     from: callerAddress,
-    to: agentCard.endpoint,
+    to: agentCard.walletAddress ?? callerAddress, // Agent wallet for release, fallback to caller for refund
     escrowTxHash,
   });
 

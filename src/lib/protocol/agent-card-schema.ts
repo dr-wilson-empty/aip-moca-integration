@@ -38,5 +38,6 @@ export function validateAgentCard(data: unknown): AgentCard | null {
     endpoint: obj.endpoint,
     type: obj.type as AgentType,
     capabilities: obj.capabilities as Capability[],
+    ...(typeof obj.walletAddress === "string" && { walletAddress: obj.walletAddress }),
   };
 }
