@@ -40,7 +40,7 @@ export default function FetchPanel() {
               key={ep}
               onClick={() => doFetch(ep, card)}
               disabled={isLoading}
-              className={`text-left p-4 border transition-all duration-200 flex items-start gap-4 group ${
+              className={`text-left p-4 border rounded-lg transition-all duration-200 flex items-start gap-4 group ${
                 isSelected
                   ? "border-mint/40 bg-mint/5"
                   : "border-forest-deep/40 hover:border-mint/20 hover:bg-forest-deep/30"

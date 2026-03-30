@@ -126,7 +126,7 @@ export default function TaskForm() {
 
   if (!counterpartCard) {
     return (
-      <div className="border border-mint/20 bg-forest-deep/10 p-8 flex flex-col items-center gap-4 text-center">
+      <div className="border border-mint/20 bg-forest-deep/10 p-8 rounded-xl flex flex-col items-center gap-4 text-center">
         <div className="w-12 h-12 border border-mint/20 rounded-full flex items-center justify-center">
           <span className="text-mint text-lg">⬡</span>
         </div>
@@ -145,7 +145,7 @@ export default function TaskForm() {
   }
 
   return (
-    <div className="border border-mint/20 bg-forest-deep/10 p-6 flex flex-col gap-5">
+    <div className="border border-mint/20 bg-forest-deep/10 p-6 rounded-xl flex flex-col gap-5">
       <div className="border-b border-mint/20 pb-4 flex items-center justify-between">
         <div>
           <span className="font-mono text-xs text-accent uppercase">Task Configuration</span>
@@ -173,7 +173,7 @@ export default function TaskForm() {
             value={selectedCapId}
             onChange={(e) => { setSelectedCapId(e.target.value); setInput(""); }}
             disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
-            className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 font-mono text-sm text-mint outline-none focus:border-mint/40 transition-colors disabled:opacity-50 cursor-pointer"
+            className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 rounded-lg font-mono text-sm text-mint outline-none focus:border-mint/40 transition-colors disabled:opacity-50 cursor-pointer"
           >
             {counterpartCard.capabilities.map((cap) => (
               <option key={cap.id} value={cap.id}>
@@ -198,7 +198,7 @@ export default function TaskForm() {
                   <button
                     key={preset}
                     onClick={() => setInput(preset)}
-                    className={`text-left font-mono text-xs px-4 py-2.5 border transition-all duration-200 ${
+                    className={`text-left font-mono text-xs px-4 py-2.5 border rounded-md transition-all duration-200 ${
                       input === preset
                         ? "border-mint/40 text-mint bg-mint/5"
                         : "border-forest-deep/40 text-body hover:text-mint hover:border-mint/20 hover:bg-forest-deep/30"
@@ -218,7 +218,7 @@ export default function TaskForm() {
             disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
             placeholder={selectedCap ? `e.g. "${presets[0] ?? `Use ${selectedCap.id} to...`}"` : "Describe the task..."}
             rows={2}
-            className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 font-mono text-sm text-mint placeholder-muted/40 outline-none focus:border-mint/40 transition-colors resize-none disabled:opacity-50"
+            className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 rounded-lg font-mono text-sm text-mint placeholder-muted/40 outline-none focus:border-mint/40 transition-colors resize-none disabled:opacity-50"
           />
         </div>
 

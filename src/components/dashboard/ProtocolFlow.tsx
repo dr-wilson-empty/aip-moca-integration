@@ -36,7 +36,7 @@ export default function ProtocolFlow() {
   const { nodes } = useTaskStore();
 
   return (
-    <div className="border border-forest-deep/60 bg-forest-deep/20 p-6">
+    <div className="border border-forest-deep/60 bg-forest-deep/20 p-6 rounded-xl">
       <MonoLabel className="text-accent mb-5">Protocol Flow</MonoLabel>
       <div className="flex items-center gap-0">
         {nodes.map((node, i) => (

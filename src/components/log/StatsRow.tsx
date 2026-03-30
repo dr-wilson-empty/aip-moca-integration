@@ -38,7 +38,7 @@ export default function StatsRow() {
         {stats.map((s) => (
           <div
             key={s.label}
-            className="border border-forest-deep/60 bg-forest-deep/20 p-4 flex flex-col gap-2"
+            className="border border-forest-deep/60 bg-forest-deep/20 p-4 rounded-lg flex flex-col gap-2"
           >
             <span className="font-mono text-[9px] text-muted uppercase tracking-wider">
               {s.label}
@@ -52,7 +52,7 @@ export default function StatsRow() {
 
       {/* Mini activity bar chart */}
       {recentTasks.length > 0 && (
-        <div className="border border-forest-deep/60 bg-forest-deep/20 p-4">
+        <div className="border border-forest-deep/60 bg-forest-deep/20 p-4 rounded-lg">
           <span className="font-mono text-[9px] text-muted uppercase tracking-wider block mb-3">
             Recent Activity
           </span>
@@ -72,7 +72,7 @@ export default function StatsRow() {
                   className="flex-1 flex flex-col items-center gap-1"
                 >
                   <div
-                    className={`w-full ${color} opacity-40 hover:opacity-100 transition-opacity cursor-pointer`}
+                    className={`w-full ${color} opacity-40 hover:opacity-100 transition-opacity cursor-pointer rounded-sm`}
                     style={{ height: `${heightPct}%`, minHeight: "4px" }}
                     title={`${task.counterpartAgent} — ${task.capability} — ${task.duration}`}
                   />

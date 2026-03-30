@@ -26,12 +26,12 @@ export default function LiveLog() {
   };
 
   return (
-    <div className="border border-forest-deep/60 bg-forest-deep/20 p-6 flex flex-col gap-4">
+    <div className="border border-forest-deep/60 bg-forest-deep/20 p-6 rounded-xl flex flex-col gap-4">
       <MonoLabel className="text-accent">Live Log</MonoLabel>
 
       {/* Artifact — only on success */}
       {artifact && taskState === "COMPLETED" && (
-        <div className="border border-accent/30 bg-accent/5 p-4">
+        <div className="border border-accent/30 bg-accent/5 p-4 rounded-lg">
           <MonoLabel className="text-accent mb-2">Task Artifact</MonoLabel>
           <p className="font-mono text-xs text-off-white leading-relaxed">
             {artifact}
@@ -63,7 +63,7 @@ export default function LiveLog() {
 
       {/* Failure box */}
       {taskState === "FAILED" && (
-        <div className="border border-red-800/40 bg-red-900/10 p-4">
+        <div className="border border-red-800/40 bg-red-900/10 p-4 rounded-lg">
           <MonoLabel className="text-red-400 mb-2">Task Failed</MonoLabel>
           <p className="font-mono text-xs text-red-300 leading-relaxed">
             Execution error occurred. Funds have been refunded to your wallet.

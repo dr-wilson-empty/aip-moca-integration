@@ -17,7 +17,7 @@ export default function AgentCompare({ myCard, counterpartCard }: Props) {
   const onlyTheirs = counterpartCard.capabilities.filter((c) => !myCapIds.has(c.id));
 
   return (
-    <div className="border border-mint/20 bg-forest-deep/10 px-6 py-5">
+    <div className="border border-mint/20 bg-forest-deep/10 px-6 py-5 rounded-xl">
       <div className="flex items-center justify-between mb-4">
         <MonoLabel className="!mb-0">Capability Overlap</MonoLabel>
         <span className="font-mono text-xs text-accent">{shared.length} shared</span>
@@ -27,7 +27,7 @@ export default function AgentCompare({ myCard, counterpartCard }: Props) {
         {shared.map((cap) => (
           <span
             key={cap.id}
-            className="font-mono text-xs px-3 py-1.5 border border-accent/30 text-accent bg-accent/5"
+            className="font-mono text-xs px-3 py-1.5 border border-accent/30 text-accent bg-accent/5 rounded-md"
           >
             {cap.description}
           </span>
@@ -35,7 +35,7 @@ export default function AgentCompare({ myCard, counterpartCard }: Props) {
         {onlyMine.map((cap) => (
           <span
             key={cap.id}
-            className="font-mono text-xs px-3 py-1.5 border border-mint/20 text-muted"
+            className="font-mono text-xs px-3 py-1.5 border border-mint/20 text-muted rounded-md"
             title={`Only ${myCard.name}`}
           >
             {cap.description}
@@ -45,7 +45,7 @@ export default function AgentCompare({ myCard, counterpartCard }: Props) {
         {onlyTheirs.map((cap) => (
           <span
             key={cap.id}
-            className="font-mono text-xs px-3 py-1.5 border border-blue-800/30 text-blue-400/70"
+            className="font-mono text-xs px-3 py-1.5 border border-blue-800/30 text-blue-400/70 rounded-md"
             title={`Only ${counterpartCard.name}`}
           >
             {cap.description}

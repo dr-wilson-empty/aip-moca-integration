@@ -17,7 +17,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl border border-forest-mid bg-bg-base p-8 flex flex-col gap-6 max-h-[80vh] overflow-y-auto"
+        className="w-full max-w-2xl border border-forest-mid bg-bg-base p-8 rounded-2xl flex flex-col gap-6 max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -58,7 +58,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
 
         {/* Artifact */}
         {task.artifact && (
-          <div className="border border-accent/30 bg-accent/5 p-4">
+          <div className="border border-accent/30 bg-accent/5 p-4 rounded-lg">
             <MonoLabel className="mb-2 text-accent">Artifact</MonoLabel>
             <p className="font-mono text-xs text-off-white leading-relaxed">{task.artifact}</p>
           </div>
