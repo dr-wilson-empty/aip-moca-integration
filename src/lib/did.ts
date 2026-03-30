@@ -2,7 +2,6 @@ import { generateDIDFromPublicKey } from "@/lib/identity/did";
 
 /**
  * Solana public key'den gercek W3C DID uretir.
- * Eski sahte implementasyon yerine gercek kriptografik DID.
  */
 export function generateDID(pubkey: string): string {
   return generateDIDFromPublicKey(pubkey);
