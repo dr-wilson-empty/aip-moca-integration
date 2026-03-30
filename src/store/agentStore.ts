@@ -7,6 +7,7 @@ interface AgentState {
   counterpartCard: AgentCard | null;
   counterpartVerified: boolean;
   setAgentName: (name: string) => void;
+  updateMyDid: (did: string) => void;
   setCounterpart: (card: AgentCard) => void;
   clearCounterpart: () => void;
 }
@@ -17,6 +18,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
   counterpartVerified: false,
   setAgentName: (name) =>
     set((s) => ({ myCard: { ...s.myCard, name } })),
+  updateMyDid: (did) =>
+    set((s) => ({ myCard: { ...s.myCard, did } })),
   setCounterpart: (card) => set({ counterpartCard: card, counterpartVerified: true }),
   clearCounterpart: () => set({ counterpartCard: null, counterpartVerified: false }),
 }));

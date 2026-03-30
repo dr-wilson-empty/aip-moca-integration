@@ -7,6 +7,7 @@ import { useTaskStore } from "@/store/taskStore";
 import { useLogStore } from "@/store/logStore";
 import { useWalletStore } from "@/store/walletStore";
 import { useTaskSSE } from "@/hooks/useTaskSSE";
+import { useEscrowTransaction } from "@/hooks/useEscrowTransaction";
 import { TASK_PRESETS } from "@/lib/mock/presets";
 import MonoLabel from "@/components/ui/MonoLabel";
 import BtnPrimary from "@/components/ui/BtnPrimary";
@@ -18,6 +19,7 @@ export default function TaskForm() {
   const { isRunning, taskState, log, artifact, escrowTxHash, settlementTxHash, startTask, resetTask } = useTaskStore();
   const { addTask } = useLogStore();
   const { did, address, fetchBalance } = useWalletStore();
+  const { lockEscrow, error: escrowError } = useEscrowTransaction();
 
   const [selectedCapId, setSelectedCapId] = useState(
     counterpartCard?.capabilities[0]?.id ?? ""
@@ -77,6 +79,14 @@ export default function TaskForm() {
     startTask();
 
     try {
+      // Gercek Solana escrow transaction'i dene
+      let escrowTxHash = `mock_escrow_${Date.now()}`;
+      const escrowResult = await lockEscrow(selectedCap.pricing.amount);
+      if (escrowResult) {
+        escrowTxHash = escrowResult.txHash;
+      }
+      // Escrow basarisiz olsa bile demo akisi devam eder (mock hash ile)
+
       const res = await fetch("/api/task", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,7 +97,7 @@ export default function TaskForm() {
           amount: selectedCap.pricing.amount,
           callerDid: did,
           callerAddress: address,
-          escrowTxHash: `escrow_${Date.now()}`,
+          escrowTxHash,
         }),
       });
 
@@ -207,6 +217,12 @@ export default function TaskForm() {
             className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 rounded-lg font-mono text-sm text-mint placeholder-muted/40 outline-none focus:border-mint/40 transition-colors resize-none disabled:opacity-50"
           />
         </div>
+
+        {escrowError && (
+          <p className="font-mono text-[10px] text-yellow-400 border border-yellow-800/30 bg-yellow-900/10 px-3 py-2 rounded-md">
+            Escrow tx skipped (no Devnet USDC): using mock — {escrowError.slice(0, 60)}
+          </p>
+        )}
 
         <div className="flex items-center justify-between">
           <div>
