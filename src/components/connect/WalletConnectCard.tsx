@@ -1,45 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
 import { useAgentStore } from "@/store/agentStore";
-import { generateDID, shortenAddress } from "@/lib/did";
+import { shortenAddress } from "@/lib/did";
 import BtnPrimary from "@/components/ui/BtnPrimary";
 
 export default function WalletConnectCard() {
-  const [mounted, setMounted] = useState(false);
-  const { publicKey, disconnect, connected } = useWallet();
+  const { disconnect } = useWallet();
   const { setVisible } = useWalletModal();
-  const { address, did, usdcBalance, balanceLoading, setWallet, clearWallet, fetchBalance } = useWalletStore();
+  const { address, did, usdcBalance, balanceLoading, clearWallet } = useWalletStore();
   const { myCard, setAgentName } = useAgentStore();
   const router = useRouter();
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(myCard.name);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    if (connected && publicKey) {
-      try {
-        const addr = publicKey.toBase58();
-        const generatedDid = generateDID(addr);
-        setWallet(addr, generatedDid);
-        fetchBalance(addr).catch(() => {});
-      } catch (err) {
-        console.error("[Wallet] DID generation error:", err);
-        // DID uretimi basarisiz olsa bile adresi set et
-        const addr = publicKey.toBase58();
-        setWallet(addr, `did:key:error`);
-      }
-    } else if (!connected) {
-      clearWallet();
-    }
-  }, [mounted, connected, publicKey, setWallet, clearWallet, fetchBalance]);
 
   const handleNameSave = () => {
     const trimmed = nameInput.trim();
@@ -61,18 +39,7 @@ export default function WalletConnectCard() {
           </p>
         </div>
 
-        {!mounted ? (
-          <div className="flex flex-col gap-6">
-            <p className="font-mono text-sm text-body leading-relaxed">
-              Connect your wallet to activate your Digital Twin
-              and enter the agent economy.
-            </p>
-            <BtnPrimary disabled>
-              <span className="text-lg">◎</span>
-              Connect Wallet
-            </BtnPrimary>
-          </div>
-        ) : !address ? (
+        {!address ? (
           <div className="flex flex-col gap-6">
             <p className="font-mono text-sm text-body leading-relaxed">
               Every user gets an AI Digital Twin — an autonomous agent that
