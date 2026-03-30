@@ -1,7 +1,8 @@
 import { COUNTERPART_AGENT_CARDS } from "@/lib/mock/agentCards";
 import { registerCard, listCards } from "./agent-card-store";
 
-let seeded = false;
+const gs = globalThis as typeof globalThis & { __aip_seeded?: boolean };
+let seeded = gs.__aip_seeded ?? false;
 
 /**
  * Demo ajanlarini in-memory store'a kaydet.
@@ -10,6 +11,7 @@ let seeded = false;
 export function seedDemoAgents(): void {
   if (seeded) return;
   seeded = true;
+  gs.__aip_seeded = true;
 
   for (const card of Object.values(COUNTERPART_AGENT_CARDS)) {
     registerCard(card);

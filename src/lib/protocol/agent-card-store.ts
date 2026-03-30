@@ -1,11 +1,17 @@
 import type { AgentCard } from "@/types/aip";
 
 /**
- * In-memory Agent Card deposu.
- * Faz 1 icin yeterli — ileri fazlarda veritabanina tasinabilir.
+ * In-memory Agent Card deposu (globalThis ile HMR-safe).
  */
-const cardsByDid = new Map<string, AgentCard>();
-const cardsByEndpoint = new Map<string, AgentCard>();
+const g = globalThis as typeof globalThis & {
+  __aip_cards_did?: Map<string, AgentCard>;
+  __aip_cards_ep?: Map<string, AgentCard>;
+};
+if (!g.__aip_cards_did) g.__aip_cards_did = new Map();
+if (!g.__aip_cards_ep) g.__aip_cards_ep = new Map();
+
+const cardsByDid = g.__aip_cards_did;
+const cardsByEndpoint = g.__aip_cards_ep;
 
 export function registerCard(card: AgentCard): void {
   cardsByDid.set(card.did, card);

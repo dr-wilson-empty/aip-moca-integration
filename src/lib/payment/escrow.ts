@@ -55,7 +55,11 @@ export interface EscrowRecord {
   updatedAt: string;
 }
 
-const escrows = new Map<string, EscrowRecord>();
+const ge = globalThis as typeof globalThis & {
+  __aip_escrows?: Map<string, EscrowRecord>;
+};
+if (!ge.__aip_escrows) ge.__aip_escrows = new Map();
+const escrows = ge.__aip_escrows;
 
 export function createEscrowRecord(params: {
   taskId: string;

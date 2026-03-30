@@ -25,17 +25,24 @@ export interface TaskRecord {
 }
 
 /* ------------------------------------------------------------------ */
-/*  In-memory store                                                    */
+/*  In-memory store (globalThis ile HMR-safe)                          */
 /* ------------------------------------------------------------------ */
 
-const tasks = new Map<string, TaskRecord>();
+const g = globalThis as typeof globalThis & {
+  __aip_tasks?: Map<string, TaskRecord>;
+  __aip_task_listeners?: Map<string, TaskEventListener[]>;
+};
+if (!g.__aip_tasks) g.__aip_tasks = new Map();
+if (!g.__aip_task_listeners) g.__aip_task_listeners = new Map();
+
+const tasks = g.__aip_tasks;
 
 /* ------------------------------------------------------------------ */
 /*  Event listener                                                     */
 /* ------------------------------------------------------------------ */
 
 type TaskEventListener = (taskId: string, entry: LogEntry, task: TaskRecord) => void;
-const listeners = new Map<string, TaskEventListener[]>();
+const listeners = g.__aip_task_listeners;
 
 export function onTaskEvent(taskId: string, listener: TaskEventListener): () => void {
   const existing = listeners.get(taskId) ?? [];
