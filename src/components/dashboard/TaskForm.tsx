@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAgentStore } from "@/store/agentStore";
 import { useTaskStore } from "@/store/taskStore";
@@ -37,32 +37,34 @@ export default function TaskForm() {
   // SSE hook — activeTaskId set edildiginde stream'e baglanir
   useTaskSSE(activeTaskId);
 
-  // Task tamamlandiginda veya basarisiz oldugunda log'a ekle
-  if ((taskState === "COMPLETED" || taskState === "FAILED") && !taskAddedRef.current && activeTaskId) {
-    taskAddedRef.current = true;
-    const endTime = Date.now();
-    const startMs = new Date(startTimeRef.current).getTime();
-    const durationSec = ((endTime - startMs) / 1000).toFixed(1);
+  // Task tamamlandiginda veya basarisiz oldugunda log'a ekle (useEffect icinde)
+  useEffect(() => {
+    if ((taskState === "COMPLETED" || taskState === "FAILED") && !taskAddedRef.current && activeTaskId) {
+      taskAddedRef.current = true;
+      const endTime = Date.now();
+      const startMs = new Date(startTimeRef.current).getTime();
+      const durationSec = ((endTime - startMs) / 1000).toFixed(1);
 
-    const task: Task = {
-      id: activeTaskId,
-      counterpartAgent: counterpartCard?.name ?? "",
-      capability: selectedCap?.description ?? "",
-      input: input.trim(),
-      startedAt: startTimeRef.current,
-      duration: `${durationSec}s`,
-      state: taskState,
-      usdcSpent: taskState === "COMPLETED" ? (selectedCap?.pricing.amount ?? "0.00") : "0.00",
-      artifact: artifact ?? undefined,
-      escrowTxHash: escrowTxHash ?? undefined,
-      settlementTxHash: settlementTxHash ?? undefined,
-      log: [...log],
-    };
-    addTask(task);
+      const task: Task = {
+        id: activeTaskId,
+        counterpartAgent: counterpartCard?.name ?? "",
+        capability: selectedCap?.description ?? "",
+        input: input.trim(),
+        startedAt: startTimeRef.current,
+        duration: `${durationSec}s`,
+        state: taskState,
+        usdcSpent: taskState === "COMPLETED" ? (selectedCap?.pricing.amount ?? "0.00") : "0.00",
+        artifact: artifact ?? undefined,
+        escrowTxHash: escrowTxHash ?? undefined,
+        settlementTxHash: settlementTxHash ?? undefined,
+        log: [...log],
+      };
+      addTask(task);
 
-    // Bakiyeyi yenile
-    if (address) fetchBalance(address);
-  }
+      if (address) fetchBalance(address);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskState]);
 
   const handleStart = async () => {
     if (!selectedCap || !input.trim() || isRunning || !counterpartCard || !did || !address) return;
