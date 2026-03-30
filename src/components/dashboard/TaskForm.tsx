@@ -69,10 +69,7 @@ export default function TaskForm() {
   }, [taskState]);
 
   const handleStart = async () => {
-    if (!selectedCap || !input.trim() || isRunning || !counterpartCard || !did || !address) {
-      console.warn("[TaskForm] Guard failed:", { selectedCap: !!selectedCap, input: !!input.trim(), isRunning, counterpartCard: !!counterpartCard, did: !!did, address: !!address });
-      return;
-    }
+    if (!selectedCap || !input.trim() || isRunning || !counterpartCard || !did || !address) return;
 
     startTimeRef.current = new Date().toISOString();
     taskAddedRef.current = false;

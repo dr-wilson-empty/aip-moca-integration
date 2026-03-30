@@ -17,5 +17,5 @@ export function seedDemoAgents(): void {
     registerCard(card);
   }
 
-  console.log(`[Seed] ${listCards().length} demo agent registered`);
+  // Seed tamamlandi
 }
