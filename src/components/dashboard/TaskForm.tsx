@@ -67,7 +67,10 @@ export default function TaskForm() {
   }, [taskState]);
 
   const handleStart = async () => {
-    if (!selectedCap || !input.trim() || isRunning || !counterpartCard || !did || !address) return;
+    if (!selectedCap || !input.trim() || isRunning || !counterpartCard || !did || !address) {
+      console.warn("[TaskForm] Guard failed:", { selectedCap: !!selectedCap, input: !!input.trim(), isRunning, counterpartCard: !!counterpartCard, did: !!did, address: !!address });
+      return;
+    }
 
     startTimeRef.current = new Date().toISOString();
     taskAddedRef.current = false;
@@ -91,9 +94,13 @@ export default function TaskForm() {
       const data = await res.json();
       if (data.taskId) {
         setActiveTaskId(data.taskId);
+      } else {
+        console.error("[TaskForm] API error:", data);
+        resetTask();
       }
     } catch (err) {
       console.error("[TaskForm] Failed to start task:", err);
+      resetTask();
     }
   };
 
