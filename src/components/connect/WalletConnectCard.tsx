@@ -11,7 +11,7 @@ import BtnPrimary from "@/components/ui/BtnPrimary";
 
 export default function WalletConnectCard() {
   const [mounted, setMounted] = useState(false);
-  const { publicKey, disconnect, connected, connecting } = useWallet();
+  const { publicKey, disconnect, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const { address, did, usdcBalance, balanceLoading, setWallet, clearWallet, fetchBalance } = useWalletStore();
   const { myCard, setAgentName } = useAgentStore();
@@ -25,9 +25,17 @@ export default function WalletConnectCard() {
   useEffect(() => {
     if (!mounted) return;
     if (connected && publicKey) {
-      const addr = publicKey.toBase58();
-      setWallet(addr, generateDID(addr));
-      fetchBalance(addr);
+      try {
+        const addr = publicKey.toBase58();
+        const generatedDid = generateDID(addr);
+        setWallet(addr, generatedDid);
+        fetchBalance(addr).catch(() => {});
+      } catch (err) {
+        console.error("[Wallet] DID generation error:", err);
+        // DID uretimi basarisiz olsa bile adresi set et
+        const addr = publicKey.toBase58();
+        setWallet(addr, `did:key:error`);
+      }
     } else if (!connected) {
       clearWallet();
     }
@@ -65,7 +73,6 @@ export default function WalletConnectCard() {
             </BtnPrimary>
           </div>
         ) : !address ? (
-          /* Not connected */
           <div className="flex flex-col gap-6">
             <p className="font-mono text-sm text-body leading-relaxed">
               Every user gets an AI Digital Twin — an autonomous agent that
@@ -73,22 +80,12 @@ export default function WalletConnectCard() {
               activate yours.
             </p>
 
-            <BtnPrimary onClick={() => setVisible(true)} disabled={connecting}>
-              {connecting ? (
-                <>
-                  <span className="w-3 h-3 border border-bg-base border-t-transparent rounded-full animate-spin-slow" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <span className="text-lg">◎</span>
-                  Connect Wallet
-                </>
-              )}
+            <BtnPrimary onClick={() => setVisible(true)}>
+              <span className="text-lg">◎</span>
+              Connect Wallet
             </BtnPrimary>
           </div>
         ) : (
-          /* Connected — clean layout */
           <div className="flex flex-col gap-6">
             {/* Status */}
             <div className="flex items-center gap-2">
@@ -126,7 +123,7 @@ export default function WalletConnectCard() {
               )}
             </div>
 
-            {/* Key info — 3 clean rows */}
+            {/* Key info */}
             <div className="flex flex-col gap-3 border border-mint/20 p-5 rounded-lg">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs text-muted uppercase">Wallet</span>
