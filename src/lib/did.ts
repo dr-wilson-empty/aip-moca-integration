@@ -1,6 +1,11 @@
+import { generateDIDFromPublicKey } from "@/lib/identity/did";
+
+/**
+ * Solana public key'den gercek W3C DID uretir.
+ * Eski sahte implementasyon yerine gercek kriptografik DID.
+ */
 export function generateDID(pubkey: string): string {
-  const seed = pubkey.slice(0, 16).toLowerCase().replace(/[^a-z0-9]/g, "x");
-  return `did:key:z6Mk${seed}AzMoP5qV1iWXnDgE4rT6y9Z`;
+  return generateDIDFromPublicKey(pubkey);
 }
 
 export function shortenAddress(address: string): string {
