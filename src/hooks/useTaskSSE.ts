@@ -61,6 +61,12 @@ function computeNodes(events: LogEntry[]): ProtocolNode[] {
     }
 
     if (nodeIdx >= 0 && nodeIdx < nodes.length) {
+      // COMPLETE ve CANCELLED her zaman done/error yapar
+      if (type === "COMPLETE") {
+        nodes[nodeIdx] = { ...nodes[nodeIdx], state: "done", timestamp: entry.timestamp };
+        continue;
+      }
+
       const count = counts[type] ?? 0;
       if (count === 1) {
         // Ilk gorunus: active
