@@ -65,7 +65,7 @@ export default function ProtocolInfo() {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-forest-deep/40 bg-forest-deep/10">
+    <div className="border border-forest-deep/40 bg-forest-deep/10 rounded-xl">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full px-6 py-4 flex items-center justify-between hover:bg-forest-deep/20 transition-colors"
@@ -87,7 +87,7 @@ export default function ProtocolInfo() {
             <div className="grid grid-cols-4 gap-3">
               {LAYERS.map((layer, i) => (
                 <div key={layer.id} className="flex flex-col items-center gap-2">
-                  <div className="border border-forest-deep/60 bg-forest-deep/20 w-full p-4 flex flex-col items-center gap-2 hover:border-accent/30 transition-colors">
+                  <div className="border border-forest-deep/60 bg-forest-deep/20 w-full p-4 rounded-lg flex flex-col items-center gap-2 hover:border-accent/30 transition-colors">
                     <span className="text-accent">{layer.icon}</span>
                     <span className="font-mono text-[10px] text-off-white uppercase text-center">
                       {layer.label}
@@ -141,7 +141,7 @@ export default function ProtocolInfo() {
           </div>
 
           {/* Key distinction */}
-          <div className="border border-forest-deep/40 p-4 bg-forest-deep/20">
+          <div className="border border-forest-deep/40 p-4 rounded-lg bg-forest-deep/20">
             <MonoLabel className="mb-2">MCP vs A2A</MonoLabel>
             <p className="font-mono text-[10px] text-body leading-relaxed">
               MCP connects agents to <span className="text-off-white">tools</span> with structured I/O.

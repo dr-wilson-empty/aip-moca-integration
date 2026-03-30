@@ -41,7 +41,7 @@ export default function WalletConnectCard() {
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      <div className="border border-mint/20 bg-forest-deep/10 p-10 transition-all duration-500">
+      <div className="border border-mint/20 bg-forest-deep/10 p-10 rounded-2xl transition-all duration-500">
         {/* Header */}
         <div className="mb-8 pb-6 border-b border-mint/20">
           <h1 className="font-display text-[clamp(40px,8vw,72px)] text-mint uppercase leading-none tracking-tight mb-2">
@@ -106,7 +106,7 @@ export default function WalletConnectCard() {
                     onKeyDown={(e) => e.key === "Enter" && handleNameSave()}
                     autoFocus
                     maxLength={24}
-                    className="flex-1 bg-transparent border-b border-mint/40 px-1 py-2 font-display text-2xl text-mint uppercase tracking-wider outline-none"
+                    className="flex-1 bg-transparent border-b border-mint/40 px-1 py-2 rounded-md font-display text-2xl text-mint uppercase tracking-wider outline-none"
                   />
                   <BtnPrimary onClick={handleNameSave} variant="secondary">Save</BtnPrimary>
                 </div>
@@ -126,7 +126,7 @@ export default function WalletConnectCard() {
             </div>
 
             {/* Key info — 3 clean rows */}
-            <div className="flex flex-col gap-3 border border-mint/20 p-5">
+            <div className="flex flex-col gap-3 border border-mint/20 p-5 rounded-lg">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs text-muted uppercase">Wallet</span>
                 <span className="font-mono text-sm text-mint">{shortenAddress(address)}</span>

@@ -17,7 +17,7 @@ function TypeBadge({ type }: { type: AgentType }) {
     Execution: "border-yellow-800/40 text-yellow-400 bg-yellow-900/10",
   };
   return (
-    <span className={`font-mono text-xs uppercase px-2 py-0.5 border ${styles[type]}`}>
+    <span className={`font-mono text-xs uppercase px-2 py-0.5 border rounded ${styles[type]}`}>
       {type}
     </span>
   );
@@ -29,7 +29,7 @@ export default function AgentCardPanel({ card, title, verified }: Props) {
   const cardJson = JSON.stringify(card, null, 2);
 
   return (
-    <div className="border border-mint/20 bg-forest-deep/10 p-6 flex flex-col gap-5 h-full">
+    <div className="border border-mint/20 bg-forest-deep/10 p-6 flex flex-col gap-5 h-full rounded-xl">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-mint/20 pb-4">
         <div className="flex items-center gap-3">
@@ -37,7 +37,7 @@ export default function AgentCardPanel({ card, title, verified }: Props) {
           <TypeBadge type={card.type} />
         </div>
         <span
-          className={`font-mono text-xs uppercase px-2 py-1 border ${
+          className={`font-mono text-xs uppercase px-2 py-1 border rounded ${
             verified
               ? "border-accent/40 text-accent bg-accent/10"
               : "border-red-800/40 text-red-400 bg-red-900/10"
@@ -51,7 +51,7 @@ export default function AgentCardPanel({ card, title, verified }: Props) {
       <div className="flex gap-0 self-start">
         <button
           onClick={() => setViewMode("visual")}
-          className={`font-mono text-xs uppercase tracking-wider px-3 py-1.5 border transition-colors ${
+          className={`font-mono text-xs uppercase tracking-wider px-3 py-1.5 border rounded-l-md transition-colors ${
             viewMode === "visual"
               ? "border-mint/30 text-mint bg-mint/5"
               : "border-forest-deep/60 text-muted hover:text-mint"
@@ -61,7 +61,7 @@ export default function AgentCardPanel({ card, title, verified }: Props) {
         </button>
         <button
           onClick={() => setViewMode("json")}
-          className={`font-mono text-xs uppercase tracking-wider px-3 py-1.5 border border-l-0 transition-colors ${
+          className={`font-mono text-xs uppercase tracking-wider px-3 py-1.5 border border-l-0 rounded-r-md transition-colors ${
             viewMode === "json"
               ? "border-mint/30 text-mint bg-mint/5"
               : "border-forest-deep/60 text-muted hover:text-mint"
@@ -98,7 +98,7 @@ export default function AgentCardPanel({ card, title, verified }: Props) {
               {card.capabilities.map((cap) => (
                 <div
                   key={cap.id}
-                  className="border border-mint/20 p-3 flex items-start justify-between gap-4 hover:border-mint/20 transition-colors"
+                  className="border border-mint/20 p-3 rounded-md flex items-start justify-between gap-4 hover:border-mint/20 transition-colors"
                 >
                   <div className="flex flex-col gap-1">
                     <span className="font-mono text-sm text-mint">
@@ -120,7 +120,7 @@ export default function AgentCardPanel({ card, title, verified }: Props) {
         </div>
       ) : (
         <div className="flex-1 overflow-hidden">
-          <pre className="font-mono text-xs text-body leading-relaxed overflow-x-auto bg-bg-base/50 border border-mint/20 p-4 max-h-[400px] overflow-y-auto">
+          <pre className="font-mono text-xs text-body leading-relaxed overflow-x-auto bg-bg-base/50 border border-mint/20 p-4 rounded-lg max-h-[400px] overflow-y-auto">
             <code>{cardJson}</code>
           </pre>
           <p className="font-mono text-xs text-muted mt-2">
