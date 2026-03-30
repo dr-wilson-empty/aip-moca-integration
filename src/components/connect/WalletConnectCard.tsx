@@ -13,7 +13,7 @@ export default function WalletConnectCard() {
   const [mounted, setMounted] = useState(false);
   const { publicKey, disconnect, connected, connecting } = useWallet();
   const { setVisible } = useWalletModal();
-  const { address, did, usdcBalance, setWallet, clearWallet } = useWalletStore();
+  const { address, did, usdcBalance, balanceLoading, setWallet, clearWallet, fetchBalance } = useWalletStore();
   const { myCard, setAgentName } = useAgentStore();
   const router = useRouter();
 
@@ -27,10 +27,11 @@ export default function WalletConnectCard() {
     if (connected && publicKey) {
       const addr = publicKey.toBase58();
       setWallet(addr, generateDID(addr));
+      fetchBalance(addr);
     } else if (!connected) {
       clearWallet();
     }
-  }, [mounted, connected, publicKey, setWallet, clearWallet]);
+  }, [mounted, connected, publicKey, setWallet, clearWallet, fetchBalance]);
 
   const handleNameSave = () => {
     const trimmed = nameInput.trim();
@@ -134,7 +135,9 @@ export default function WalletConnectCard() {
               <div className="h-px bg-mint/10" />
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs text-muted uppercase">Balance</span>
-                <span className="font-mono text-sm text-accent font-bold">{usdcBalance} USDC</span>
+                <span className="font-mono text-sm text-accent font-bold">
+                  {balanceLoading ? "..." : `${usdcBalance} USDC`}
+                </span>
               </div>
               <div className="h-px bg-mint/10" />
               <div className="flex items-center justify-between">
