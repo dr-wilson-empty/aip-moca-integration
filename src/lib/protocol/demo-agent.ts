@@ -45,7 +45,7 @@ export function runDemoAgent(
   escrowTxHash: string,
   onSettle: (action: "release" | "refund") => Promise<string | null>
 ): Promise<void> {
-  const willFail = Math.random() < 0.2;
+  const willFail = Math.random() < 0.05; // %5 — test kolayligi icin dusuruldu
 
   return new Promise<void>((resolve) => {
     const steps: Array<{ fn: () => void | Promise<void>; delay: number }> = [
