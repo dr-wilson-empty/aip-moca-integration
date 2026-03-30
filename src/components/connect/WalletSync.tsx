@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletStore } from "@/store/walletStore";
 import { useAgentStore } from "@/store/agentStore";
+import { useTaskStore } from "@/store/taskStore";
 import { generateDID } from "@/lib/did";
 
 /**
@@ -15,6 +16,7 @@ export default function WalletSync() {
   const { publicKey, connected } = useWallet();
   const { address, setWallet, clearWallet, fetchBalance } = useWalletStore();
   const { updateMyDid } = useAgentStore();
+  const { resetTask, isRunning } = useTaskStore();
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -30,8 +32,10 @@ export default function WalletSync() {
       }
     } else if (!connected && address) {
       clearWallet();
+      // Devam eden gorevi resetle
+      if (isRunning) resetTask();
     }
-  }, [connected, publicKey, address, setWallet, clearWallet, fetchBalance, updateMyDid]);
+  }, [connected, publicKey, address, setWallet, clearWallet, fetchBalance, updateMyDid, resetTask, isRunning]);
 
   return null;
 }

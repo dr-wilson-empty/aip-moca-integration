@@ -12,6 +12,7 @@ import {
   decodeX402Header,
   type X402PaymentPayload,
 } from "@/lib/payment/x402";
+import { logger } from "@/lib/logger";
 
 seedDemoAgents();
 
@@ -88,6 +89,31 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Input uzunluk siniri
+  if (input.length > 2000) {
+    return NextResponse.json(
+      { error: "Input too long: maximum 2000 characters" },
+      { status: 400 }
+    );
+  }
+
+  // Amount dogrulama
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0 || parsedAmount > 100) {
+    return NextResponse.json(
+      { error: "Invalid amount: must be between 0 and 100 USDC" },
+      { status: 400 }
+    );
+  }
+
+  // DID format kontrolu
+  if (!callerDid.startsWith("did:key:z")) {
+    return NextResponse.json(
+      { error: "Invalid DID format: must start with did:key:z" },
+      { status: 400 }
+    );
+  }
+
   // Karsi ajan card'ini bul
   const agentCard = getCardByEndpoint(agentEndpoint);
   if (!agentCard) {
@@ -97,13 +123,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Capability dogrulama — ajanin bu capability'ye sahip olmasi gerekir
+  const hasCap = agentCard.capabilities.some((c) => c.id === capability);
+  if (!hasCap) {
+    return NextResponse.json(
+      { error: `Agent ${agentCard.name} does not have capability: ${capability}` },
+      { status: 400 }
+    );
+  }
+
   // ---------------------------------------------------------------
   // x402 STEP 1: X-PAYMENT header var mi kontrol et
   // ---------------------------------------------------------------
   const paymentHeader = request.headers.get("x-payment");
 
   if (!paymentHeader) {
-    // Odeme yok → 402 Payment Required dondur
+    logger.info("x402", "payment_required", { callerAddress, amount, agent: agentCard.name });
     const requirements = buildPaymentRequirements(
       amount,
       "/api/task",
@@ -143,11 +178,14 @@ export async function POST(request: NextRequest) {
   const verifyResult = verifyPaymentPayload(paymentPayload, requirements);
 
   if (!verifyResult.isValid) {
+    logger.error("x402", "verify_failed", { error: verifyResult.error, callerAddress });
     return NextResponse.json(
       { error: `Payment verification failed: ${verifyResult.error}` },
       { status: 402 }
     );
   }
+
+  logger.info("x402", "verify_passed", { callerAddress, amount: verifyResult.amount });
 
   // ---------------------------------------------------------------
   // x402 STEP 3: Transaction'i blockchain'e gonder (settle)
@@ -155,6 +193,7 @@ export async function POST(request: NextRequest) {
   const settleResult = await settlePayment(paymentPayload);
 
   if (settleResult.status === "failed") {
+    logger.error("x402", "settle_failed", { error: settleResult.error, callerAddress });
     return NextResponse.json(
       { error: `Payment settlement failed: ${settleResult.error}` },
       { status: 402 }
@@ -162,11 +201,13 @@ export async function POST(request: NextRequest) {
   }
 
   const escrowTxHash = settleResult.transaction;
+  logger.info("x402", "settled", { txHash: escrowTxHash, callerAddress, amount });
 
   // ---------------------------------------------------------------
   // STEP 4: Gorev olustur ve baslat
   // ---------------------------------------------------------------
   const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  logger.info("task", "created", { taskId, agent: agentCard.name, capability, amount, escrowTxHash });
 
   const task = createTask({
     id: taskId,

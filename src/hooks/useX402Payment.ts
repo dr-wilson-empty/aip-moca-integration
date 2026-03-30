@@ -105,6 +105,19 @@ export function useX402Payment() {
         const fromAta = await getAssociatedTokenAddress(usdcMint, publicKey);
         const toAta = await getAssociatedTokenAddress(usdcMint, escrowWallet);
 
+        // Bakiye kontrolu — yetersizse Phantom'a gitmeden hata ver
+        try {
+          const account = await getAccount(connection, fromAta);
+          if (account.amount < amount) {
+            const have = (Number(account.amount) / 1e6).toFixed(2);
+            const need = (Number(amount) / 1e6).toFixed(2);
+            throw new Error(`Insufficient USDC balance: have ${have}, need ${need}`);
+          }
+        } catch (balErr: unknown) {
+          if (balErr instanceof Error && balErr.message.includes("Insufficient")) throw balErr;
+          throw new Error("No USDC token account found. Fund your wallet with Devnet USDC first.");
+        }
+
         const { blockhash, lastValidBlockHeight } =
           await connection.getLatestBlockhash("confirmed");
 
