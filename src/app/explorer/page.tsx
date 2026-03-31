@@ -1,18 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAgentStore } from "@/store/agentStore";
 import { useWalletStore } from "@/store/walletStore";
 import AgentCardPanel from "@/components/explorer/AgentCardPanel";
 import AgentCompare from "@/components/explorer/AgentCompare";
 import FetchPanel from "@/components/explorer/FetchPanel";
+import RegisterAgentForm from "@/components/explorer/RegisterAgentForm";
 import ProtocolInfo from "@/components/explorer/ProtocolInfo";
 import BtnPrimary from "@/components/ui/BtnPrimary";
+
+type Tab = "discover" | "register";
 
 export default function ExplorerPage() {
   const { myCard, counterpartCard, counterpartVerified } = useAgentStore();
   const { address } = useWalletStore();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>("discover");
 
   const myVerified = !!address;
 
@@ -26,32 +31,51 @@ export default function ExplorerPage() {
           </h2>
         </div>
         <p className="font-mono text-sm text-muted max-w-xs text-right">
-          Select an agent to verify their identity and start a task.
+          Discover on-chain agents or register your own.
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
         <AgentCardPanel card={myCard} title="Your Agent" verified={myVerified} />
 
-        <div className="border border-mint/20 bg-forest-deep/10 p-6 flex flex-col gap-6">
-          {!counterpartCard ? (
+        <div className="border border-mint/20 bg-forest-deep/10 p-6 flex flex-col gap-5 rounded-xl">
+          {/* Tabs */}
+          <div className="flex gap-0 self-start">
+            <button
+              onClick={() => setActiveTab("discover")}
+              className={`font-mono text-xs uppercase tracking-wider px-4 py-2 border rounded-l-md transition-colors ${
+                activeTab === "discover"
+                  ? "border-mint/30 text-mint bg-mint/5"
+                  : "border-forest-deep/60 text-muted hover:text-mint"
+              }`}
+            >
+              Discover Agents
+            </button>
+            <button
+              onClick={() => setActiveTab("register")}
+              className={`font-mono text-xs uppercase tracking-wider px-4 py-2 border border-l-0 rounded-r-md transition-colors ${
+                activeTab === "register"
+                  ? "border-mint/30 text-mint bg-mint/5"
+                  : "border-forest-deep/60 text-muted hover:text-mint"
+              }`}
+            >
+              Register Agent
+            </button>
+          </div>
+
+          {activeTab === "discover" ? (
             <>
-              <p className="font-mono text-sm text-body leading-relaxed">
-                Select an agent below to fetch their Agent Card and verify their DID.
-              </p>
+              {counterpartCard && (
+                <AgentCardPanel
+                  card={counterpartCard}
+                  title="Counterpart Agent"
+                  verified={counterpartVerified}
+                />
+              )}
               <FetchPanel />
             </>
           ) : (
-            <>
-              <AgentCardPanel
-                card={counterpartCard}
-                title="Counterpart Agent"
-                verified={counterpartVerified}
-              />
-              <div className="border-t border-mint/20 pt-4">
-                <FetchPanel />
-              </div>
-            </>
+            <RegisterAgentForm onRegistered={() => setActiveTab("discover")} />
           )}
         </div>
       </div>
