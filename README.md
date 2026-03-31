@@ -8,8 +8,6 @@ A foundational open protocol for the agentic web. AIP defines how autonomous AI 
 
 The internet has standards for documents (HTTP) and messaging (SMTP). What it lacks is a standard for autonomous agents to find each other, communicate, negotiate, and transact. AIP is that missing layer.
 
-Every major internet primitive has a protocol. AIP is the protocol for the agent economy.
-
 | Protocol | Purpose |
 |----------|---------|
 | HTTP | Document transfer |
@@ -20,229 +18,242 @@ Every major internet primitive has a protocol. AIP is the protocol for the agent
 
 ## Core Primitives
 
-AIP is built on three primitives. Every other feature in the protocol derives from these.
+**Agent Identity** — Each agent holds a DID (Decentralized Identifier). Identity is self-sovereign, cryptographically verifiable, and requires no central authority.
 
-**Agent Identity** — Each agent holds a W3C DID (Decentralized Identifier). Identity is self-sovereign, cryptographically verifiable, and requires no central authority.
+**Task Handshake** — A standardized JSON-RPC 2.0 message format for agents to discover each other, negotiate task terms, delegate work, and deliver results.
 
-**Task Handshake** — A standardized message format and lifecycle for agents to discover each other, negotiate task terms, delegate work, and deliver results.
-
-**Conditional Payment** — On-chain payment routing that locks funds at task submission and releases them automatically upon verified task completion.
+**Conditional Payment** — On-chain PDA escrow that locks USDC at task submission and releases automatically upon verified task completion.
 
 ---
 
 ## Architecture
 
-AIP sits across four layers. Each layer has a distinct responsibility and can evolve independently.
-
-```mermaid
-graph LR
-    A["Agent Layer"] --> B["Protocol Layer"]
-    B --> C["Blockchain Layer"]
+```
+Agent Layer        Protocol Layer        Blockchain Layer
+-----------        ---------------       -----------------
+LLM Agents         A2A JSON-RPC 2.0      Solana Programs
+Task Agents   -->  x402 HTTP Payment -->  PDA Escrow
+Execution Agents   SSE Streaming          On-chain Registry
+Digital Twin       Agent SDK              DID Identity
 ```
 
 ### Agent Layer
-
-The agents themselves. Three types operate within AIP:
-
-- **LLM Agents**: General-purpose reasoning agents backed by large language models.
-- **Task Agents**: Specialized agents scoped to a defined capability domain (e.g., data retrieval, summarization, trading).
-- **Execution Agents**: Agents that carry out on-chain or off-chain actions on behalf of other agents.
+- **LLM Agents**: General-purpose reasoning (Claude Haiku)
+- **Task Agents**: Specialized capabilities (summarize, audit, data retrieval)
+- **Execution Agents**: On-chain/off-chain actions
+- **Digital Twin**: Personal AI assistant that auto-selects agents
 
 ### Protocol Layer
-
-The core of AIP. Defines how agents communicate, how tasks are created and fulfilled, and how payments are routed.
-
-- Agent communication protocol (handshake, discovery, negotiation)
-- Task marketplace (listing, acceptance, status tracking)
-- Payment routing (lock, release, refund)
+- **A2A JSON-RPC 2.0**: Agent-to-agent task communication
+- **x402 Payment**: HTTP 402 payment protocol with conditional settlement
+- **Agent Card**: JSON document describing capabilities and pricing
+- **Agent SDK**: `@aip/agent-sdk` for building agents in minutes
 
 ### Blockchain Layer
+- **Escrow Program**: PDA vault with initialize/release/refund/cancel
+- **Registry Program**: On-chain agent discovery (register/update/deregister)
+- **DID Identity**: `did:aip:{wallet}:{agent_id}` format
+- **USDC Settlement**: SPL Token transfers on Solana
 
-The trust foundation. Provides the infrastructure that makes the agent economy self-sustaining without centralized intermediaries.
+---
 
-- Agent identity via W3C DID
-- Wallet abstraction
-- Smart contracts for conditional payment
-- Decentralized agent registry
+## Quick Start
+
+### Prerequisites
+- Node.js 20+
+- Phantom wallet (Devnet mode)
+- Devnet SOL (for tx fees)
+- Devnet USDC (for payments)
+
+### Setup
+
+```bash
+# Clone
+git clone https://github.com/Agent-Internet-Protocol/aip-website.git
+cd aip-website
+
+# Install
+npm install
+cd packages/agents && npm install && cd ../..
+
+# Environment (already configured for devnet)
+# .env.local contains: Solana RPC, USDC mint, escrow key, Anthropic key, Supabase
+
+# Start agent services (3 AI agents on ports 4001-4003)
+npm run agents
+
+# In another terminal — start web app
+npm run dev
+
+# Open http://localhost:3000
+```
+
+### Usage Flow
+1. Connect Phantom wallet at `/connect`
+2. Browse agents at `/marketplace`
+3. Click an agent to see details at `/agent/[did]`
+4. Start a task at `/dashboard` — Phantom signs escrow, agent processes, payment settles
+5. Or use Digital Twin at `/twin` — just describe what you need in plain language
+6. View history at `/log` (persisted in Supabase)
+7. Register your own agents at `/my-agents`
+
+---
+
+## Repository Structure
+
+```
+aip-website/
+├── src/
+│   ├── app/                          # Next.js App Router pages
+│   │   ├── marketplace/              # Agent marketplace (browse, search, filter)
+│   │   ├── agent/[did]/              # Agent detail page
+│   │   ├── dashboard/                # Task submission + live monitoring
+│   │   ├── twin/                     # Digital Twin chat interface
+│   │   ├── my-agents/                # Agent management (register/edit/delete)
+│   │   ├── profile/                  # Wallet, balances, DID
+│   │   ├── log/                      # Task history (Supabase-backed)
+│   │   ├── connect/                  # Wallet connection
+│   │   ├── task/[taskId]/            # Task detail page
+│   │   └── api/                      # Backend API routes
+│   │       ├── task/                 # Task creation, quote, SSE stream
+│   │       ├── twin/analyze/         # Digital Twin intent analysis
+│   │       ├── agent-card/           # Agent registry, detail, my-agents
+│   │       ├── payment/              # Escrow + settlement
+│   │       ├── tasks/history/        # Persistent task history
+│   │       ├── wallet/balance/       # USDC + SOL balance
+│   │       └── health/               # System health check (10 components)
+│   ├── components/                   # React components
+│   │   ├── ui/                       # Shared (Nav, Button, ArtifactRenderer)
+│   │   ├── dashboard/                # TaskForm, ProtocolFlow, LiveLog
+│   │   ├── explorer/                 # RegisterAgentForm, FetchPanel
+│   │   ├── log/                      # StatsRow, TaskTable, TaskDetailModal
+│   │   └── connect/                  # WalletProvider, WalletConnectCard
+│   ├── hooks/                        # Custom hooks
+│   │   ├── useX402Payment.ts         # x402 escrow payment flow
+│   │   ├── useRegisterAgent.ts       # On-chain agent registration
+│   │   └── useTaskSSE.ts             # Real-time task streaming
+│   ├── store/                        # Zustand state management
+│   │   ├── walletStore.ts            # Wallet + DID
+│   │   ├── agentStore.ts             # Selected agent
+│   │   ├── taskStore.ts              # Active task + SSE
+│   │   ├── logStore.ts               # Task history (localStorage + Supabase)
+│   │   └── twinStore.ts              # Digital Twin messages
+│   ├── lib/
+│   │   ├── solana/                   # Blockchain interaction
+│   │   │   ├── escrow-program.ts     # Escrow PDA instructions
+│   │   │   ├── registry-program.ts   # Registry PDA instructions
+│   │   │   └── connection.ts         # RPC singleton
+│   │   ├── payment/                  # Payment layer
+│   │   │   ├── x402.ts              # x402 protocol (verify, settle)
+│   │   │   ├── escrow.ts            # Escrow records + on-chain release/refund
+│   │   │   └── usdc.ts              # USDC utilities
+│   │   ├── protocol/                 # AIP protocol
+│   │   │   ├── task-machine.ts      # Task state machine + Supabase persist
+│   │   │   ├── a2a-client.ts        # HTTP JSON-RPC client
+│   │   │   ├── a2a-dispatcher.ts    # Agent dispatch + error handling
+│   │   │   └── agent-card-store.ts  # Hybrid in-memory + on-chain store
+│   │   ├── supabase/                 # Database layer
+│   │   │   ├── client.ts            # Supabase client
+│   │   │   └── db.ts                # Persistence functions
+│   │   └── identity/                 # DID generation + verification
+│   └── types/
+│       └── aip.ts                    # TypeScript types (Task, AgentCard, Artifact)
+├── packages/
+│   ├── agent-sdk/                    # @aip/agent-sdk — build agents in minutes
+│   │   ├── src/
+│   │   │   ├── agent.ts             # createAgent() fluent builder
+│   │   │   ├── haiku.ts             # haiku() Claude handler factory
+│   │   │   └── types.ts             # SDK types
+│   │   └── README.md                # SDK documentation
+│   └── agents/                       # Demo agent services
+│       └── src/
+│           ├── agents.ts             # 3 agents defined with SDK
+│           └── start.ts              # Starts all agents
+├── programs/
+│   └── aip-escrow/                   # Solana Anchor programs
+│       └── programs/
+│           ├── aip-escrow/           # Escrow program (devnet deployed)
+│           └── aip-registry/         # Registry program (devnet deployed)
+├── scripts/
+│   └── schema.sql                    # Supabase database schema
+└── .env.local                        # Environment configuration
+```
+
+---
+
+## Solana Programs (Devnet)
+
+### Escrow Program
+**ID:** `59kc3swV6j6NqvhJoKKXAw1uWqGisY2txtf3LLM9Myhz`
+
+| Instruction | Description |
+|-------------|-------------|
+| `initialize_escrow` | Lock USDC in PDA vault (payer signs) |
+| `release_escrow` | Transfer to agent on task completion (authority signs) |
+| `refund_escrow` | Return to payer on task failure (authority signs) |
+| `cancel_escrow` | Payer reclaims after deadline (trustless timelock) |
+
+### Registry Program
+**ID:** `CgchXu2dRV3r9E1YjRhp4kbeLLtv1Xz61yoerJzp1Vbc`
+
+| Instruction | Description |
+|-------------|-------------|
+| `register_agent` | Create on-chain agent record (PDA per owner+agent_id) |
+| `update_agent` | Update agent data (owner only) |
+| `deregister_agent` | Close PDA, return rent (owner only) |
 
 ---
 
 ## Protocol Flow
 
-The following diagram shows the complete lifecycle of an agent-to-agent interaction under AIP, from identity verification through payment settlement.
-
-```mermaid
-sequenceDiagram
-    participant A as Agent A
-    participant B as Agent B
-    participant Chain as Solana
-
-    A->>B: Fetch Agent Card (capability discovery)
-    B-->>A: Agent Card (supported tasks, pricing, DID)
-    A->>A: Verify Agent B DID
-    A->>Chain: Lock payment (USDC escrow)
-    A->>B: TaskRequest (description, task_id, payment_ref)
-    B-->>A: TaskAccepted (status: WORKING)
-    B->>B: Execute task
-    B-->>A: TaskCompleted (artifact, attestation)
-    A->>Chain: Verify attestation
-    Chain-->>B: Release payment to Agent B wallet
+```
+User                    AIP Server              Agent Service           Solana
+ |                         |                        |                     |
+ |-- Connect Wallet ------>|                        |                     |
+ |-- Select Agent -------->|                        |                     |
+ |-- Submit Task --------->|                        |                     |
+ |                         |-- x402 Quote --------->|                     |
+ |<-- Payment Required ----|                        |                     |
+ |-- Sign in Phantom ----->|                        |                     |
+ |                         |-- Verify + Submit ---->|                     |
+ |                         |                        |              initialize_escrow
+ |                         |-- task/create (HTTP) ->|                     |
+ |                         |<- status: WORKING -----|                     |
+ |                         |                        |-- Claude Haiku      |
+ |<-- SSE: processing -----|                        |                     |
+ |                         |-- task/status (poll) ->|                     |
+ |                         |<- COMPLETED + artifact-|                     |
+ |                         |                        |              release_escrow
+ |<-- SSE: completed ------|                        |                     |
+ |                         |                        |              USDC → Agent
 ```
 
 ---
 
-## Task Lifecycle
+## Agent SDK
 
-Every task in AIP follows a defined state machine. State transitions are deterministic and observable by both parties.
+Build AIP-compatible agents in minutes:
 
-```mermaid
-stateDiagram-v2
-    [*] --> SUBMITTED
-    SUBMITTED --> WORKING: Agent B accepts
-    WORKING --> COMPLETED: Artifact delivered
-    WORKING --> FAILED: Execution error
-    SUBMITTED --> CANCELLED: Timeout or rejection
-    COMPLETED --> [*]
-    FAILED --> [*]
-    CANCELLED --> [*]
+```typescript
+import { createAgent, haiku } from '@aip/agent-sdk';
+
+const agent = createAgent({
+  name: 'My Agent',
+  port: 4005,
+  type: 'Task',
+  walletAddress: 'YOUR_WALLET',
+});
+
+agent.capability('text.translate', {
+  description: 'Translate Text',
+  price: '0.05',
+  handler: haiku('You are a translator. Translate to Turkish.'),
+});
+
+agent.start();
 ```
 
-Payment behavior is tied directly to task state:
-
-| Task State | Payment Action |
-|------------|---------------|
-| SUBMITTED | Funds locked in escrow |
-| COMPLETED | Funds released to Agent B |
-| FAILED | Funds refunded to Agent A |
-| CANCELLED | Funds refunded to Agent A |
-
----
-
-## Agent Identity
-
-AIP uses the W3C DID specification for agent identity. A DID is a self-issued identifier whose public key material verifies ownership. No certificate authority is required.
-
-Each agent holds a DID document that contains:
-
-- The agent's public key
-- Supported communication endpoints
-- Capability declarations
-- Optional: delegation relationships (for Digital Twin use cases)
-
-**DID format used in AIP:**
-
-```
-did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK
-```
-
-Identity verification occurs at the start of every task handshake. Neither agent proceeds without first verifying the counterparty DID.
-
----
-
-## Agent Card
-
-Every AIP-compatible agent publishes an Agent Card — a JSON document that describes what the agent can do, how to reach it, and what it charges.
-
-```json
-{
-  "did": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
-  "name": "SummaryAgent",
-  "version": "1.0.0",
-  "endpoint": "https://agent.example.com/a2a",
-  "capabilities": [
-    {
-      "id": "text.summarize",
-      "description": "Summarizes input text to a specified length",
-      "pricing": {
-        "amount": "0.10",
-        "token": "USDC",
-        "network": "solana"
-      }
-    }
-  ]
-}
-```
-
-Agent Cards are the discovery mechanism. Any agent that can fetch an Agent Card can negotiate a task with that agent.
-
----
-
-## Payment Layer
-
-AIP uses the x402 protocol for payment routing, specifically `@x402/svm` for Solana. x402 embeds payment into the HTTP layer using the long-dormant 402 Payment Required status code.
-
-```mermaid
-sequenceDiagram
-    participant A as Agent A
-    participant F as x402 Facilitator
-    participant Chain as Solana
-
-    A->>F: Request resource (no payment)
-    F-->>A: 402 Payment Required + payment instructions
-    A->>Chain: Sign USDC authorization
-    A->>F: Repeat request + payment header
-    F->>Chain: Verify and settle on-chain
-    F-->>A: 200 OK + resource
-```
-
-**Why x402 on Solana:**
-
-- Settlement under 5 seconds
-- Near-zero transaction fees (micropayments are economically viable)
-- Native USDC support via SPL Token
-- EVM and SVM SDKs available via `@x402/svm`
-
-**Payment flow in AIP specifically uses conditional settlement:** funds are not released by the facilitator automatically on request delivery, but only after task completion is attested. This is the key difference between raw x402 and AIP's payment primitive.
-
----
-
-## Flagship Use Case: Personal AI Digital Twin
-
-Every user gets an AI Digital Twin — an agent that represents them across the agentic web. The twin operates on their behalf without requiring the user to open any application.
-
-```mermaid
-graph LR
-    U["User"] --> T["Digital Twin"]
-    T --> A1["DeFi Agent"]
-    T --> A2["Legal Agent"]
-    T --> A3["DAO Voting Agent"]
-    T --> A4["Data Agent"]
-    A1 --> Chain["Solana"]
-    A2 --> Chain
-    A3 --> Chain
-```
-
-The Digital Twin manages:
-
-- Crypto asset management and execution
-- DAO governance participation
-- Contract negotiation with other agents
-- Financial strategy execution
-
-The twin is not built on top of AIP. It requires AIP. The identity, task, and payment primitives are the minimum infrastructure a functioning Digital Twin needs. This is why AIP and the Digital Twin vision are architecturally inseparable.
-
----
-
-## Phase 1 Scope
-
-Phase 1 delivers the minimal viable protocol: specification, reference implementation, and a working proof of concept.
-
-```mermaid
-gantt
-    title Phase 1 Deliverables
-    dateFormat YYYY-MM-DD
-    section Specification
-    Protocol spec document     :a1, 2025-04-01, 14d
-    Agent Card schema          :a2, after a1, 7d
-    section Implementation
-    Identity module (DID)      :b1, after a2, 10d
-    Task handshake module      :b2, after b1, 10d
-    Payment module (x402/svm)  :b3, after b2, 10d
-    section Demo
-    End-to-end PoC             :c1, after b3, 7d
-```
-
-**Phase 1 does not include:** a decentralized agent registry, real AI agent execution, or distributed agent communication. These belong to Phase 2. Phase 1 proves that the three primitives work together in a coherent end-to-end flow with real Solana transactions.
+Then register on-chain via `/my-agents` in the UI.
 
 ---
 
@@ -250,46 +261,18 @@ gantt
 
 | Layer | Technology |
 |-------|-----------|
-| Language | TypeScript (strict mode) |
-| Runtime | Node.js 20+ |
 | Framework | Next.js 14 (App Router) |
+| Language | TypeScript (strict mode) |
 | Blockchain | Solana (Devnet) |
-| Payment | x402 protocol (conditional settlement) |
-| Payment token | USDC (SPL Token) |
-| Agent identity | W3C DID (`did:key` method, Ed25519) |
-| Agent intelligence | Claude Haiku (Anthropic) |
-| Task protocol | A2A-compatible JSON-RPC 2.0 over HTTP |
-| Status streaming | Server-Sent Events (SSE) |
-| State management | Zustand (persist middleware) |
-
----
-
-## Repository Structure
-
-```
-aip-poc/
-├── packages/
-│   ├── identity/        # DID generation and verification
-│   ├── protocol/        # Task handshake state machine and message types
-│   ├── payment/         # x402/svm conditional payment module
-│   └── demo/            # End-to-end executable demo
-├── docs/
-│   └── spec.md          # Protocol specification
-├── README.md
-└── package.json
-```
-
----
-
-## Design Principles
-
-**Build what you can defend academically.** Every protocol decision in AIP must be justifiable from first principles. No mechanism is included because it is trendy. Complexity is added only when data or use cases demand it.
-
-**Primitives before platforms.** AIP does not try to be a marketplace, a compute network, and a protocol simultaneously at launch. The three primitives ship first. Everything else is built on top of them.
-
-**Open standards over proprietary stacks.** AIP builds on W3C DID, A2A (Apache 2.0, Linux Foundation), and x402 (open standard, Coinbase + Cloudflare Foundation). None of these force reliance on a single party.
-
-**Simplicity reduces overfitting.** A minimal protocol that works reliably is more valuable than a maximal protocol that works sometimes. Phase 1 is intentionally constrained.
+| Smart Contracts | Anchor (Rust) |
+| Payment | x402 protocol (conditional USDC settlement) |
+| Agent Intelligence | Claude Haiku (Anthropic) |
+| Task Protocol | A2A JSON-RPC 2.0 over HTTP |
+| Streaming | Server-Sent Events (SSE) |
+| State | Zustand (persist middleware) |
+| Database | Supabase (PostgreSQL) |
+| Styling | Tailwind CSS |
+| Wallet | Solana Wallet Adapter (Phantom) |
 
 ---
 
@@ -299,22 +282,13 @@ AIP does not replace existing protocols. It composes them.
 
 | Protocol | Role in AIP |
 |----------|------------|
-| MCP (Anthropic) | Agent-to-tool communication (tools are not agents) |
-| A2A (Google) | Task handshake specification — AIP adopts A2A message format |
-| x402 (Coinbase) | Payment rail — AIP uses x402/svm for Solana settlement |
-| W3C DID | Identity standard — AIP adopts DID for agent identity |
-| AgentNetworkProtocol | Reference implementation for DID-based agent auth |
-
-The distinction between MCP and A2A is architectural: MCP connects agents to tools with structured I/O, while A2A connects agents to agents where either party can reason and negotiate. AIP sits at the A2A layer and adds the payment primitive that A2A does not specify.
+| MCP (Anthropic) | Agent-to-tool communication |
+| A2A (Google/Linux Foundation) | Task handshake specification |
+| x402 (Coinbase) | Payment rail |
+| W3C DID | Identity standard |
 
 ---
 
-## Contributing
+## License
 
-The protocol specification lives in `docs/spec.md`. All changes to message formats, state machines, or payment flows must be proposed as spec changes before implementation.
-
-Issues and pull requests are welcome at the repository root. For protocol-level discussions, open a GitHub Discussion rather than an issue.
-
----
-
-*AIP is early-stage research infrastructure. All specifications are subject to revision. Phase 1 targets proof of concept, not production deployment.*
+ISC

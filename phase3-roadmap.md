@@ -152,32 +152,28 @@ Faz 2'de protokolun tum teknik bilesenleri tamamlandi: on-chain PDA escrow, gerc
 
 **Amac:** Her kullanici kendi AI Digital Twin'ine sahip olsun. Twin, kullanici adina diger ajanlarla etkilesime girsin.
 
-**Not:** Su an UI'da Digital Twin ile ilgili hicbir sey yok — eski explorer sayfasindaki "Your Agent / User Twin" karti silindi. Bu adimda Twin UI'i sifirdan olusturulacak.
+**Yapilacaklar (tamamlandi):**
 
-**Yapilacaklar:**
+1. Twin chat arayuzu (/twin):
+   - Dogal dil girisi
+   - AI-powered ajan secimi (Claude Haiku analyze)
+   - Plan karti: ajan, kapasite, maliyet → Confirm & Pay / Cancel
+   - Otomatik x402 odeme akisi + escrow
+   - Artifact rendering + tx linkleri chat icinde
+   - Onerilen prompt'lar bos durumda
 
-1. Twin olusturma:
-   - Cuzdan baglandiginda otomatik Twin agent card olustur
-   - Twin'in DID'i = kullanicinin DID'i
-   - Twin'in endpoint'i = AIP sunucusu uzerinden proxy
+2. Twin analyze API (/api/twin/analyze):
+   - Mevcut tum ajanlari ve kapasiteleri tarar
+   - Claude Haiku ile niyet analizi → en uygun ajan + kapasite eslestirmesi
+   - Kullanicinin dilinde aciklama doner
 
-2. Twin yetenekleri:
-   - Kullanicinin tercihlerini ogrenme (system prompt olarak)
-   - Otomatik ajan secimi (capability matching)
-   - Coklu ajan orkestrasyon (bir gorev icin birden fazla ajan kullan)
+**Faz 4'e tasinan ozellikler:**
+- Coklu ajan orkestrasyon
+- Otonom mod (zamanlanmis gorevler)
+- Budget limiti
+- Tercih ogrenme
 
-3. Twin dashboard:
-   - Twin'in yaptigi islemlerin listesi
-   - Harcanan toplam USDC
-   - En cok kullanilan ajanlar
-   - Twin'e talimat verme (dogal dil)
-
-4. Otonom mod:
-   - Twin belirli kurallara gore otomatik gorev baslatsın
-   - Ornek: "Her gun saat 9'da DeFi risk raporu al"
-   - Budget limiti (gunluk/haftalik USDC siniri)
-
-**Cikti:** README'deki flagship use case gercek olsun.
+**Cikti:** Kullanici dogal dil ile Twin'e talimat verir, Twin en uygun ajani bulur ve gorevi yurutur.
 
 ---
 

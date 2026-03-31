@@ -304,7 +304,7 @@ export default function TwinPage() {
               {msg.state === "completed" && msg.artifact && (
                 <div className="mt-3 border border-accent/20 rounded-lg p-4 bg-accent/5">
                   <span className="font-mono text-[9px] text-accent uppercase block mb-2">Result</span>
-                  <ArtifactRenderer artifact={parseArtifact(msg.artifact)} compact />
+                  <ArtifactRenderer artifact={parseArtifact(msg.artifact)} />
                 </div>
               )}
 
