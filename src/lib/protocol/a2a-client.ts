@@ -45,6 +45,7 @@ export async function sendTaskCreate(
       params,
       id: rpcId,
     }),
+    signal: AbortSignal.timeout(10000), // 10s timeout for initial request
   });
 
   if (!res.ok) {
@@ -75,6 +76,7 @@ export async function pollTaskStatus(
       params: { taskId },
       id: rpcId,
     }),
+    signal: AbortSignal.timeout(5000), // 5s timeout for status poll
   });
 
   if (!res.ok) {

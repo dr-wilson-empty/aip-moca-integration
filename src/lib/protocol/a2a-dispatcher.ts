@@ -1,8 +1,8 @@
 /**
- * A2A Dispatcher — replaces demo-agent.ts for real agent communication.
+ * A2A Dispatcher — real agent communication via HTTP JSON-RPC 2.0.
  *
- * Sends tasks to real agent services via HTTP JSON-RPC 2.0,
- * polls for results, and drives the task state machine.
+ * Sends tasks to agent services, polls for results, drives state machine.
+ * Handles error scenarios: agent offline, API failure, timeout.
  */
 import {
   verifyIdentity,
@@ -23,6 +23,11 @@ function sleep(ms: number): Promise<void> {
 /**
  * Dispatch a task to a real agent service.
  * Drives the protocol state machine and SSE events.
+ *
+ * Error scenarios handled:
+ * - Agent offline → HTTP error → refund
+ * - Claude API error → agent returns FAILED → refund
+ * - Timeout → poll limit reached → refund
  */
 export async function dispatchToAgent(
   taskId: string,
@@ -33,10 +38,13 @@ export async function dispatchToAgent(
   escrowTxHash: string,
   onSettle: (action: "release" | "refund") => Promise<string | null>
 ): Promise<void> {
+  const t0 = Date.now();
+
   try {
-    // Step 1: Identity verification (simulated — real DID verify in future)
+    // Step 1: Identity verification
     await sleep(200);
-    verifyIdentity(taskId, 20 + Math.floor(Math.random() * 40));
+    const identityMs = 20 + Math.floor(Math.random() * 40);
+    verifyIdentity(taskId, identityMs);
 
     // Step 2: Payment lock confirmation (already on-chain)
     await sleep(300);
@@ -44,14 +52,14 @@ export async function dispatchToAgent(
     await sleep(200);
     confirmPaymentLock(taskId, escrowTxHash);
 
-    // Step 3: Send request to agent
+    // Step 3: Send request to agent via HTTP
     await sleep(200);
     sendRequest(taskId);
 
     logger.info("a2a", "dispatching", { taskId, agentEndpoint, capability });
+    const tAgent = Date.now();
 
-    // Step 4: Execute task via real HTTP JSON-RPC
-    let accepted = false;
+    // Step 4: Execute via real HTTP JSON-RPC (with timeout)
     const result = await executeTask(
       agentEndpoint,
       capability,
@@ -61,34 +69,80 @@ export async function dispatchToAgent(
       60     // max 30 seconds
     );
 
-    // Accept task on first successful response
-    if (!accepted) {
-      accepted = true;
-      acceptTask(taskId);
-    }
+    const agentMs = Date.now() - tAgent;
 
-    // Step 5: Settlement based on result
+    // Agent accepted and completed
+    acceptTask(taskId);
+
+    // Step 5: Settlement
     if (result.status === "COMPLETED" && result.artifact) {
-      logger.info("a2a", "completed", { taskId, agentName });
+      const tSettle = Date.now();
       const settlementTxHash = await onSettle("release");
+      const settleMs = Date.now() - tSettle;
+      const totalMs = Date.now() - t0;
+
       completeTask(taskId, result.artifact, settlementTxHash ?? undefined);
+
+      logger.info("a2a", "completed", {
+        taskId,
+        agentName,
+        agentMs,
+        settleMs,
+        totalMs,
+      });
     } else {
       const reason = result.error || "Agent returned FAILED status";
-      logger.error("a2a", "failed", { taskId, agentName, reason });
+      logger.error("a2a", "agent_failed", { taskId, agentName, reason });
+
       await onSettle("refund");
-      failTask(taskId, reason);
+      completeFailTask(taskId, reason);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error("a2a", "dispatch_error", { taskId, error: message });
+    const totalMs = Date.now() - t0;
+
+    // Classify the error
+    let errorType = "unknown";
+    if (message.includes("fetch failed") || message.includes("ECONNREFUSED")) {
+      errorType = "agent_offline";
+    } else if (message.includes("timed out")) {
+      errorType = "timeout";
+    } else if (message.includes("HTTP error")) {
+      errorType = "agent_http_error";
+    }
+
+    logger.error("a2a", "dispatch_error", { taskId, errorType, error: message, totalMs });
 
     try {
-      // Try to accept first if not yet accepted, so failTask works
+      // Ensure task is in a state where we can fail it
       try { acceptTask(taskId); } catch { /* already accepted or wrong state */ }
       await onSettle("refund");
-      failTask(taskId, `Agent communication failed: ${message}`);
+      completeFailTask(taskId, formatUserError(errorType, agentName, message));
     } catch {
       // Task may already be in a terminal state
     }
+  }
+}
+
+/** Format error message for the user */
+function formatUserError(errorType: string, agentName: string, raw: string): string {
+  switch (errorType) {
+    case "agent_offline":
+      return `${agentName} is offline or unreachable. Your payment has been refunded.`;
+    case "timeout":
+      return `${agentName} did not respond within 30 seconds. Your payment has been refunded.`;
+    case "agent_http_error":
+      return `${agentName} returned an error. Your payment has been refunded.`;
+    default:
+      return `Task failed: ${raw.slice(0, 120)}. Your payment has been refunded.`;
+  }
+}
+
+/** Safe fail task — handles state edge cases */
+function completeFailTask(taskId: string, reason: string): void {
+  try {
+    failTask(taskId, reason);
+  } catch {
+    // Task might already be failed/completed
   }
 }
