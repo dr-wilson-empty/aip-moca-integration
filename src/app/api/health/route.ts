@@ -25,11 +25,11 @@ export async function GET() {
   const agents = listCards();
   checks.agentStore = { status: "ok", detail: `${agents.length} agents registered` };
 
-  // Escrow wallet
+  // Escrow authority (program-based)
   try {
-    const { getEscrowAddress } = await import("@/lib/payment/escrow");
-    const addr = getEscrowAddress();
-    checks.escrowWallet = { status: "ok", detail: addr };
+    const { getAuthorityAddress } = await import("@/lib/payment/escrow");
+    const addr = getAuthorityAddress();
+    checks.escrowWallet = { status: "ok", detail: `authority: ${addr}` };
   } catch (err) {
     checks.escrowWallet = { status: "error", detail: err instanceof Error ? err.message : "unknown" };
   }
