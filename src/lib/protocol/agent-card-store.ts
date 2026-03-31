@@ -53,11 +53,13 @@ export async function syncFromChain(): Promise<number> {
     const onChainCards = await fetchAllOnChainAgents();
     for (const card of onChainCards) {
       // Remove any in-memory card with the same endpoint (avoid duplicates)
-      for (const [did, existing] of cardsByDid.entries()) {
-        if (existing.endpoint === card.endpoint && did !== card.did) {
-          cardsByDid.delete(did);
+      const toRemove: string[] = [];
+      cardsByDid.forEach((existing, existingDid) => {
+        if (existing.endpoint === card.endpoint && existingDid !== card.did) {
+          toRemove.push(existingDid);
         }
-      }
+      });
+      toRemove.forEach((d) => cardsByDid.delete(d));
       registerCard(card);
     }
     g.__aip_chain_synced = true;

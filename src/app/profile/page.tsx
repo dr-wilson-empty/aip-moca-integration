@@ -1,0 +1,190 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletStore } from "@/store/walletStore";
+import { useLogStore } from "@/store/logStore";
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      className="font-mono text-[10px] text-muted hover:text-mint transition-colors"
+    >
+      {copied ? "Copied!" : "Copy"}
+    </button>
+  );
+}
+
+function StatCard({ label, value, color = "text-mint" }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="border border-forest-deep/60 bg-forest-deep/20 p-4 rounded-lg">
+      <span className="font-mono text-[9px] text-muted uppercase block mb-1">{label}</span>
+      <span className={`font-display text-xl uppercase ${color}`}>{value}</span>
+    </div>
+  );
+}
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const { disconnect } = useWallet();
+  const { address, did, usdcBalance } = useWalletStore();
+  const { tasks } = useLogStore();
+
+  const handleDisconnect = () => {
+    disconnect();
+    router.push("/connect");
+  };
+  const [solBalance, setSolBalance] = useState<string>("...");
+  const [myAgentCount, setMyAgentCount] = useState(0);
+
+  useEffect(() => {
+    if (!address) return;
+    // Fetch SOL balance
+    fetch(`/api/wallet/balance?address=${address}&type=sol`)
+      .then((r) => r.json())
+      .then((d) => setSolBalance(d.solBalance ?? "..."))
+      .catch(() => setSolBalance("..."));
+    // Fetch my agents count
+    fetch(`/api/agent-card/my-agents?owner=${address}`)
+      .then((r) => r.json())
+      .then((d) => setMyAgentCount(d.agents?.length ?? 0))
+      .catch(() => {});
+  }, [address]);
+
+  if (!address) {
+    return (
+      <div className="max-w-[1920px] mx-auto px-10 py-12 flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <span className="font-mono text-sm text-muted">Connect your wallet to view profile.</span>
+        <button onClick={() => router.push("/connect")} className="font-mono text-xs text-accent hover:text-mint">
+          Go to Connect
+        </button>
+      </div>
+    );
+  }
+
+  const totalTasks = tasks.length;
+  const completed = tasks.filter((t) => t.state === "COMPLETED").length;
+  const totalSpent = tasks.reduce((sum, t) => sum + parseFloat(t.usdcSpent || "0"), 0);
+
+  return (
+    <div className="max-w-[1920px] mx-auto px-10 py-12">
+      {/* Header */}
+      <div className="mb-10">
+        <span className="font-mono text-xs text-muted uppercase tracking-wider">Your Account</span>
+        <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">Profile</h2>
+      </div>
+
+      {/* Balance Hero */}
+      <div className="border border-mint/20 rounded-2xl p-10 mb-8 bg-gradient-to-br from-forest-deep/30 to-transparent">
+        <div className="grid grid-cols-2 gap-10">
+          <div>
+            <span className="font-mono text-xs text-muted uppercase block mb-2">USDC Balance</span>
+            <span className="font-display text-[clamp(36px,5vw,56px)] text-accent leading-none">
+              {usdcBalance || "0.00"}
+            </span>
+            <span className="font-mono text-lg text-muted ml-2">USDC</span>
+          </div>
+          <div>
+            <span className="font-mono text-xs text-muted uppercase block mb-2">SOL Balance</span>
+            <span className="font-display text-[clamp(36px,5vw,56px)] text-mint leading-none">
+              {solBalance}
+            </span>
+            <span className="font-mono text-lg text-muted ml-2">SOL</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <StatCard label="Total Tasks" value={String(totalTasks)} />
+        <StatCard label="Completed" value={String(completed)} color="text-accent" />
+        <StatCard label="USDC Spent" value={totalSpent.toFixed(2)} color="text-accent" />
+        <StatCard label="My Agents" value={String(myAgentCount)} color="text-purple-400" />
+      </div>
+
+      {/* Identity Info */}
+      <div className="grid grid-cols-2 gap-6">
+        <div className="border border-mint/10 rounded-xl p-6">
+          <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-4">Identity</span>
+
+          <div className="flex flex-col gap-4">
+            <div>
+              <span className="font-mono text-[10px] text-muted uppercase block mb-1">Wallet Address</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-mint break-all">{address}</span>
+                <CopyButton text={address} />
+              </div>
+            </div>
+            <div>
+              <span className="font-mono text-[10px] text-muted uppercase block mb-1">DID (Decentralized Identifier)</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs text-mint break-all">{did || "Not generated"}</span>
+                {did && <CopyButton text={did} />}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Links + Disconnect */}
+        <div className="border border-mint/10 rounded-xl p-6">
+          <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-4">Quick Links</span>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => router.push("/my-agents")}
+              className="text-left p-4 border border-forest-deep/40 rounded-lg hover:border-mint/20 hover:bg-forest-deep/20 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-mono text-sm text-off-white group-hover:text-mint transition-colors">My Agents</span>
+                  <p className="font-mono text-[10px] text-muted mt-0.5">{myAgentCount} registered on-chain</p>
+                </div>
+                <span className="font-mono text-xs text-muted group-hover:text-mint">→</span>
+              </div>
+            </button>
+            <button
+              onClick={() => router.push("/marketplace")}
+              className="text-left p-4 border border-forest-deep/40 rounded-lg hover:border-mint/20 hover:bg-forest-deep/20 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm text-off-white group-hover:text-mint transition-colors">Marketplace</span>
+                <span className="font-mono text-xs text-muted group-hover:text-mint">→</span>
+              </div>
+            </button>
+            <button
+              onClick={() => router.push("/log")}
+              className="text-left p-4 border border-forest-deep/40 rounded-lg hover:border-mint/20 hover:bg-forest-deep/20 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm text-off-white group-hover:text-mint transition-colors">Task History</span>
+                <span className="font-mono text-xs text-muted group-hover:text-mint">→</span>
+              </div>
+            </button>
+            <a
+              href={`https://explorer.solana.com/address/${address}?cluster=devnet`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-left p-4 border border-forest-deep/40 rounded-lg hover:border-mint/20 hover:bg-forest-deep/20 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm text-off-white group-hover:text-mint transition-colors">Solana Explorer</span>
+                <span className="font-mono text-xs text-muted group-hover:text-mint">↗</span>
+              </div>
+            </a>
+            <button
+              onClick={handleDisconnect}
+              className="w-full text-left p-4 border border-red-800/30 rounded-lg hover:border-red-600/40 hover:bg-red-900/10 transition-all group mt-2"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm text-red-400 group-hover:text-red-300 transition-colors">Disconnect Wallet</span>
+                <span className="font-mono text-xs text-red-400/60 group-hover:text-red-300">✕</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
