@@ -37,6 +37,10 @@ export async function GET(request: NextRequest) {
     const connection = getConnection();
     const usdcMint = getUsdcMint();
 
+    // SOL balance
+    const solLamports = await connection.getBalance(walletPubkey);
+    const solBalance = (solLamports / 1e9).toFixed(4);
+
     // Associated Token Account adresini hesapla
     const ata = await getAssociatedTokenAddress(usdcMint, walletPubkey);
 
@@ -47,6 +51,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       address,
       balance,
+      solBalance,
       mint: usdcMint.toBase58(),
       ata: ata.toBase58(),
     });

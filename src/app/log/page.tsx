@@ -1,9 +1,22 @@
 "use client";
 
+import { useEffect } from "react";
+import { useWalletStore } from "@/store/walletStore";
+import { useLogStore } from "@/store/logStore";
 import StatsRow from "@/components/log/StatsRow";
 import TaskTable from "@/components/log/TaskTable";
 
 export default function LogPage() {
+  const { address } = useWalletStore();
+  const { loaded, loadFromServer } = useLogStore();
+
+  // Load history from Supabase on mount
+  useEffect(() => {
+    if (address && !loaded) {
+      loadFromServer(address);
+    }
+  }, [address, loaded, loadFromServer]);
+
   return (
     <div className="max-w-[1920px] mx-auto px-10 py-12">
       <div className="mb-8 border-b border-mint/20 pb-6 flex items-end justify-between">

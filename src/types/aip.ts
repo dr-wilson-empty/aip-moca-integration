@@ -43,6 +43,18 @@ export interface LogEntry {
   message: string;
 }
 
+export type ArtifactType = "text" | "json" | "image" | "link" | "transaction" | "file";
+
+export interface Artifact {
+  type: ArtifactType;
+  content?: string;     // text, markdown
+  data?: unknown;       // json
+  url?: string;         // image, link, file
+  alt?: string;         // image alt text
+  txHash?: string;      // transaction
+  label?: string;       // link/file label
+}
+
 export interface Task {
   id: string;
   counterpartAgent: string;
@@ -53,6 +65,7 @@ export interface Task {
   state: TaskState;
   usdcSpent: string;
   artifact?: string;
+  parsedArtifact?: Artifact;
   escrowTxHash?: string;
   settlementTxHash?: string;
   log: LogEntry[];

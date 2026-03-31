@@ -122,7 +122,7 @@ export default function WalletConnectCard() {
               <BtnPrimary variant="ghost" onClick={() => { disconnect(); clearWallet(); }}>
                 Disconnect
               </BtnPrimary>
-              <BtnPrimary onClick={() => router.push("/explorer")}>
+              <BtnPrimary onClick={() => router.push("/marketplace")}>
                 Continue
                 <span>→</span>
               </BtnPrimary>

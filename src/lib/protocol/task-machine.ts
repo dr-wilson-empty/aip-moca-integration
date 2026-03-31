@@ -1,4 +1,5 @@
 import type { TaskState, LogEntry } from "@/types/aip";
+import { dbUpsertTask } from "@/lib/supabase/db";
 
 /* ------------------------------------------------------------------ */
 /*  Task Record                                                        */
@@ -86,6 +87,30 @@ function addLog(task: TaskRecord, eventType: string, message: string): LogEntry 
 }
 
 /* ------------------------------------------------------------------ */
+/*  Persist to Supabase (fire-and-forget)                              */
+/* ------------------------------------------------------------------ */
+
+function persistTask(task: TaskRecord): void {
+  dbUpsertTask({
+    id: task.id,
+    caller_did: task.callerDid,
+    caller_address: task.callerAddress,
+    agent_did: task.agentDid,
+    agent_name: task.agentName,
+    agent_address: task.agentAddress,
+    capability: task.capability,
+    input: task.input,
+    amount: task.amount,
+    state: task.state,
+    escrow_tx_hash: task.escrowTxHash,
+    settlement_tx_hash: task.settlementTxHash,
+    artifact: task.artifact,
+    fail_reason: task.failReason,
+    log: task.log,
+  }).catch(() => {});
+}
+
+/* ------------------------------------------------------------------ */
 /*  State transitions                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -111,6 +136,7 @@ export function createTask(params: {
   };
   tasks.set(task.id, task);
   addLog(task, "IDENTITY", `Verifying agent ${params.agentName} identity...`);
+  persistTask(task);
   return task;
 }
 
@@ -165,6 +191,7 @@ export function completeTask(taskId: string, artifact: string, settlementTxHash?
   // State'i en son set et — SSE bu event'te "end" gonderir ve kapanir
   task.state = "COMPLETED";
   addLog(task, "COMPLETE", `${task.amount} USDC released to ${task.agentName}`);
+  persistTask(task);
   return task;
 }
 
@@ -179,6 +206,7 @@ export function failTask(taskId: string, reason: string): TaskRecord {
   // State'i en son set et
   task.state = "FAILED";
   addLog(task, "REFUND", `${task.amount} USDC refunded to your wallet`);
+  persistTask(task);
   return task;
 }
 

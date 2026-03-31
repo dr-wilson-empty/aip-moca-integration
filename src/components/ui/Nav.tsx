@@ -6,10 +6,12 @@ import { usePathname } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
 
 const NAV_ITEMS = [
-  { href: "/connect", label: "Identity" },
-  { href: "/explorer", label: "Discovery" },
+  { href: "/twin", label: "Twin" },
+  { href: "/marketplace", label: "Marketplace" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/my-agents", label: "My Agents" },
   { href: "/log", label: "History" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export default function Nav() {
@@ -43,14 +45,14 @@ export default function Nav() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-mint/20 bg-bg-base/90 backdrop-blur-sm">
       <div className="max-w-[1920px] mx-auto px-10 h-14 flex items-center justify-between">
-        <span className="font-display text-mint text-sm uppercase tracking-widest">
+        <Link href={address ? "/marketplace" : "/connect"} className="font-display text-mint text-sm uppercase tracking-widest hover:text-accent transition-colors">
           AIP
-        </span>
+        </Link>
 
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-6">
           {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href;
-            const isLocked = mounted && !address && item.href !== "/connect";
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+            const isLocked = mounted && !address;
             return (
               <Link
                 key={item.href}
@@ -73,15 +75,17 @@ export default function Nav() {
               {usdcBalance} USDC
             </span>
             <div className="w-px h-4 bg-mint/10" />
-            <div className="flex items-center gap-2">
+            <Link href="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
               <span className="font-mono text-xs text-muted uppercase">
                 {address.slice(0, 4)}...{address.slice(-4)}
               </span>
-            </div>
+            </Link>
           </div>
         ) : (
-          <div className="w-24" />
+          <Link href="/connect" className="font-mono text-xs text-muted hover:text-mint uppercase transition-colors">
+            Connect
+          </Link>
         )}
       </div>
     </nav>

@@ -119,7 +119,7 @@ export default function TaskForm() {
             You need to select a counterpart agent before starting a task.
           </p>
         </div>
-        <BtnPrimary onClick={() => router.push("/explorer")}>
+        <BtnPrimary onClick={() => router.push("/marketplace")}>
           Select an Agent
           <span>→</span>
         </BtnPrimary>

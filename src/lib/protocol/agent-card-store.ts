@@ -1,7 +1,7 @@
 import type { AgentCard } from "@/types/aip";
 import {
   fetchAllOnChainAgents,
-  isAgentOnChain,
+  isAgentOnChainByDid,
 } from "@/lib/solana/registry-program";
 
 /**
@@ -52,6 +52,14 @@ export async function syncFromChain(): Promise<number> {
   try {
     const onChainCards = await fetchAllOnChainAgents();
     for (const card of onChainCards) {
+      // Remove any in-memory card with the same endpoint (avoid duplicates)
+      const toRemove: string[] = [];
+      cardsByDid.forEach((existing, existingDid) => {
+        if (existing.endpoint === card.endpoint && existingDid !== card.did) {
+          toRemove.push(existingDid);
+        }
+      });
+      toRemove.forEach((d) => cardsByDid.delete(d));
       registerCard(card);
     }
     g.__aip_chain_synced = true;
@@ -64,7 +72,7 @@ export async function syncFromChain(): Promise<number> {
 /** Check if a specific agent is registered on-chain */
 export async function checkOnChain(did: string): Promise<boolean> {
   try {
-    return await isAgentOnChain(did);
+    return await isAgentOnChainByDid(did);
   } catch {
     return false;
   }

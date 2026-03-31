@@ -10,7 +10,8 @@
     "AIP Agent Registry Program",
     "",
     "On-chain agent card storage and discovery.",
-    "Agents register their card data on Solana — anyone can query and discover them."
+    "One wallet can register multiple agents, each with a unique agent_id.",
+    "PDA seeds: [\"agent\", owner, agent_id]"
   ],
   "instructions": [
     {
@@ -51,7 +52,11 @@
               },
               {
                 "kind": "account",
-                "path": "agent_record.did_seed",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent_record.agent_id",
                 "account": "AgentRecord"
               }
             ]
@@ -64,7 +69,7 @@
       "name": "register_agent",
       "docs": [
         "Register a new agent on-chain.",
-        "PDA seeds: [\"agent\", did_seed] where did_seed = sha256(did)[0..32]"
+        "agent_id is a unique slug per owner (max 32 chars, immutable after creation)."
       ],
       "discriminator": [
         135,
@@ -98,8 +103,12 @@
                 ]
               },
               {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
                 "kind": "arg",
-                "path": "did_seed"
+                "path": "agent_id"
               }
             ]
           }
@@ -111,13 +120,8 @@
       ],
       "args": [
         {
-          "name": "did_seed",
-          "type": {
-            "array": [
-              "u8",
-              32
-            ]
-          }
+          "name": "agent_id",
+          "type": "string"
         },
         {
           "name": "did",
@@ -153,7 +157,7 @@
       "name": "update_agent",
       "docs": [
         "Update an existing agent record.",
-        "Only the original owner can update."
+        "Only the original owner can update. agent_id cannot change."
       ],
       "discriminator": [
         85,
@@ -188,7 +192,11 @@
               },
               {
                 "kind": "account",
-                "path": "agent_record.did_seed",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent_record.agent_id",
                 "account": "AgentRecord"
               }
             ]
@@ -241,36 +249,41 @@
   "errors": [
     {
       "code": 6000,
+      "name": "AgentIdInvalid",
+      "msg": "Agent ID invalid: 1-32 characters required"
+    },
+    {
+      "code": 6001,
       "name": "DidTooLong",
       "msg": "DID too long: maximum 100 characters"
     },
     {
-      "code": 6001,
+      "code": 6002,
       "name": "NameTooLong",
       "msg": "Name too long: maximum 64 characters"
     },
     {
-      "code": 6002,
+      "code": 6003,
       "name": "EndpointTooLong",
       "msg": "Endpoint too long: maximum 200 characters"
     },
     {
-      "code": 6003,
+      "code": 6004,
       "name": "CapabilitiesTooLong",
       "msg": "Capabilities JSON too long: maximum 512 characters"
     },
     {
-      "code": 6004,
+      "code": 6005,
       "name": "VersionTooLong",
       "msg": "Version too long: maximum 16 characters"
     },
     {
-      "code": 6005,
+      "code": 6006,
       "name": "InvalidAgentType",
       "msg": "Invalid agent type: must be 0 (LLM), 1 (Task), or 2 (Execution)"
     },
     {
-      "code": 6006,
+      "code": 6007,
       "name": "Unauthorized",
       "msg": "Unauthorized: only the owner can modify this record"
     }
@@ -286,13 +299,8 @@
             "type": "pubkey"
           },
           {
-            "name": "did_seed",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
+            "name": "agent_id",
+            "type": "string"
           },
           {
             "name": "did",

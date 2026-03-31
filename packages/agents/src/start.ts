@@ -11,14 +11,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Load env from project root .env.local
 config({ path: resolve(__dirname, "../../../.env.local") });
 
-import { createAgent } from "./create-agent.js";
 import { ALL_AGENTS } from "./agents.js";
 
 console.log("Starting AIP Agent Services...\n");
 
-for (const agentConfig of ALL_AGENTS) {
-  const { start } = createAgent(agentConfig);
-  start();
+for (const agent of ALL_AGENTS) {
+  agent.start();
 }
 
 console.log("\nAll agents started. Press Ctrl+C to stop.\n");
