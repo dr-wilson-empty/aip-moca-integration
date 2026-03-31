@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
 
 interface TaskDetail {
   id: string;
@@ -124,9 +125,7 @@ export default function TaskDetailPage() {
           {task.artifact && (
             <div className="border border-accent/20 rounded-xl p-6 bg-accent/5">
               <span className="font-mono text-xs text-accent uppercase tracking-wider block mb-3">Artifact (Result)</span>
-              <div className="font-mono text-sm text-body leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto">
-                {task.artifact}
-              </div>
+              <ArtifactRenderer artifact={parseArtifact(task.artifact)} />
             </div>
           )}
 

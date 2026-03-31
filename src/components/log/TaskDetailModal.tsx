@@ -2,6 +2,7 @@
 
 import type { Task } from "@/types/aip";
 import MonoLabel from "@/components/ui/MonoLabel";
+import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
 
 const SOLANA_EXPLORER = "https://explorer.solana.com/tx";
 
@@ -60,7 +61,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
         {task.artifact && (
           <div className="border border-accent/30 bg-accent/5 p-4 rounded-lg">
             <MonoLabel className="mb-2 text-accent">Artifact</MonoLabel>
-            <p className="font-mono text-xs text-off-white leading-relaxed">{task.artifact}</p>
+            <ArtifactRenderer artifact={parseArtifact(task.artifact)} />
           </div>
         )}
 

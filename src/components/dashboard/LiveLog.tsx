@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useTaskStore } from "@/store/taskStore";
 import MonoLabel from "@/components/ui/MonoLabel";
+import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
 
 const SOLANA_EXPLORER = "https://explorer.solana.com/tx";
 
@@ -33,9 +34,7 @@ export default function LiveLog() {
       {artifact && taskState === "COMPLETED" && (
         <div className="border border-accent/30 bg-accent/5 p-4 rounded-lg">
           <MonoLabel className="text-accent mb-2">Task Artifact</MonoLabel>
-          <p className="font-mono text-xs text-off-white leading-relaxed">
-            {artifact}
-          </p>
+          <ArtifactRenderer artifact={parseArtifact(artifact)} />
           <div className="mt-3 flex flex-col gap-1">
             {escrowTxHash && (
               <a
