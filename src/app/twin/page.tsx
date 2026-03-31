@@ -114,8 +114,9 @@ export default function TwinPage() {
       updateMessage(activeMsgId, { currentStep: nextIdx });
       setActiveStepIdx(nextIdx);
 
-      // Auto-execute next step
-      setTimeout(() => executeStep(activeMsgId, nextIdx), 500);
+      // Auto-execute next step with previous output as input
+      const nextInput = nextStep.inputFromPrev && stepArtifact ? stepArtifact : nextStep.input;
+      setTimeout(() => executeStep(activeMsgId, nextIdx, nextInput), 500);
     } else {
       // Pipeline complete
       const lastArtifact = stepArtifact;
@@ -140,10 +141,11 @@ export default function TwinPage() {
   }, [taskState]);
 
   /* ---- Execute a single step ---- */
-  const executeStep = async (msgId: string, stepIdx: number) => {
+  const executeStep = async (msgId: string, stepIdx: number, overrideInput?: string) => {
     const msg = messages.find((m) => m.id === msgId);
     const step = msg?.steps?.[stepIdx];
     if (!step || !did || !address) return;
+    const stepInput = overrideInput || step.input;
 
     updateStep(msgId, stepIdx, { status: "executing" });
     startTimeRef.current = new Date().toISOString();
@@ -171,7 +173,7 @@ export default function TwinPage() {
       const result = await submitTaskWithPayment({
         agentEndpoint: step.agentEndpoint,
         capability: step.capabilityId,
-        input: step.input,
+        input: stepInput,
         amount: step.estimatedCost,
         callerDid: did,
         callerAddress: address,
