@@ -12,7 +12,6 @@ function TypeDot({ type }: { type: AgentType }) {
 export default function FetchPanel() {
   const [agents, setAgents] = useState<(AgentCard & { onChain?: boolean })[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fetchingEp, setFetchingEp] = useState("");
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const { counterpartCard, setCounterpart } = useAgentStore();
@@ -28,18 +27,8 @@ export default function FetchPanel() {
 
   useEffect(() => { loadAgents(); }, [loadAgents]);
 
-  const doFetch = async (endpoint: string) => {
-    setFetchingEp(endpoint);
-    try {
-      const res = await fetch(`/api/agent-card/fetch?url=${encodeURIComponent(endpoint)}`);
-      const data = await res.json();
-      if (data.card) {
-        setCounterpart(data.card);
-      }
-    } catch (err) {
-      console.error("[FetchPanel] fetch error:", err);
-    }
-    setFetchingEp("");
+  const selectAgent = (card: AgentCard) => {
+    setCounterpart(card);
   };
 
   // Filter agents
@@ -109,15 +98,12 @@ export default function FetchPanel() {
           </p>
         ) : (
           filtered.map((card) => {
-            const ep = card.endpoint;
-            const isSelected = counterpartCard?.endpoint === ep;
-            const isLoading = fetchingEp === ep;
+            const isSelected = counterpartCard?.did === card.did;
 
             return (
               <button
-                key={ep}
-                onClick={() => doFetch(ep)}
-                disabled={isLoading}
+                key={card.did}
+                onClick={() => selectAgent(card)}
                 className={`text-left p-4 border rounded-lg transition-all duration-200 flex items-start gap-4 group ${
                   isSelected
                     ? "border-mint/40 bg-mint/5"
@@ -125,9 +111,7 @@ export default function FetchPanel() {
                 }`}
               >
                 <div className="mt-1.5">
-                  {isLoading ? (
-                    <span className="w-2 h-2 border border-accent border-t-transparent rounded-full animate-spin-slow block" />
-                  ) : isSelected ? (
+                  {isSelected ? (
                     <span className="w-2 h-2 rounded-full bg-accent" />
                   ) : (
                     <TypeDot type={card.type} />

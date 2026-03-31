@@ -14,19 +14,11 @@ const REGISTRY_PROGRAM_ID = new PublicKey(
   "CgchXu2dRV3r9E1YjRhp4kbeLLtv1Xz61yoerJzp1Vbc"
 );
 
-const REGISTER_DISCRIMINATOR = Buffer.from([135, 157, 66, 195, 2, 113, 175, 30]);
-
-/* ------------------------------------------------------------------ */
-/*  Browser-compatible SHA-256                                         */
-/* ------------------------------------------------------------------ */
-
-async function sha256Browser(data: string): Promise<Uint8Array> {
-  const encoded = new TextEncoder().encode(data);
-  const ab = new ArrayBuffer(encoded.byteLength);
-  new Uint8Array(ab).set(encoded);
-  const hash = await crypto.subtle.digest("SHA-256", ab);
-  return new Uint8Array(hash).slice(0, 32);
-}
+const DISCRIMINATORS = {
+  register:   Buffer.from([135, 157, 66, 195, 2, 113, 175, 30]),
+  update:     Buffer.from([85, 2, 178, 9, 119, 139, 102, 164]),
+  deregister: Buffer.from([227, 208, 166, 164, 48, 69, 111, 1]),
+};
 
 /* ------------------------------------------------------------------ */
 /*  Borsh helpers                                                      */
@@ -39,22 +31,52 @@ function borshString(s: string): Buffer {
   return Buffer.concat([len, utf8]);
 }
 
-function borshU8(n: number): Buffer {
-  return Buffer.from([n]);
+function borshU8(n: number): Buffer { return Buffer.from([n]); }
+function borshPubkey(pk: PublicKey): Buffer { return pk.toBuffer(); }
+
+/* ------------------------------------------------------------------ */
+/*  PDA + DID                                                          */
+/* ------------------------------------------------------------------ */
+
+function derivePDA(owner: PublicKey, agentId: string): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("agent"), owner.toBuffer(), Buffer.from(agentId)],
+    REGISTRY_PROGRAM_ID
+  );
+  return pda;
 }
 
-function borshPubkey(pk: PublicKey): Buffer {
-  return pk.toBuffer();
+function generateDid(ownerPubkey: string, agentId: string): string {
+  return `did:aip:${ownerPubkey.slice(0, 8)}:${agentId}`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Shared sign + send                                                 */
+/* ------------------------------------------------------------------ */
+
+async function signAndSend(
+  tx: Transaction,
+  connection: ReturnType<typeof useConnection>["connection"],
+  signTransaction: NonNullable<ReturnType<typeof useWallet>["signTransaction"]>
+): Promise<string> {
+  const signedTx = await signTransaction(tx);
+  const signature = await connection.sendRawTransaction(signedTx.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
+  await connection.confirmTransaction(signature, "confirmed");
+  return signature;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export interface RegisterAgentParams {
+export interface AgentParams {
+  agentId: string; // unique slug, immutable
   name: string;
   endpoint: string;
-  agentType: number; // 0=LLM, 1=Task, 2=Execution
+  agentType: number;
   walletAddress: string;
   capabilities: Array<{
     id: string;
@@ -65,49 +87,32 @@ export interface RegisterAgentParams {
 }
 
 /**
- * Hook for registering an agent on-chain via Phantom wallet.
+ * Hook for on-chain agent management.
+ * One wallet can register multiple agents via unique agent_id slugs.
  */
-export function useRegisterAgent() {
+export function useAgentRegistry() {
   const { publicKey, signTransaction } = useWallet();
   const { connection } = useConnection();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** Register a new agent */
   const register = useCallback(
-    async (params: RegisterAgentParams): Promise<string | null> => {
-      if (!publicKey || !signTransaction) {
-        setError("Wallet not connected");
-        return null;
-      }
-
-      setLoading(true);
-      setError(null);
-
+    async (params: AgentParams): Promise<string | null> => {
+      if (!publicKey || !signTransaction) { setError("Wallet not connected"); return null; }
+      setLoading(true); setError(null);
       try {
-        // Generate DID from wallet public key (did:key format)
-        const did = `did:key:z${publicKey.toBase58()}`;
-
-        // Compute did_seed = sha256(did)[0..32]
-        const didSeed = await sha256Browser(did);
-        const didSeedBuffer = Buffer.from(didSeed);
-
-        // Derive PDA
-        const [agentRecord] = PublicKey.findProgramAddressSync(
-          [Buffer.from("agent"), didSeedBuffer],
-          REGISTRY_PROGRAM_ID
-        );
-
-        const walletAddr = new PublicKey(params.walletAddress);
+        const did = generateDid(publicKey.toBase58(), params.agentId);
+        const pda = derivePDA(publicKey, params.agentId);
         const capabilitiesJson = JSON.stringify(params.capabilities);
 
-        // Build instruction data
         const data = Buffer.concat([
-          REGISTER_DISCRIMINATOR,
-          didSeedBuffer, // [u8; 32]
+          DISCRIMINATORS.register,
+          borshString(params.agentId),
           borshString(did),
           borshString(params.name),
           borshString(params.endpoint),
-          borshPubkey(walletAddr),
+          borshPubkey(new PublicKey(params.walletAddress)),
           borshU8(params.agentType),
           borshString(capabilitiesJson),
           borshString(params.version),
@@ -117,37 +122,21 @@ export function useRegisterAgent() {
           programId: REGISTRY_PROGRAM_ID,
           keys: [
             { pubkey: publicKey, isSigner: true, isWritable: true },
-            { pubkey: agentRecord, isSigner: false, isWritable: true },
+            { pubkey: pda, isSigner: false, isWritable: true },
             { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
           ],
           data,
         });
 
-        const { blockhash, lastValidBlockHeight } =
-          await connection.getLatestBlockhash("confirmed");
-
-        const tx = new Transaction({
-          feePayer: publicKey,
-          blockhash,
-          lastValidBlockHeight,
-        });
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+        const tx = new Transaction({ feePayer: publicKey, blockhash, lastValidBlockHeight });
         tx.add(ix);
 
-        const signedTx = await signTransaction(tx);
-        const serialized = signedTx.serialize();
-
-        const signature = await connection.sendRawTransaction(serialized, {
-          skipPreflight: false,
-          preflightCommitment: "confirmed",
-        });
-
-        await connection.confirmTransaction(signature, "confirmed");
-
+        const sig = await signAndSend(tx, connection, signTransaction);
         setLoading(false);
-        return signature;
+        return sig;
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
+        setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
         return null;
       }
@@ -155,5 +144,82 @@ export function useRegisterAgent() {
     [publicKey, signTransaction, connection]
   );
 
-  return { register, loading, error };
+  /** Update an existing agent (agent_id must match) */
+  const update = useCallback(
+    async (params: AgentParams): Promise<string | null> => {
+      if (!publicKey || !signTransaction) { setError("Wallet not connected"); return null; }
+      setLoading(true); setError(null);
+      try {
+        const pda = derivePDA(publicKey, params.agentId);
+        const capabilitiesJson = JSON.stringify(params.capabilities);
+
+        const data = Buffer.concat([
+          DISCRIMINATORS.update,
+          borshString(params.name),
+          borshString(params.endpoint),
+          borshPubkey(new PublicKey(params.walletAddress)),
+          borshU8(params.agentType),
+          borshString(capabilitiesJson),
+          borshString(params.version),
+        ]);
+
+        const ix = new TransactionInstruction({
+          programId: REGISTRY_PROGRAM_ID,
+          keys: [
+            { pubkey: publicKey, isSigner: true, isWritable: true },
+            { pubkey: pda, isSigner: false, isWritable: true },
+          ],
+          data,
+        });
+
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+        const tx = new Transaction({ feePayer: publicKey, blockhash, lastValidBlockHeight });
+        tx.add(ix);
+
+        const sig = await signAndSend(tx, connection, signTransaction);
+        setLoading(false);
+        return sig;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setLoading(false);
+        return null;
+      }
+    },
+    [publicKey, signTransaction, connection]
+  );
+
+  /** Deregister an agent by agent_id */
+  const deregister = useCallback(
+    async (agentId: string): Promise<string | null> => {
+      if (!publicKey || !signTransaction) { setError("Wallet not connected"); return null; }
+      setLoading(true); setError(null);
+      try {
+        const pda = derivePDA(publicKey, agentId);
+
+        const ix = new TransactionInstruction({
+          programId: REGISTRY_PROGRAM_ID,
+          keys: [
+            { pubkey: publicKey, isSigner: true, isWritable: true },
+            { pubkey: pda, isSigner: false, isWritable: true },
+          ],
+          data: DISCRIMINATORS.deregister,
+        });
+
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+        const tx = new Transaction({ feePayer: publicKey, blockhash, lastValidBlockHeight });
+        tx.add(ix);
+
+        const sig = await signAndSend(tx, connection, signTransaction);
+        setLoading(false);
+        return sig;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setLoading(false);
+        return null;
+      }
+    },
+    [publicKey, signTransaction, connection]
+  );
+
+  return { register, update, deregister, loading, error };
 }

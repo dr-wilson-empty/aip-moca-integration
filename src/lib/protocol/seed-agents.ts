@@ -1,7 +1,7 @@
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { COUNTERPART_AGENT_CARDS } from "@/lib/mock/agentCards";
-import { registerCard, listCards, syncFromChain } from "./agent-card-store";
+import { registerCard, syncFromChain } from "./agent-card-store";
 import { registerAgentOnChain, isAgentOnChain } from "@/lib/solana/registry-program";
 
 const gs = globalThis as typeof globalThis & {
@@ -10,31 +10,35 @@ const gs = globalThis as typeof globalThis & {
 };
 let seeded = gs.__aip_seeded ?? false;
 
+const AGENT_IDS: Record<string, string> = {
+  "http://localhost:4001/a2a": "summary-agent",
+  "http://localhost:4002/a2a": "data-agent",
+  "http://localhost:4003/a2a": "audit-agent",
+};
+
 /**
- * Demo ajanlarini in-memory store'a kaydet.
- * Birden fazla cagrilsa bile sadece bir kez calisir.
+ * Seed demo agents.
+ * First registers in-memory (fast), then syncs from on-chain in background.
+ * On-chain versions replace in-memory ones when sync completes.
  */
 export function seedDemoAgents(): void {
   if (seeded) return;
   seeded = true;
   gs.__aip_seeded = true;
 
+  // In-memory seed for immediate availability
   for (const card of Object.values(COUNTERPART_AGENT_CARDS)) {
     registerCard(card);
   }
 
-  // On-chain sync + registration (background, non-blocking)
+  // On-chain registration + sync (background)
   if (!gs.__aip_chain_registered) {
     gs.__aip_chain_registered = true;
-    registerAgentsOnChain().catch(() => {});
+    registerAndSync().catch(() => {});
   }
 }
 
-/**
- * Register demo agents on-chain if not already registered.
- * Uses ESCROW_PRIVATE_KEY as the registration authority.
- */
-async function registerAgentsOnChain(): Promise<void> {
+async function registerAndSync(): Promise<void> {
   const key = process.env.ESCROW_PRIVATE_KEY;
   if (!key) return;
 
@@ -45,23 +49,25 @@ async function registerAgentsOnChain(): Promise<void> {
     return;
   }
 
-  // First sync existing on-chain agents
-  await syncFromChain();
-
-  // Register each demo agent if not already on-chain
+  // Register demo agents on-chain if not already
   for (const card of Object.values(COUNTERPART_AGENT_CARDS)) {
+    const agentId = AGENT_IDS[card.endpoint];
+    if (!agentId) continue;
+
     try {
-      const onChain = await isAgentOnChain(card.did);
+      const onChain = await isAgentOnChain(ownerKeypair.publicKey.toBase58(), agentId);
       if (!onChain) {
-        const sig = await registerAgentOnChain(ownerKeypair, card);
-        console.log(`[registry] Registered ${card.name} on-chain: ${sig.slice(0, 16)}...`);
+        const sig = await registerAgentOnChain(ownerKeypair, agentId, card);
+        console.log(`[registry] Registered ${card.name} (${agentId}): ${sig.slice(0, 16)}...`);
       }
     } catch (err) {
-      // Might fail if already registered or insufficient funds — that's OK
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes("already in use")) {
         console.error(`[registry] Failed to register ${card.name}:`, msg.slice(0, 80));
       }
     }
   }
+
+  // Sync from chain — on-chain versions override in-memory
+  await syncFromChain();
 }

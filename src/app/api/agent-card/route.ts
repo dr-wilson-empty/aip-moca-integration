@@ -25,23 +25,22 @@ export async function GET(request: NextRequest) {
   const list = request.nextUrl.searchParams.get("list");
 
   if (list === "true") {
-    // Sync from chain in background (non-blocking for fast response)
-    syncFromChain().catch(() => {});
+    // Sync from chain (await to get latest data)
+    await syncFromChain().catch(() => {});
 
     const agents = listCards();
 
-    // Check on-chain status for each agent
-    const agentsWithStatus = await Promise.all(
-      agents.map(async (card) => {
-        let onChain = false;
-        try {
-          onChain = await checkOnChain(card.did);
-        } catch { /* ignore */ }
-        return { ...card, onChain };
-      })
-    );
+    // Deduplicate by endpoint — prefer on-chain version
+    const byEndpoint = new Map<string, typeof agents[0] & { onChain: boolean }>();
+    for (const card of agents) {
+      const isOnChain = card.did.startsWith("did:aip:");
+      const existing = byEndpoint.get(card.endpoint);
+      if (!existing || isOnChain) {
+        byEndpoint.set(card.endpoint, { ...card, onChain: isOnChain });
+      }
+    }
 
-    return NextResponse.json({ agents: agentsWithStatus });
+    return NextResponse.json({ agents: Array.from(byEndpoint.values()) });
   }
 
   if (!did) {

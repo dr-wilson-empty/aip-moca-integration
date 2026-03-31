@@ -1,6 +1,7 @@
 /**
  * AIP Agent Registry Program — TypeScript client.
- * On-chain agent card storage and discovery.
+ * One wallet can register multiple agents, each with a unique agent_id.
+ * PDA seeds: ["agent", owner_pubkey, agent_id_bytes]
  */
 import {
   PublicKey,
@@ -10,7 +11,6 @@ import {
   Keypair,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { createHash } from "crypto";
 import { getConnection } from "./connection";
 import type { AgentCard } from "@/types/aip";
 
@@ -28,24 +28,24 @@ const DISCRIMINATORS = {
   deregister_agent: Buffer.from([227, 208, 166, 164, 48, 69, 111, 1]),
 };
 
-// AgentRecord account discriminator (for getProgramAccounts filter)
 const AGENT_RECORD_DISCRIMINATOR = Buffer.from([4, 201, 129, 70, 197, 134, 47, 169]);
 
 const AGENT_TYPE_MAP: Record<string, number> = { LLM: 0, Task: 1, Execution: 2 };
 const AGENT_TYPE_REVERSE: Record<number, string> = { 0: "LLM", 1: "Task", 2: "Execution" };
 
 /* ------------------------------------------------------------------ */
-/*  DID Seed                                                           */
+/*  DID + PDA                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Compute did_seed: sha256(did)[0..32] */
-export function computeDidSeed(did: string): Buffer {
-  return createHash("sha256").update(did).digest().subarray(0, 32);
+/** Generate a deterministic DID from owner + agent_id */
+export function generateDid(ownerPubkey: string, agentId: string): string {
+  return `did:aip:${ownerPubkey.slice(0, 8)}:${agentId}`;
 }
 
-export function deriveAgentRecordPDA(didSeed: Buffer): [PublicKey, number] {
+/** Derive PDA: ["agent", owner, agent_id] */
+export function deriveAgentRecordPDA(owner: PublicKey, agentId: string): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("agent"), didSeed],
+    [Buffer.from("agent"), owner.toBuffer(), Buffer.from(agentId)],
     REGISTRY_PROGRAM_ID
   );
 }
@@ -69,16 +69,13 @@ function borshPubkey(pk: PublicKey): Buffer {
   return pk.toBuffer();
 }
 
-function borshFixedBytes(buf: Buffer): Buffer {
-  return buf; // [u8; 32] is serialized as-is in Borsh
-}
-
 /* ------------------------------------------------------------------ */
 /*  Instruction Builders                                                */
 /* ------------------------------------------------------------------ */
 
 export function buildRegisterAgentIx(params: {
   owner: PublicKey;
+  agentId: string;
   did: string;
   name: string;
   endpoint: string;
@@ -87,12 +84,11 @@ export function buildRegisterAgentIx(params: {
   capabilitiesJson: string;
   version: string;
 }): TransactionInstruction {
-  const didSeed = computeDidSeed(params.did);
-  const [agentRecord] = deriveAgentRecordPDA(didSeed);
+  const [agentRecord] = deriveAgentRecordPDA(params.owner, params.agentId);
 
   const data = Buffer.concat([
     DISCRIMINATORS.register_agent,
-    borshFixedBytes(didSeed),
+    borshString(params.agentId),
     borshString(params.did),
     borshString(params.name),
     borshString(params.endpoint),
@@ -115,7 +111,7 @@ export function buildRegisterAgentIx(params: {
 
 export function buildUpdateAgentIx(params: {
   owner: PublicKey;
-  did: string;
+  agentId: string;
   name: string;
   endpoint: string;
   walletAddress: PublicKey;
@@ -123,8 +119,7 @@ export function buildUpdateAgentIx(params: {
   capabilitiesJson: string;
   version: string;
 }): TransactionInstruction {
-  const didSeed = computeDidSeed(params.did);
-  const [agentRecord] = deriveAgentRecordPDA(didSeed);
+  const [agentRecord] = deriveAgentRecordPDA(params.owner, params.agentId);
 
   const data = Buffer.concat([
     DISCRIMINATORS.update_agent,
@@ -148,10 +143,9 @@ export function buildUpdateAgentIx(params: {
 
 export function buildDeregisterAgentIx(params: {
   owner: PublicKey;
-  did: string;
+  agentId: string;
 }): TransactionInstruction {
-  const didSeed = computeDidSeed(params.did);
-  const [agentRecord] = deriveAgentRecordPDA(didSeed);
+  const [agentRecord] = deriveAgentRecordPDA(params.owner, params.agentId);
 
   return new TransactionInstruction({
     programId: REGISTRY_PROGRAM_ID,
@@ -173,26 +167,29 @@ function readBorshString(buf: Buffer, offset: number): { value: string; newOffse
   return { value, newOffset: offset + 4 + len };
 }
 
-function parseAgentRecord(data: Buffer): {
-  owner: PublicKey;
+export interface ParsedAgentRecord {
+  owner: string;
+  agentId: string;
   did: string;
   name: string;
   endpoint: string;
-  walletAddress: PublicKey;
+  walletAddress: string;
   agentType: number;
   capabilitiesJson: string;
   version: string;
   registeredAt: number;
   updatedAt: number;
-} | null {
+}
+
+function parseAgentRecord(data: Buffer): ParsedAgentRecord | null {
   try {
     let offset = 8; // skip discriminator
 
-    const owner = new PublicKey(data.subarray(offset, offset + 32));
+    const owner = new PublicKey(data.subarray(offset, offset + 32)).toBase58();
     offset += 32;
 
-    // did_seed [u8; 32]
-    offset += 32;
+    const agentId = readBorshString(data, offset);
+    offset = agentId.newOffset;
 
     const did = readBorshString(data, offset);
     offset = did.newOffset;
@@ -203,7 +200,7 @@ function parseAgentRecord(data: Buffer): {
     const endpoint = readBorshString(data, offset);
     offset = endpoint.newOffset;
 
-    const walletAddress = new PublicKey(data.subarray(offset, offset + 32));
+    const walletAddress = new PublicKey(data.subarray(offset, offset + 32)).toBase58();
     offset += 32;
 
     const agentType = data[offset];
@@ -217,11 +214,11 @@ function parseAgentRecord(data: Buffer): {
 
     const registeredAt = Number(data.readBigInt64LE(offset));
     offset += 8;
-
     const updatedAt = Number(data.readBigInt64LE(offset));
 
     return {
       owner,
+      agentId: agentId.value,
       did: did.value,
       name: name.value,
       endpoint: endpoint.value,
@@ -237,9 +234,7 @@ function parseAgentRecord(data: Buffer): {
   }
 }
 
-/** Convert on-chain AgentRecord to AgentCard type */
-function recordToAgentCard(record: ReturnType<typeof parseAgentRecord>): AgentCard | null {
-  if (!record) return null;
+function recordToAgentCard(record: ParsedAgentRecord): AgentCard | null {
   try {
     const capabilities = JSON.parse(record.capabilitiesJson);
     return {
@@ -249,7 +244,7 @@ function recordToAgentCard(record: ReturnType<typeof parseAgentRecord>): AgentCa
       endpoint: record.endpoint,
       type: (AGENT_TYPE_REVERSE[record.agentType] ?? "Task") as AgentCard["type"],
       capabilities,
-      walletAddress: record.walletAddress.toBase58(),
+      walletAddress: record.walletAddress,
     };
   } catch {
     return null;
@@ -257,7 +252,7 @@ function recordToAgentCard(record: ReturnType<typeof parseAgentRecord>): AgentCa
 }
 
 /** Fetch all on-chain agent records */
-export async function fetchAllOnChainAgents(): Promise<AgentCard[]> {
+export async function fetchAllOnChainAgents(): Promise<(AgentCard & { onChain: boolean; agentId: string; owner: string })[]> {
   const connection = getConnection();
   const accounts = await connection.getProgramAccounts(REGISTRY_PROGRAM_ID, {
     filters: [
@@ -265,42 +260,72 @@ export async function fetchAllOnChainAgents(): Promise<AgentCard[]> {
     ],
   });
 
-  const cards: AgentCard[] = [];
+  const cards: (AgentCard & { onChain: boolean; agentId: string; owner: string })[] = [];
   for (const { account } of accounts) {
     const record = parseAgentRecord(Buffer.from(account.data));
+    if (!record) continue;
+    // Skip old-format records (pre agent_id migration)
+    if (!record.did.startsWith("did:aip:")) continue;
     const card = recordToAgentCard(record);
     if (card) {
-      (card as AgentCard & { onChain: boolean }).onChain = true;
-      cards.push(card);
+      cards.push({ ...card, onChain: true, agentId: record.agentId, owner: record.owner });
     }
   }
   return cards;
 }
 
-/** Check if an agent is registered on-chain */
-export async function isAgentOnChain(did: string): Promise<boolean> {
+/** Fetch agents owned by a specific wallet */
+export async function fetchAgentsByOwner(ownerPubkey: string): Promise<ParsedAgentRecord[]> {
   const connection = getConnection();
-  const didSeed = computeDidSeed(did);
-  const [pda] = deriveAgentRecordPDA(didSeed);
+  const ownerBytes = new PublicKey(ownerPubkey).toBuffer();
+
+  const accounts = await connection.getProgramAccounts(REGISTRY_PROGRAM_ID, {
+    filters: [
+      { memcmp: { offset: 0, bytes: AGENT_RECORD_DISCRIMINATOR.toString("base64"), encoding: "base64" } },
+      { memcmp: { offset: 8, bytes: ownerBytes.toString("base64"), encoding: "base64" } },
+    ],
+  });
+
+  const records: ParsedAgentRecord[] = [];
+  for (const { account } of accounts) {
+    const record = parseAgentRecord(Buffer.from(account.data));
+    if (record && record.did.startsWith("did:aip:")) records.push(record);
+  }
+  return records;
+}
+
+/** Check if a specific agent exists on-chain */
+export async function isAgentOnChain(ownerPubkey: string, agentId: string): Promise<boolean> {
+  const connection = getConnection();
+  const [pda] = deriveAgentRecordPDA(new PublicKey(ownerPubkey), agentId);
   const account = await connection.getAccountInfo(pda);
   return account !== null;
 }
 
+// Legacy compat — check by DID (scans all accounts)
+export async function isAgentOnChainByDid(did: string): Promise<boolean> {
+  const all = await fetchAllOnChainAgents();
+  return all.some((a) => a.did === did);
+}
+
 /* ------------------------------------------------------------------ */
-/*  Server-side register/deregister                                    */
+/*  Server-side register                                               */
 /* ------------------------------------------------------------------ */
 
 export async function registerAgentOnChain(
   ownerKeypair: Keypair,
+  agentId: string,
   card: AgentCard
 ): Promise<string> {
   const connection = getConnection();
   const capabilitiesJson = JSON.stringify(card.capabilities);
   const agentType = AGENT_TYPE_MAP[card.type] ?? 1;
+  const did = generateDid(ownerKeypair.publicKey.toBase58(), agentId);
 
   const ix = buildRegisterAgentIx({
     owner: ownerKeypair.publicKey,
-    did: card.did,
+    agentId,
+    did,
     name: card.name,
     endpoint: card.endpoint,
     walletAddress: card.walletAddress
