@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAgentStore } from "@/store/agentStore";
+import { useWalletStore } from "@/store/walletStore";
 import type { AgentType, Capability } from "@/types/aip";
 import BtnPrimary from "@/components/ui/BtnPrimary";
 
@@ -63,9 +64,14 @@ export default function AgentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { setCounterpart } = useAgentStore();
+  const { address } = useWalletStore();
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ratings, setRatings] = useState<{ avg: number; count: number; ratings: Array<{ rating: number; comment: string; created_at: string }> }>({ avg: 0, count: 0, ratings: [] });
+  const [myRating, setMyRating] = useState(0);
+  const [myComment, setMyComment] = useState("");
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
   const did = decodeURIComponent(params.did as string);
 
@@ -78,7 +84,25 @@ export default function AgentDetailPage() {
       .then((data) => setAgent(data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+
+    fetch(`/api/ratings?agentDid=${encodeURIComponent(did)}`)
+      .then((r) => r.json())
+      .then((data) => setRatings(data))
+      .catch(() => {});
   }, [did]);
+
+  const submitRating = async () => {
+    if (!address || myRating < 1) return;
+    await fetch("/api/ratings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentDid: did, walletAddress: address, rating: myRating, comment: myComment }),
+    });
+    setRatingSubmitted(true);
+    // Refresh ratings
+    const res = await fetch(`/api/ratings?agentDid=${encodeURIComponent(did)}`);
+    setRatings(await res.json());
+  };
 
   const handleStartTask = () => {
     if (!agent) return;
@@ -245,6 +269,63 @@ export default function AgentDetailPage() {
             </pre>
           </div>
         </div>
+      </div>
+
+      {/* Ratings Section */}
+      <div className="mt-8 border border-mint/10 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <span className="font-mono text-xs text-muted uppercase tracking-wider">Ratings & Reviews</span>
+          {ratings.count > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-400 text-lg">{"★".repeat(Math.round(ratings.avg))}{"☆".repeat(5 - Math.round(ratings.avg))}</span>
+              <span className="font-mono text-sm text-mint">{ratings.avg.toFixed(1)}</span>
+              <span className="font-mono text-xs text-muted">({ratings.count} reviews)</span>
+            </div>
+          )}
+        </div>
+
+        {/* Submit rating */}
+        {address && !ratingSubmitted ? (
+          <div className="border border-forest-deep/40 rounded-lg p-4 mb-4">
+            <span className="font-mono text-xs text-muted block mb-2">Rate this agent</span>
+            <div className="flex items-center gap-1 mb-3">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} onClick={() => setMyRating(n)}
+                  className={`text-2xl transition-colors ${n <= myRating ? "text-yellow-400" : "text-forest-deep hover:text-yellow-400/50"}`}>
+                  ★
+                </button>
+              ))}
+              {myRating > 0 && <span className="font-mono text-xs text-muted ml-2">{myRating}/5</span>}
+            </div>
+            <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)}
+              placeholder="Optional comment..."
+              rows={2}
+              className="w-full bg-forest-deep/30 border border-mint/10 rounded px-3 py-2 font-mono text-xs text-mint placeholder:text-muted/40 focus:border-mint/30 focus:outline-none resize-none mb-2" />
+            <button onClick={submitRating} disabled={myRating < 1}
+              className="font-mono text-xs text-bg-base bg-mint px-4 py-1.5 rounded hover:bg-accent transition-colors disabled:opacity-40">
+              Submit Rating
+            </button>
+          </div>
+        ) : ratingSubmitted ? (
+          <p className="font-mono text-xs text-accent mb-4">Thanks for your rating!</p>
+        ) : null}
+
+        {/* Reviews list */}
+        {ratings.ratings.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {ratings.ratings.map((r, i) => (
+              <div key={i} className="border-b border-forest-deep/20 pb-3 last:border-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-yellow-400 text-sm">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                  <span className="font-mono text-[10px] text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
+                </div>
+                {r.comment && <p className="font-mono text-xs text-body">{r.comment}</p>}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="font-mono text-xs text-muted">No reviews yet. Be the first to rate this agent.</p>
+        )}
       </div>
     </div>
   );
