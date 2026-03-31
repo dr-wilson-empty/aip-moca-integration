@@ -8,9 +8,11 @@ skip-lint = false
 
 [programs.localnet]
 aip_escrow = "59kc3swV6j6NqvhJoKKXAw1uWqGisY2txtf3LLM9Myhz"
+aip_registry = "CgchXu2dRV3r9E1YjRhp4kbeLLtv1Xz61yoerJzp1Vbc"
 
 [programs.devnet]
 aip_escrow = "59kc3swV6j6NqvhJoKKXAw1uWqGisY2txtf3LLM9Myhz"
+aip_registry = "CgchXu2dRV3r9E1YjRhp4kbeLLtv1Xz61yoerJzp1Vbc"
 
 [registry]
 url = "https://api.apr.dev"

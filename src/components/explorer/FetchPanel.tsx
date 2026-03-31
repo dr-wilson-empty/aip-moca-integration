@@ -10,7 +10,7 @@ function TypeDot({ type }: { type: AgentType }) {
 }
 
 export default function FetchPanel() {
-  const [agents, setAgents] = useState<AgentCard[]>([]);
+  const [agents, setAgents] = useState<(AgentCard & { onChain?: boolean })[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchingEp, setFetchingEp] = useState("");
   const { counterpartCard, setCounterpart } = useAgentStore();
@@ -82,7 +82,14 @@ export default function FetchPanel() {
                   <span className={`font-display text-sm uppercase tracking-wider ${isSelected ? "text-mint" : "text-off-white group-hover:text-mint"} transition-colors`}>
                     {card.name}
                   </span>
-                  <span className="font-mono text-[11px] text-muted uppercase">{card.type}</span>
+                  <div className="flex items-center gap-1.5">
+                    {card.onChain && (
+                      <span className="font-mono text-[10px] uppercase px-1.5 py-0.5 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
+                        on-chain
+                      </span>
+                    )}
+                    <span className="font-mono text-[11px] text-muted uppercase">{card.type}</span>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {card.capabilities.map((cap) => (

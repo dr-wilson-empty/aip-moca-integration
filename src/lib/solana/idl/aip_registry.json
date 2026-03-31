@@ -1,0 +1,341 @@
+{
+  "address": "CgchXu2dRV3r9E1YjRhp4kbeLLtv1Xz61yoerJzp1Vbc",
+  "metadata": {
+    "name": "aip_registry",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "AIP Agent Registry — On-chain agent card storage and discovery"
+  },
+  "docs": [
+    "AIP Agent Registry Program",
+    "",
+    "On-chain agent card storage and discovery.",
+    "Agents register their card data on Solana — anyone can query and discover them."
+  ],
+  "instructions": [
+    {
+      "name": "deregister_agent",
+      "docs": [
+        "Deregister an agent — close the PDA and return rent to owner."
+      ],
+      "discriminator": [
+        227,
+        208,
+        166,
+        164,
+        48,
+        69,
+        111,
+        1
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent_record.did_seed",
+                "account": "AgentRecord"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_agent",
+      "docs": [
+        "Register a new agent on-chain.",
+        "PDA seeds: [\"agent\", did_seed] where did_seed = sha256(did)[0..32]"
+      ],
+      "discriminator": [
+        135,
+        157,
+        66,
+        195,
+        2,
+        113,
+        175,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "did_seed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "did_seed",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "did",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "endpoint",
+          "type": "string"
+        },
+        {
+          "name": "wallet_address",
+          "type": "pubkey"
+        },
+        {
+          "name": "agent_type",
+          "type": "u8"
+        },
+        {
+          "name": "capabilities_json",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "update_agent",
+      "docs": [
+        "Update an existing agent record.",
+        "Only the original owner can update."
+      ],
+      "discriminator": [
+        85,
+        2,
+        178,
+        9,
+        119,
+        139,
+        102,
+        164
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent_record.did_seed",
+                "account": "AgentRecord"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "endpoint",
+          "type": "string"
+        },
+        {
+          "name": "wallet_address",
+          "type": "pubkey"
+        },
+        {
+          "name": "agent_type",
+          "type": "u8"
+        },
+        {
+          "name": "capabilities_json",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "AgentRecord",
+      "discriminator": [
+        4,
+        201,
+        129,
+        70,
+        197,
+        134,
+        47,
+        169
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "DidTooLong",
+      "msg": "DID too long: maximum 100 characters"
+    },
+    {
+      "code": 6001,
+      "name": "NameTooLong",
+      "msg": "Name too long: maximum 64 characters"
+    },
+    {
+      "code": 6002,
+      "name": "EndpointTooLong",
+      "msg": "Endpoint too long: maximum 200 characters"
+    },
+    {
+      "code": 6003,
+      "name": "CapabilitiesTooLong",
+      "msg": "Capabilities JSON too long: maximum 512 characters"
+    },
+    {
+      "code": 6004,
+      "name": "VersionTooLong",
+      "msg": "Version too long: maximum 16 characters"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidAgentType",
+      "msg": "Invalid agent type: must be 0 (LLM), 1 (Task), or 2 (Execution)"
+    },
+    {
+      "code": 6006,
+      "name": "Unauthorized",
+      "msg": "Unauthorized: only the owner can modify this record"
+    }
+  ],
+  "types": [
+    {
+      "name": "AgentRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "did_seed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "did",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "endpoint",
+            "type": "string"
+          },
+          {
+            "name": "wallet_address",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent_type",
+            "type": "u8"
+          },
+          {
+            "name": "capabilities_json",
+            "type": "string"
+          },
+          {
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "name": "registered_at",
+            "type": "i64"
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

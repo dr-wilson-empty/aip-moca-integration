@@ -4,6 +4,8 @@ import {
   registerCard,
   getCardByDid,
   listCards,
+  syncFromChain,
+  checkOnChain,
 } from "@/lib/protocol/agent-card-store";
 import { verifyDID } from "@/lib/identity/did";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
@@ -14,7 +16,7 @@ seedDemoAgents();
 /**
  * GET /api/agent-card
  * - ?did=xxx  -> belirli bir ajanin card'ini dondur
- * - ?list=true -> tum kayitli ajanlari listele
+ * - ?list=true -> tum kayitli ajanlari listele (in-memory + on-chain)
  */
 export async function GET(request: NextRequest) {
   seedDemoAgents();
@@ -23,7 +25,23 @@ export async function GET(request: NextRequest) {
   const list = request.nextUrl.searchParams.get("list");
 
   if (list === "true") {
-    return NextResponse.json({ agents: listCards() });
+    // Sync from chain in background (non-blocking for fast response)
+    syncFromChain().catch(() => {});
+
+    const agents = listCards();
+
+    // Check on-chain status for each agent
+    const agentsWithStatus = await Promise.all(
+      agents.map(async (card) => {
+        let onChain = false;
+        try {
+          onChain = await checkOnChain(card.did);
+        } catch { /* ignore */ }
+        return { ...card, onChain };
+      })
+    );
+
+    return NextResponse.json({ agents: agentsWithStatus });
   }
 
   if (!did) {
@@ -41,12 +59,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json(card);
+  let onChain = false;
+  try {
+    onChain = await checkOnChain(did);
+  } catch { /* ignore */ }
+
+  return NextResponse.json({ ...card, onChain });
 }
 
 /**
  * POST /api/agent-card
- * Yeni Agent Card kaydet. DID'in gecerli oldugu dogrulanir.
+ * Yeni Agent Card kaydet (in-memory + on-chain).
  */
 export async function POST(request: NextRequest) {
   seedDemoAgents();
@@ -69,7 +92,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Opsiyonel: publicKey parametresi ile DID eslestirme dogrulama
+  // Opsiyonel: publicKey ile DID dogrulama
   const publicKey = (body as Record<string, unknown>).publicKey as string | undefined;
   if (publicKey && !verifyDID(card.did, publicKey)) {
     return NextResponse.json(
