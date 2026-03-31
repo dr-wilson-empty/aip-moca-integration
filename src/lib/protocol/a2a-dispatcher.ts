@@ -15,6 +15,7 @@ import {
 } from "./task-machine";
 import { executeTask } from "./a2a-client";
 import { logger } from "@/lib/logger";
+import { dbTrackTask } from "@/lib/supabase/preferences";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));

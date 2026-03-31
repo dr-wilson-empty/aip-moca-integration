@@ -4,6 +4,7 @@ import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/e
 import { getCardByEndpoint } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { dispatchToAgent } from "@/lib/protocol/a2a-dispatcher";
+import { dbTrackTask } from "@/lib/supabase/preferences";
 import {
   buildPaymentRequirements,
   verifyPaymentPayload,
@@ -265,6 +266,7 @@ export async function POST(request: NextRequest) {
         if (action === "release") {
           const result = await releaseEscrow(taskId);
           logger.info("escrow", "released", { taskId, txHash: result.txHash });
+          dbTrackTask(callerAddress, capability, agentCard.did).catch(() => {});
           return result.txHash;
         } else {
           const result = await refundEscrow(taskId);

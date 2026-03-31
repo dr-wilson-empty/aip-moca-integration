@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listCards } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
+import { dbGetPreferences } from "@/lib/supabase/preferences";
 
 seedDemoAgents();
 
@@ -22,8 +23,30 @@ export async function POST(request: NextRequest) {
   }
 
   const message = body.message as string;
+  const walletAddress = body.walletAddress as string | undefined;
   if (!message?.trim()) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
+  }
+
+  // Load user preferences for personalization
+  let prefsContext = "";
+  if (walletAddress) {
+    try {
+      const prefs = await dbGetPreferences(walletAddress);
+      const parts: string[] = [];
+      if (prefs.language && prefs.language !== "auto") {
+        parts.push(`User prefers responses in ${prefs.language === "tr" ? "Turkish" : "English"}.`);
+      }
+      if (prefs.detail_level === "short") parts.push("User prefers short, concise responses.");
+      if (prefs.detail_level === "detailed") parts.push("User prefers detailed, comprehensive responses.");
+      if (prefs.favorite_agents.length > 0) {
+        parts.push(`User's favorite agents (prefer these): ${prefs.favorite_agents.join(", ")}.`);
+      }
+      if (prefs.custom_instructions) {
+        parts.push(`User's custom instructions: ${prefs.custom_instructions}`);
+      }
+      if (parts.length > 0) prefsContext = "\n\nUSER PREFERENCES:\n" + parts.join("\n");
+    } catch { /* ignore */ }
   }
 
   const agents = listCards();
@@ -73,7 +96,8 @@ export async function POST(request: NextRequest) {
       '{"mode":"single","steps":[{"agentName":"...","capabilityId":"...","input":"...","label":"..."}],"explanation":"..."}\n\n' +
       "Pipeline mode:\n" +
       '{"mode":"pipeline","steps":[{"agentName":"...","capabilityId":"...","input":"...","label":"Step 1: ..."},{"agentName":"...","capabilityId":"...","inputFromPrev":true,"label":"Step 2: ..."}],"explanation":"..."}\n\n' +
-      "explanation: short description in the user's language",
+      "explanation: short description in the user's language" +
+      prefsContext,
     messages: [{ role: "user", content: message }],
   });
 

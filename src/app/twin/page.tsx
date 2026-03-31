@@ -219,7 +219,7 @@ export default function TwinPage() {
       const res = await fetch("/api/twin/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({ message: userMsg, walletAddress: address }),
       });
 
       if (!res.ok) {

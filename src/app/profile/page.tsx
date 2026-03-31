@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletStore } from "@/store/walletStore";
 import { useLogStore } from "@/store/logStore";
+import MonoLabel from "@/components/ui/MonoLabel";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -39,6 +40,10 @@ export default function ProfilePage() {
   };
   const [solBalance, setSolBalance] = useState<string>("...");
   const [myAgentCount, setMyAgentCount] = useState(0);
+  const [prefLang, setPrefLang] = useState("auto");
+  const [prefDetail, setPrefDetail] = useState("medium");
+  const [prefInstructions, setPrefInstructions] = useState("");
+  const [prefsSaving, setPrefsSaving] = useState(false);
 
   useEffect(() => {
     if (!address) return;
@@ -52,7 +57,32 @@ export default function ProfilePage() {
       .then((r) => r.json())
       .then((d) => setMyAgentCount(d.agents?.length ?? 0))
       .catch(() => {});
+    // Fetch preferences
+    fetch(`/api/preferences?wallet=${address}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setPrefLang(d.language || "auto");
+        setPrefDetail(d.detail_level || "medium");
+        setPrefInstructions(d.custom_instructions || "");
+      })
+      .catch(() => {});
   }, [address]);
+
+  const savePrefs = async () => {
+    if (!address) return;
+    setPrefsSaving(true);
+    await fetch("/api/preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet_address: address,
+        language: prefLang,
+        detail_level: prefDetail,
+        custom_instructions: prefInstructions,
+      }),
+    });
+    setPrefsSaving(false);
+  };
 
   if (!address) {
     return (
@@ -128,8 +158,46 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Quick Links + Disconnect */}
+        {/* Twin Preferences */}
         <div className="border border-mint/10 rounded-xl p-6">
+          <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-4">Twin Preferences</span>
+          <div className="flex flex-col gap-4">
+            <div>
+              <MonoLabel className="mb-1">Response Language</MonoLabel>
+              <select value={prefLang} onChange={(e) => setPrefLang(e.target.value)}
+                className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-3 py-2 font-mono text-sm text-mint focus:border-mint/40 focus:outline-none cursor-pointer">
+                <option value="auto">Auto (match input language)</option>
+                <option value="tr">Turkish</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div>
+              <MonoLabel className="mb-1">Detail Level</MonoLabel>
+              <select value={prefDetail} onChange={(e) => setPrefDetail(e.target.value)}
+                className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-3 py-2 font-mono text-sm text-mint focus:border-mint/40 focus:outline-none cursor-pointer">
+                <option value="short">Short — concise, to the point</option>
+                <option value="medium">Medium — balanced</option>
+                <option value="detailed">Detailed — comprehensive analysis</option>
+              </select>
+            </div>
+            <div>
+              <MonoLabel className="mb-1">Custom Instructions for Twin</MonoLabel>
+              <textarea value={prefInstructions} onChange={(e) => setPrefInstructions(e.target.value)}
+                placeholder="e.g. I'm interested in DeFi and Solana ecosystem. Always include risk scores."
+                rows={3}
+                className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-3 py-2 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none resize-none" />
+            </div>
+            <button onClick={savePrefs} disabled={prefsSaving}
+              className="self-start font-mono text-xs text-bg-base bg-mint px-4 py-2 rounded-lg hover:bg-accent transition-colors disabled:opacity-50">
+              {prefsSaving ? "Saving..." : "Save Preferences"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Links */}
+      <div className="grid grid-cols-2 gap-6 mt-6">
+        <div className="border border-mint/10 rounded-xl p-6 col-span-2">
           <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-4">Quick Links</span>
           <div className="flex flex-col gap-3">
             <button
