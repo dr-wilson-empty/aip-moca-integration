@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
 
 const NAV_ITEMS = [
+  { href: "/twin", label: "Twin" },
   { href: "/marketplace", label: "Marketplace" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/my-agents", label: "My Agents" },
