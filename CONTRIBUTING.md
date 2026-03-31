@@ -80,13 +80,26 @@ npm run dev       # Next.js on 3000
 
 1. Create a Supabase project
 2. Run `scripts/schema.sql` in the SQL Editor
-3. Add keys to `.env.local`:
+3. Run the additional tables for automations and preferences (see schema.sql comments)
+4. Add keys to `.env.local`:
    ```
    SUPABASE_URL=https://xxx.supabase.co
    SUPABASE_SERVICE_ROLE_KEY=eyJ...
    NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
    ```
+
+## Supabase Tables
+
+| Table | Purpose |
+|-------|---------|
+| tasks | Task records with state, artifact, tx hashes |
+| escrows | Escrow lock/release/refund records |
+| agent_cache | On-chain agent data cache |
+| twin_messages | Digital Twin chat history |
+| user_preferences | Language, detail level, custom instructions |
+| automations | Scheduled task rules with budget |
+| automation_results | Automation execution results |
 
 ## Project Structure
 
