@@ -35,7 +35,7 @@ export default function TwinPage() {
   const { address, did, fetchBalance } = useWalletStore();
   const { setCounterpart } = useAgentStore();
   const { addTask } = useLogStore();
-  const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing } = useTwinStore();
+  const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded } = useTwinStore();
   const { submitTaskWithPayment } = useX402Payment();
   const { startTask, resetTask, taskState, artifact, escrowTxHash, settlementTxHash, log } = useTaskStore();
 
@@ -47,6 +47,16 @@ export default function TwinPage() {
   const startTimeRef = useRef("");
 
   useTaskSSE(activeTaskId);
+
+  const { setWallet } = useTwinStore();
+
+  // Set wallet + load twin history from Supabase
+  useEffect(() => {
+    if (address) {
+      setWallet(address);
+      if (!loaded) loadFromServer(address);
+    }
+  }, [address, loaded, loadFromServer, setWallet]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -209,11 +219,11 @@ export default function TwinPage() {
     const userMsg = input.trim();
     setInput("");
 
-    addMessage({ id: genId(), role: "user", content: userMsg, timestamp: new Date().toLocaleTimeString() });
+    addMessage({ id: genId(), role: "user", content: userMsg, timestamp: new Date().toLocaleTimeString() }, address ?? undefined);
 
     setProcessing(true);
     const planMsgId = genId();
-    addMessage({ id: planMsgId, role: "twin", content: "Analyzing your request...", timestamp: new Date().toLocaleTimeString(), state: "planning" });
+    addMessage({ id: planMsgId, role: "twin", content: "Analyzing your request...", timestamp: new Date().toLocaleTimeString(), state: "planning" }, address ?? undefined);
 
     try {
       const res = await fetch("/api/twin/analyze", {
