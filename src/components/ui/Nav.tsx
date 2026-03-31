@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/twin", label: "Twin" },
   { href: "/marketplace", label: "Marketplace" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/automations", label: "Automations" },
   { href: "/my-agents", label: "My Agents" },
   { href: "/log", label: "History" },
   { href: "/profile", label: "Profile" },
