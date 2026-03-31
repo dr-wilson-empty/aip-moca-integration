@@ -1,17 +1,14 @@
 import {
   PublicKey,
   Transaction,
-  SystemProgram,
 } from "@solana/web3.js";
-import {
-  getAssociatedTokenAddress,
-  getAccount,
-  createAssociatedTokenAccountInstruction,
-  createTransferCheckedInstruction,
-  TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
 import { getConnection } from "@/lib/solana/connection";
-import { getEscrowAddress } from "./escrow";
+import { getAuthorityAddress } from "./escrow";
+import {
+  ESCROW_PROGRAM_ID,
+  deriveEscrowStatePDA,
+  deriveEscrowVaultPDA,
+} from "@/lib/solana/escrow-program";
 
 const USDC_DECIMALS = 6;
 
@@ -32,8 +29,15 @@ export interface X402PaymentRequirements {
     network: string;
     asset: string;
     amount: string;
-    payTo: string;
     maxTimeoutSeconds: number;
+    /** Escrow program ID */
+    programId: string;
+    /** Server authority pubkey (set as escrow authority) */
+    authority: string;
+    /** Pre-generated task ID for PDA derivation */
+    taskId: string;
+    /** Payee (agent) wallet address */
+    payee: string;
   }>;
   resource: {
     url: string;
@@ -45,9 +49,11 @@ export interface X402PaymentRequirements {
 export function buildPaymentRequirements(
   amountUsdc: string,
   resourceUrl: string,
-  description: string
+  description: string,
+  taskId: string,
+  payeeAddress: string
 ): X402PaymentRequirements {
-  const escrowAddress = getEscrowAddress();
+  const authorityAddress = getAuthorityAddress();
   const usdcMint = getUsdcMint();
   const lamports = Math.round(parseFloat(amountUsdc) * Math.pow(10, USDC_DECIMALS));
 
@@ -56,11 +62,14 @@ export function buildPaymentRequirements(
     accepts: [
       {
         scheme: "exact",
-        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG", // Devnet genesis hash (CAIP-2)
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG", // Devnet genesis hash
         asset: usdcMint.toBase58(),
         amount: lamports.toString(),
-        payTo: escrowAddress,
         maxTimeoutSeconds: 300,
+        programId: ESCROW_PROGRAM_ID.toBase58(),
+        authority: authorityAddress,
+        taskId,
+        payee: payeeAddress,
       },
     ],
     resource: {
@@ -87,12 +96,13 @@ export interface X402PaymentPayload {
     network: string;
     asset: string;
     amount: string;
-    payTo: string;
+    programId: string;
+    taskId: string;
   };
 }
 
 /* ------------------------------------------------------------------ */
-/*  x402 Verify — transaction dogrulama                                */
+/*  x402 Verify — validate initialize_escrow transaction                */
 /* ------------------------------------------------------------------ */
 
 export interface VerifyResult {
@@ -107,79 +117,77 @@ export function verifyPaymentPayload(
   requirements: X402PaymentRequirements
 ): VerifyResult {
   try {
-    // 1. Version kontrolu
+    // 1. Version check
     if (paymentPayload.x402Version !== 2) {
       return { isValid: false, error: `Unsupported x402 version: ${paymentPayload.x402Version}` };
     }
 
-    // 2. Scheme kontrolu
+    // 2. Scheme check
     if (paymentPayload.scheme !== "exact") {
       return { isValid: false, error: `Unsupported scheme: ${paymentPayload.scheme}` };
     }
 
-    // 3. serializedTransaction kontrolu
+    // 3. serializedTransaction check
     if (!paymentPayload.payload?.serializedTransaction) {
       return { isValid: false, error: "Missing serializedTransaction" };
     }
 
-    // 4. Transaction'i deserialize et
+    // 4. Deserialize transaction
     const txBuffer = Buffer.from(paymentPayload.payload.serializedTransaction, "base64");
     const tx = Transaction.from(txBuffer);
 
-    // 5. Transaction en az 1 imzaya sahip olmali
+    // 5. Must be signed
     if (!tx.signatures.length || !tx.signatures[0].signature) {
       return { isValid: false, error: "Transaction is not signed" };
     }
 
-    // 6. Kabul edilen requirement'i bul
+    // 6. Get accepted requirement
     const accepted = requirements.accepts[0];
     if (!accepted) {
       return { isValid: false, error: "No accepted payment requirement" };
     }
 
-    const expectedAmount = BigInt(accepted.amount);
-    const expectedPayTo = new PublicKey(accepted.payTo);
-    const usdcMint = new PublicKey(accepted.asset);
+    const taskId = accepted.taskId;
 
-    // 7. SPL Token TransferChecked instruction'i bul ve dogrula
-    let foundValidTransfer = false;
-    let payerAddress: string | undefined;
+    // 7. Verify the transaction contains an instruction to our escrow program
+    const programInstruction = tx.instructions.find(
+      (ix) => ix.programId.equals(ESCROW_PROGRAM_ID)
+    );
 
-    for (const ix of tx.instructions) {
-      // SPL Token program instruction
-      if (ix.programId.equals(TOKEN_PROGRAM_ID) && ix.data.length >= 9) {
-        const discriminator = ix.data[0];
-
-        // TransferChecked = 12
-        if (discriminator === 12) {
-          const amount = ix.data.readBigUInt64LE(1);
-          const decimals = ix.data[9];
-
-          // keys: [source, mint, destination, authority]
-          const destinationAta = ix.keys[2]?.pubkey;
-          const authority = ix.keys[3]?.pubkey;
-
-          if (!destinationAta || !authority) continue;
-
-          // Hedef ATA'yi dogrula — escrow wallet'in ATA'si olmali
-          const expectedAta = getAssociatedTokenAddressSync(usdcMint, expectedPayTo);
-
-          if (
-            amount >= expectedAmount &&
-            decimals === USDC_DECIMALS &&
-            destinationAta.equals(expectedAta)
-          ) {
-            foundValidTransfer = true;
-            payerAddress = authority.toBase58();
-            break;
-          }
-        }
-      }
+    if (!programInstruction) {
+      return { isValid: false, error: "No escrow program instruction found in transaction" };
     }
 
-    if (!foundValidTransfer) {
-      return { isValid: false, error: "No valid USDC transfer instruction found" };
+    // 8. Verify the instruction discriminator is initialize_escrow
+    const discriminator = Buffer.from([243, 160, 77, 153, 11, 92, 48, 209]);
+    if (!programInstruction.data.subarray(0, 8).equals(discriminator)) {
+      return { isValid: false, error: "Transaction does not contain initialize_escrow instruction" };
     }
+
+    // 9. Verify PDA accounts match the expected task_id
+    const [expectedState] = deriveEscrowStatePDA(taskId);
+    const [expectedVault] = deriveEscrowVaultPDA(taskId);
+
+    // Account index 3 = escrow_state, index 4 = escrow_vault
+    const stateAccount = programInstruction.keys[3]?.pubkey;
+    const vaultAccount = programInstruction.keys[4]?.pubkey;
+
+    if (!stateAccount?.equals(expectedState)) {
+      return { isValid: false, error: "Escrow state PDA mismatch" };
+    }
+    if (!vaultAccount?.equals(expectedVault)) {
+      return { isValid: false, error: "Escrow vault PDA mismatch" };
+    }
+
+    // 10. Verify authority (account index 2)
+    const authorityAccount = programInstruction.keys[2]?.pubkey;
+    const expectedAuthority = new PublicKey(accepted.authority);
+    if (!authorityAccount?.equals(expectedAuthority)) {
+      return { isValid: false, error: "Authority mismatch" };
+    }
+
+    // 11. Extract payer from instruction (account index 0)
+    const payerAddress = programInstruction.keys[0]?.pubkey.toBase58();
 
     return {
       isValid: true,
@@ -191,17 +199,8 @@ export function verifyPaymentPayload(
   }
 }
 
-// Senkron ATA hesaplama (verify icin — async getAssociatedTokenAddress yerine)
-function getAssociatedTokenAddressSync(mint: PublicKey, owner: PublicKey): PublicKey {
-  const [address] = PublicKey.findProgramAddressSync(
-    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
-    new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL") // Associated Token Program
-  );
-  return address;
-}
-
 /* ------------------------------------------------------------------ */
-/*  x402 Settle — transaction'i blockchain'e gonder                    */
+/*  x402 Settle — send transaction to blockchain                       */
 /* ------------------------------------------------------------------ */
 
 export interface SettleResult {

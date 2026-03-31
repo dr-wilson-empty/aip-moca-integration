@@ -1,54 +1,52 @@
-import { Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
-import {
-  getAssociatedTokenAddress,
-  getAccount,
-  createAssociatedTokenAccountInstruction,
-} from "@solana/spl-token";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import { getConnection } from "@/lib/solana/connection";
-import { buildUsdcTransferInstruction, getUsdcMint } from "./usdc";
+import {
+  programReleaseEscrow,
+  programRefundEscrow,
+} from "@/lib/solana/escrow-program";
 
 /* ------------------------------------------------------------------ */
-/*  Escrow Wallet                                                      */
+/*  Authority Keypair (server wallet — can release/refund escrows)      */
 /* ------------------------------------------------------------------ */
 
-let _escrowKeypair: Keypair | null = null;
+let _authorityKeypair: Keypair | null = null;
 
 /**
- * Escrow wallet keypair'ini env'den yukler.
- * ESCROW_PRIVATE_KEY base58 formatinda olmali.
+ * Authority keypair'ini env'den yukler.
+ * ESCROW_PRIVATE_KEY: base58 encoded — Phase 1'deki escrow wallet,
+ * simdi PDA escrow'lar icin "authority" rolunde.
  */
-function getEscrowKeypair(): Keypair {
-  if (_escrowKeypair) return _escrowKeypair;
+function getAuthorityKeypair(): Keypair {
+  if (_authorityKeypair) return _authorityKeypair;
 
   const key = process.env.ESCROW_PRIVATE_KEY;
   if (!key) {
     throw new Error(
       "ESCROW_PRIVATE_KEY environment variable is not set. " +
-        "Generate one with: node -e \"const k=require('@solana/web3.js').Keypair.generate(); console.log(require('bs58').default.encode(k.secretKey)); console.log(k.publicKey.toBase58())\""
+        "This key is used as the escrow authority (release/refund signer)."
     );
   }
 
-  _escrowKeypair = Keypair.fromSecretKey(bs58.decode(key));
-  return _escrowKeypair;
+  _authorityKeypair = Keypair.fromSecretKey(bs58.decode(key));
+  return _authorityKeypair;
 }
 
-export function getEscrowAddress(): string {
-  return getEscrowKeypair().publicKey.toBase58();
+export function getAuthorityAddress(): string {
+  return getAuthorityKeypair().publicKey.toBase58();
 }
 
 /* ------------------------------------------------------------------ */
 /*  Escrow Record Store (in-memory)                                    */
 /* ------------------------------------------------------------------ */
 
-export type EscrowStatus = "LOCKED" | "RELEASED" | "REFUNDED";
+export type EscrowStatus = "LOCKED" | "RELEASED" | "REFUNDED" | "CANCELLED";
 
 export interface EscrowRecord {
   taskId: string;
   amount: string;
-  from: string;        // Agent A wallet address
-  to: string;          // Agent B wallet address
-  escrowTxHash: string; // Lock transaction hash
+  from: string;        // Payer wallet address
+  to: string;          // Payee (agent) wallet address
+  escrowTxHash: string; // initialize_escrow transaction hash
   settlementTxHash?: string;
   status: EscrowStatus;
   createdAt: string;
@@ -84,71 +82,18 @@ export function getEscrowRecord(taskId: string): EscrowRecord | null {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Escrow Operations (server-side Solana transactions)                */
+/*  Escrow Operations (on-chain program instructions)                   */
 /* ------------------------------------------------------------------ */
 
-/**
- * ATA'nin var olup olmadigini kontrol eder.
- * Yoksa olusturma talimati dondurur.
- */
-async function ensureAtaInstruction(
-  wallet: PublicKey
-): Promise<Transaction | null> {
-  const connection = getConnection();
-  const mint = getUsdcMint();
-  const ata = await getAssociatedTokenAddress(mint, wallet);
-
-  try {
-    await getAccount(connection, ata);
-    return null; // ATA zaten var
-  } catch {
-    // ATA yok, olustur
-    const escrowKp = getEscrowKeypair();
-    const tx = new Transaction().add(
-      createAssociatedTokenAccountInstruction(
-        escrowKp.publicKey, // payer (fee)
-        ata,
-        wallet,
-        mint
-      )
-    );
-    return tx;
-  }
+function getUsdcMint(): PublicKey {
+  const mint = process.env.USDC_MINT_DEVNET;
+  if (!mint) throw new Error("USDC_MINT_DEVNET not set");
+  return new PublicKey(mint);
 }
 
 /**
- * Escrow'dan hedefe USDC transfer eder (release veya refund).
- * Escrow wallet server tarafinda imzalar.
- */
-async function transferFromEscrow(
-  toAddress: string,
-  amountUsdc: string
-): Promise<string> {
-  const connection = getConnection();
-  const escrowKp = getEscrowKeypair();
-  const toWallet = new PublicKey(toAddress);
-
-  // Hedef ATA yoksa olustur
-  const ataTx = await ensureAtaInstruction(toWallet);
-
-  const { instruction } = await buildUsdcTransferInstruction(
-    escrowKp.publicKey,
-    toWallet,
-    amountUsdc
-  );
-
-  const tx = new Transaction();
-  if (ataTx) {
-    tx.add(...ataTx.instructions);
-  }
-  tx.add(instruction);
-
-  const signature = await sendAndConfirmTransaction(connection, tx, [escrowKp]);
-  return signature;
-}
-
-/**
- * Escrow'u serbest birakir — USDC'yi Agent B'ye gonderir.
+ * Release escrow — transfer USDC from PDA vault to payee (agent).
+ * Server signs as authority via program instruction.
  */
 export async function releaseEscrow(taskId: string): Promise<{
   txHash: string;
@@ -158,7 +103,11 @@ export async function releaseEscrow(taskId: string): Promise<{
   if (!record) throw new Error(`Escrow not found: ${taskId}`);
   if (record.status !== "LOCKED") throw new Error(`Escrow not locked: ${record.status}`);
 
-  const txHash = await transferFromEscrow(record.to, record.amount);
+  const authorityKp = getAuthorityKeypair();
+  const payeeWallet = new PublicKey(record.to);
+  const mint = getUsdcMint();
+
+  const txHash = await programReleaseEscrow(authorityKp, taskId, payeeWallet, mint);
 
   record.status = "RELEASED";
   record.settlementTxHash = txHash;
@@ -168,7 +117,8 @@ export async function releaseEscrow(taskId: string): Promise<{
 }
 
 /**
- * Escrow'u iade eder — USDC'yi Agent A'ya geri gonderir.
+ * Refund escrow — transfer USDC from PDA vault back to payer.
+ * Server signs as authority via program instruction.
  */
 export async function refundEscrow(taskId: string): Promise<{
   txHash: string;
@@ -178,7 +128,11 @@ export async function refundEscrow(taskId: string): Promise<{
   if (!record) throw new Error(`Escrow not found: ${taskId}`);
   if (record.status !== "LOCKED") throw new Error(`Escrow not locked: ${record.status}`);
 
-  const txHash = await transferFromEscrow(record.from, record.amount);
+  const authorityKp = getAuthorityKeypair();
+  const payerWallet = new PublicKey(record.from);
+  const mint = getUsdcMint();
+
+  const txHash = await programRefundEscrow(authorityKp, taskId, payerWallet, mint);
 
   record.status = "REFUNDED";
   record.settlementTxHash = txHash;

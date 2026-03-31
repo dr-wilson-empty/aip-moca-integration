@@ -5,7 +5,7 @@ import type { AgentCard, AgentType } from "@/types/aip";
 import MonoLabel from "@/components/ui/MonoLabel";
 
 interface Props {
-  card: AgentCard;
+  card: AgentCard & { onChain?: boolean };
   title: string;
   verified: boolean;
 }
@@ -36,15 +36,22 @@ export default function AgentCardPanel({ card, title, verified }: Props) {
           <span className="font-mono text-xs text-mint uppercase">{title}</span>
           <TypeBadge type={card.type} />
         </div>
-        <span
-          className={`font-mono text-xs uppercase px-2 py-1 border rounded ${
-            verified
-              ? "border-accent/40 text-accent bg-accent/10"
-              : "border-red-800/40 text-red-400 bg-red-900/10"
-          }`}
-        >
-          {verified ? "Verified ✓" : "Unverified ✗"}
-        </span>
+        <div className="flex items-center gap-2">
+          {card.onChain && (
+            <span className="font-mono text-xs uppercase px-2 py-1 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
+              On-chain
+            </span>
+          )}
+          <span
+            className={`font-mono text-xs uppercase px-2 py-1 border rounded ${
+              verified
+                ? "border-accent/40 text-accent bg-accent/10"
+                : "border-red-800/40 text-red-400 bg-red-900/10"
+            }`}
+          >
+            {verified ? "Verified ✓" : "Unverified ✗"}
+          </span>
+        </div>
       </div>
 
       {/* View toggle */}

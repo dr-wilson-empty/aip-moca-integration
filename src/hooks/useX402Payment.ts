@@ -6,16 +6,24 @@ import { useConnection } from "@solana/wallet-adapter-react";
 import {
   PublicKey,
   Transaction,
+  SystemProgram,
+  SYSVAR_RENT_PUBKEY,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   getAccount,
-  createAssociatedTokenAccountInstruction,
-  createTransferCheckedInstruction,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 
 const USDC_DECIMALS = 6;
+
+// Escrow program constants (must match on-chain program)
+const ESCROW_PROGRAM_ID = new PublicKey(
+  "59kc3swV6j6NqvhJoKKXAw1uWqGisY2txtf3LLM9Myhz"
+);
+
+// initialize_escrow discriminator: sha256("global:initialize_escrow")[0..8]
+const INIT_ESCROW_DISCRIMINATOR = Buffer.from([243, 160, 77, 153, 11, 92, 48, 209]);
 
 interface X402Requirements {
   x402Version: number;
@@ -24,8 +32,11 @@ interface X402Requirements {
     network: string;
     asset: string;
     amount: string;
-    payTo: string;
     maxTimeoutSeconds: number;
+    programId: string;
+    authority: string;
+    taskId: string;
+    payee: string;
   }>;
 }
 
@@ -34,15 +45,57 @@ interface X402TaskResult {
   escrowTxHash: string;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Borsh helpers                                                      */
+/* ------------------------------------------------------------------ */
+
+function borshString(s: string): Buffer {
+  const utf8 = Buffer.from(s, "utf8");
+  const len = Buffer.alloc(4);
+  len.writeUInt32LE(utf8.length, 0);
+  return Buffer.concat([len, utf8]);
+}
+
+function borshU64(n: bigint): Buffer {
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64LE(n, 0);
+  return buf;
+}
+
+function borshI64(n: bigint): Buffer {
+  const buf = Buffer.alloc(8);
+  buf.writeBigInt64LE(n, 0);
+  return buf;
+}
+
+/* ------------------------------------------------------------------ */
+/*  PDA derivation                                                     */
+/* ------------------------------------------------------------------ */
+
+function deriveEscrowStatePDA(taskId: string): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("escrow"), Buffer.from(taskId)],
+    ESCROW_PROGRAM_ID
+  );
+  return pda;
+}
+
+function deriveEscrowVaultPDA(taskId: string): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), Buffer.from(taskId)],
+    ESCROW_PROGRAM_ID
+  );
+  return pda;
+}
+
 /**
- * x402 Payment hook.
+ * x402 Payment hook — Phase 2 (PDA Escrow).
  *
- * Akis:
- * 1. POST /api/task (odemesiz) → 402 + payment requirements alir
- * 2. Requirements'tan USDC transfer tx olusturur
- * 3. Phantom ile imzalatir (sendTransaction degil, signTransaction — tx'i biz gondermiyoruz)
- * 4. Imzali tx'i base64 olarak X-PAYMENT header'ina koyar
- * 5. POST /api/task (odemeli) → server verify + settle + task baslat
+ * Flow:
+ * 1. POST /api/task/quote → payment requirements + taskId + program info
+ * 2. Build initialize_escrow instruction (USDC transfer to PDA vault)
+ * 3. Sign in Phantom
+ * 4. Send to server for verification + settlement
  */
 export function useX402Payment() {
   const { publicKey, signTransaction } = useWallet();
@@ -63,7 +116,6 @@ export function useX402Payment() {
       try {
         // ----------------------------------------------------------
         // STEP 1: Payment requirements al (/api/task/quote)
-        // 402 yerine quote endpoint kullaniyoruz — konsol temiz kalir
         // ----------------------------------------------------------
         const quoteRes = await fetch("/api/task/quote", {
           method: "POST",
@@ -87,17 +139,17 @@ export function useX402Payment() {
           throw new Error("No payment requirements returned");
         }
 
-        // ----------------------------------------------------------
-        // STEP 2: USDC transfer transaction olustur
-        // ----------------------------------------------------------
+        const taskId = quoteData.taskId as string;
         const usdcMint = new PublicKey(accepted.asset);
-        const escrowWallet = new PublicKey(accepted.payTo);
+        const authority = new PublicKey(accepted.authority);
+        const payee = new PublicKey(accepted.payee);
         const amount = BigInt(accepted.amount);
 
+        // ----------------------------------------------------------
+        // STEP 2: Bakiye kontrolu
+        // ----------------------------------------------------------
         const fromAta = await getAssociatedTokenAddress(usdcMint, publicKey);
-        const toAta = await getAssociatedTokenAddress(usdcMint, escrowWallet);
 
-        // Bakiye kontrolu — yetersizse Phantom'a gitmeden hata ver
         try {
           const account = await getAccount(connection, fromAta);
           if (account.amount < amount) {
@@ -110,6 +162,23 @@ export function useX402Payment() {
           throw new Error("No USDC token account found. Fund your wallet with Devnet USDC first.");
         }
 
+        // ----------------------------------------------------------
+        // STEP 3: initialize_escrow instruction olustur
+        // ----------------------------------------------------------
+        const escrowState = deriveEscrowStatePDA(taskId);
+        const escrowVault = deriveEscrowVaultPDA(taskId);
+
+        // Deadline: 5 dakika sonra (300 saniye)
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+
+        // Borsh serialize instruction data
+        const instructionData = Buffer.concat([
+          INIT_ESCROW_DISCRIMINATOR,
+          borshString(taskId),
+          borshU64(amount),
+          borshI64(deadline),
+        ]);
+
         const { blockhash, lastValidBlockHeight } =
           await connection.getLatestBlockhash("confirmed");
 
@@ -119,34 +188,26 @@ export function useX402Payment() {
           lastValidBlockHeight,
         });
 
-        // Escrow wallet ATA yoksa olustur
-        try {
-          await getAccount(connection, toAta);
-        } catch {
-          tx.add(
-            createAssociatedTokenAccountInstruction(
-              publicKey,  // payer
-              toAta,
-              escrowWallet,
-              usdcMint
-            )
-          );
-        }
-
-        // USDC TransferChecked instruction (x402 exact scheme)
-        tx.add(
-          createTransferCheckedInstruction(
-            fromAta,      // source ATA
-            usdcMint,     // mint
-            toAta,        // destination ATA
-            publicKey,    // authority (signer)
-            amount,       // amount in atomic units
-            USDC_DECIMALS // decimals
-          )
-        );
+        // initialize_escrow instruction
+        tx.add({
+          programId: ESCROW_PROGRAM_ID,
+          keys: [
+            { pubkey: publicKey, isSigner: true, isWritable: true },    // payer
+            { pubkey: payee, isSigner: false, isWritable: false },       // payee
+            { pubkey: authority, isSigner: false, isWritable: false },   // authority
+            { pubkey: escrowState, isSigner: false, isWritable: true },  // escrow_state PDA
+            { pubkey: escrowVault, isSigner: false, isWritable: true },  // escrow_vault PDA
+            { pubkey: fromAta, isSigner: false, isWritable: true },      // payer_token_account
+            { pubkey: usdcMint, isSigner: false, isWritable: false },    // mint
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+            { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+          ],
+          data: instructionData,
+        });
 
         // ----------------------------------------------------------
-        // STEP 3: Phantom ile imzala (gonderme — server gonderecek)
+        // STEP 4: Phantom ile imzala
         // ----------------------------------------------------------
         const signedTx = await signTransaction(tx);
         const serializedTx = signedTx.serialize({
@@ -155,7 +216,7 @@ export function useX402Payment() {
         });
 
         // ----------------------------------------------------------
-        // STEP 4: x402 payment payload olustur
+        // STEP 5: x402 payment payload olustur
         // ----------------------------------------------------------
         const paymentPayload = {
           x402Version: 2,
@@ -169,14 +230,15 @@ export function useX402Payment() {
             network: accepted.network,
             asset: accepted.asset,
             amount: accepted.amount,
-            payTo: accepted.payTo,
+            programId: accepted.programId,
+            taskId,
           },
         };
 
         const xPaymentHeader = btoa(JSON.stringify(paymentPayload));
 
         // ----------------------------------------------------------
-        // STEP 5: Odemeli istek → server verify + settle + task baslat
+        // STEP 6: Odemeli istek → server verify + settle + task baslat
         // ----------------------------------------------------------
         const paidRes = await fetch("/api/task", {
           method: "POST",
@@ -184,7 +246,7 @@ export function useX402Payment() {
             "Content-Type": "application/json",
             "X-PAYMENT": xPaymentHeader,
           },
-          body: JSON.stringify(taskBody),
+          body: JSON.stringify({ ...taskBody, taskId }),
         });
 
         const paidData = await paidRes.json();

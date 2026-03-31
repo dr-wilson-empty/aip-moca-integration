@@ -38,7 +38,6 @@ AIP sits across four layers. Each layer has a distinct responsibility and can ev
 graph LR
     A["Agent Layer"] --> B["Protocol Layer"]
     B --> C["Blockchain Layer"]
-    B --> D["Compute Layer"]
 ```
 
 ### Agent Layer
@@ -64,15 +63,7 @@ The trust foundation. Provides the infrastructure that makes the agent economy s
 - Agent identity via W3C DID
 - Wallet abstraction
 - Smart contracts for conditional payment
-- Token incentives
-
-### Compute Layer
-
-The infrastructure substrate.
-
-- Decentralized GPU access
-- Inference routing
-- Agent hosting
+- Decentralized agent registry
 
 ---
 
@@ -251,7 +242,7 @@ gantt
     End-to-end PoC             :c1, after b3, 7d
 ```
 
-**Phase 1 does not include:** a frontend UI, a decentralized agent registry, a token launch, a compute network, or a DAO. These belong to later phases. Phase 1 proves only that the three primitives work together in a coherent end-to-end flow.
+**Phase 1 does not include:** a decentralized agent registry, real AI agent execution, or distributed agent communication. These belong to Phase 2. Phase 1 proves that the three primitives work together in a coherent end-to-end flow with real Solana transactions.
 
 ---
 
@@ -261,13 +252,15 @@ gantt
 |-------|-----------|
 | Language | TypeScript (strict mode) |
 | Runtime | Node.js 20+ |
-| Blockchain | Solana (Devnet for Phase 1) |
-| Payment | x402 via `@x402/svm` |
+| Framework | Next.js 14 (App Router) |
+| Blockchain | Solana (Devnet) |
+| Payment | x402 protocol (conditional settlement) |
 | Payment token | USDC (SPL Token) |
-| Agent identity | W3C DID via `@veramo/core` |
+| Agent identity | W3C DID (`did:key` method, Ed25519) |
+| Agent intelligence | Claude Haiku (Anthropic) |
 | Task protocol | A2A-compatible JSON-RPC 2.0 over HTTP |
 | Status streaming | Server-Sent Events (SSE) |
-| Package manager | npm workspaces (monorepo) |
+| State management | Zustand (persist middleware) |
 
 ---
 

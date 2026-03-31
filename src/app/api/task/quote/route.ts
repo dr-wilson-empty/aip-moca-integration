@@ -8,8 +8,7 @@ seedDemoAgents();
 /**
  * POST /api/task/quote
  * x402 payment requirements'i dondurur — 402 yerine 200 ile.
- * Client bunu kullanarak odeme hazirlayabilir, sonra /api/task'a X-PAYMENT ile gonderir.
- * Bu sayede browser konsolunda gereksiz 402 hatasi gorunmez.
+ * Artik escrow program bilgisi ve pre-generated taskId de dondurur.
  */
 export async function POST(request: NextRequest) {
   seedDemoAgents();
@@ -42,11 +41,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Pre-generate taskId — client needs this for PDA derivation
+  const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
   const requirements = buildPaymentRequirements(
     amount,
     "/api/task",
-    `Task: ${capability} via ${agentCard.name}`
+    `Task: ${capability} via ${agentCard.name}`,
+    taskId,
+    agentCard.walletAddress ?? ""
   );
 
-  return NextResponse.json({ requirements });
+  return NextResponse.json({ requirements, taskId });
 }

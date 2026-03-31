@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getEscrowAddress,
+  getAuthorityAddress,
   createEscrowRecord,
   getEscrowRecord,
 } from "@/lib/payment/escrow";
+import { ESCROW_PROGRAM_ID } from "@/lib/solana/escrow-program";
 
 /**
  * GET /api/payment/escrow
@@ -24,10 +25,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(record);
   }
 
-  // Escrow wallet adresini dondur
+  // Escrow program bilgisini dondur
   try {
-    const escrowAddress = getEscrowAddress();
-    return NextResponse.json({ escrowAddress });
+    const authorityAddress = getAuthorityAddress();
+    return NextResponse.json({
+      programId: ESCROW_PROGRAM_ID.toBase58(),
+      authorityAddress,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
