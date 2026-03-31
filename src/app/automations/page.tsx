@@ -179,6 +179,8 @@ export default function AutomationsPage() {
                 <MonoLabel className="mb-1">Schedule</MonoLabel>
                 <select value={schedule} onChange={(e) => setSchedule(e.target.value)}
                   className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-3 py-2.5 font-mono text-sm text-muted focus:border-mint/40 focus:outline-none cursor-pointer">
+                  <option value="1min">Every 1 min (test)</option>
+                  <option value="5min">Every 5 min</option>
                   <option value="hourly">Hourly</option>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -230,16 +232,16 @@ export default function AutomationsPage() {
                       {auto.schedule}
                     </span>
                   </div>
-                  <p className="font-mono text-xs text-muted truncate">{auto.prompt}</p>
+                  <p className="font-mono text-sm text-muted truncate">{auto.prompt}</p>
                   <div className="flex items-center gap-4 mt-2">
-                    <span className="font-mono text-[10px] text-muted">
+                    <span className="font-mono text-xs text-muted">
                       Budget: <span className="text-accent">{auto.total_spent.toFixed(2)}</span> / {auto.budget_limit.toFixed(2)} USDC
                     </span>
-                    <span className="font-mono text-[10px] text-muted">
+                    <span className="font-mono text-xs text-muted">
                       Runs: <span className="text-mint">{auto.run_count}</span>
                     </span>
                     {auto.last_run && (
-                      <span className="font-mono text-[10px] text-muted">
+                      <span className="font-mono text-xs text-muted">
                         Last: {new Date(auto.last_run).toLocaleString()}
                       </span>
                     )}
@@ -270,7 +272,7 @@ export default function AutomationsPage() {
               {/* Expanded: Results */}
               {expandedId === auto.id && (
                 <div className="border-t border-forest-deep/30 p-5 bg-forest-deep/10">
-                  <span className="font-mono text-[10px] text-muted uppercase block mb-3">Recent Results</span>
+                  <span className="font-mono text-xs text-muted uppercase block mb-3">Recent Results</span>
                   {!results[auto.id] || results[auto.id].length === 0 ? (
                     <p className="font-mono text-xs text-muted">No results yet. Click "Run Now" to execute.</p>
                   ) : (
@@ -280,16 +282,16 @@ export default function AutomationsPage() {
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <span className={`w-1.5 h-1.5 rounded-full ${r.status === "completed" ? "bg-accent" : "bg-red-400"}`} />
-                              <span className="font-mono text-[10px] text-mint">{r.agent_name} — {r.capability}</span>
+                              <span className="font-mono text-sm text-mint">{r.agent_name} — {r.capability}</span>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className="font-mono text-[10px] text-accent">{r.estimated_cost} USDC</span>
-                              <span className="font-mono text-[9px] text-muted">{new Date(r.created_at).toLocaleString()}</span>
+                              <span className="font-mono text-sm text-accent">{r.estimated_cost} USDC</span>
+                              <span className="font-mono text-xs text-muted">{new Date(r.created_at).toLocaleString()}</span>
                             </div>
                           </div>
                           {r.artifact && (
-                            <div className="mt-2">
-                              <ArtifactRenderer artifact={parseArtifact(r.artifact)} compact />
+                            <div className="mt-2 max-h-[300px] overflow-y-auto">
+                              <ArtifactRenderer artifact={parseArtifact(r.artifact)} />
                             </div>
                           )}
                         </div>

@@ -28,6 +28,7 @@
     "bs58": "^6.0.0",
     "multiformats": "^13.4.2",
     "next": "^14.2.35",
+    "node-cron": "^4.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tweetnacl": "^1.0.3",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@types/node-cron": "^3.0.11",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.27",
