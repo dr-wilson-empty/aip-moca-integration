@@ -26,11 +26,11 @@ export const MY_AGENT_CARD: AgentCard = {
 };
 
 export const COUNTERPART_AGENT_CARDS: Record<string, AgentCard> = {
-  "https://alpha.agent-demo.dev/a2a": {
+  "http://localhost:4001/a2a": {
     did: "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias8siQUmpwds8Q9",
     name: "Summary Agent",
     version: "1.2.0",
-    endpoint: "https://alpha.agent-demo.dev/a2a",
+    endpoint: "http://localhost:4001/a2a",
     type: "Task",
     walletAddress: "4LRAyGnJv2DwxiWVg6RDtYsfCjx2Ha3d3A19fsogCopG",
     capabilities: [
@@ -46,11 +46,11 @@ export const COUNTERPART_AGENT_CARDS: Record<string, AgentCard> = {
       },
     ],
   },
-  "https://beta.agent-demo.dev/a2a": {
+  "http://localhost:4002/a2a": {
     did: "did:key:z6Mkf5rGuvnarjzeLBttGYMsxnQkDBUHkNMWwGFbhEHfJLGi",
     name: "Data Agent",
     version: "2.0.1",
-    endpoint: "https://beta.agent-demo.dev/a2a",
+    endpoint: "http://localhost:4002/a2a",
     type: "Task",
     walletAddress: "Auo6b8cQvuBJxcKUuhWuNSeE4Yzm4dPL93CjGES6NF1E",
     capabilities: [
@@ -61,11 +61,11 @@ export const COUNTERPART_AGENT_CARDS: Record<string, AgentCard> = {
       },
     ],
   },
-  "https://gamma.agent-demo.dev/a2a": {
+  "http://localhost:4003/a2a": {
     did: "did:key:z6MkqR4Tve8gJzNAiHbG7FupLvTRExkNbcQVjg2QBFM3pKat",
     name: "Audit Agent",
     version: "1.0.3",
-    endpoint: "https://gamma.agent-demo.dev/a2a",
+    endpoint: "http://localhost:4003/a2a",
     type: "Execution",
     walletAddress: "J53oVBJG87JNYok3cVyscgAMxhx5D8yfvGZ7hpGMeNXA",
     capabilities: [

@@ -3,7 +3,7 @@ import { createTask, listTasks, getTask } from "@/lib/protocol/task-machine";
 import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/escrow";
 import { getCardByEndpoint } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
-import { runDemoAgent } from "@/lib/protocol/demo-agent";
+import { dispatchToAgent } from "@/lib/protocol/a2a-dispatcher";
 import {
   buildPaymentRequirements,
   verifyPaymentPayload,
@@ -252,9 +252,11 @@ export async function POST(request: NextRequest) {
     escrowTxHash,
   });
 
-  // Demo ajan akisini arka planda baslat
-  runDemoAgent(
+  // Dispatch to real agent service via HTTP JSON-RPC
+  dispatchToAgent(
     taskId,
+    agentCard.endpoint,
+    agentCard.name,
     capability,
     input,
     escrowTxHash,
