@@ -1,5 +1,6 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
+import { dbUpsertEscrow } from "@/lib/supabase/db";
 import {
   programReleaseEscrow,
   programRefundEscrow,
@@ -74,6 +75,11 @@ export function createEscrowRecord(params: {
     updatedAt: now,
   };
   escrows.set(params.taskId, record);
+  dbUpsertEscrow({
+    task_id: params.taskId, amount: params.amount,
+    payer: params.from, payee: params.to, status: "LOCKED",
+    escrow_tx_hash: params.escrowTxHash,
+  }).catch(() => {});
   return record;
 }
 
@@ -112,6 +118,11 @@ export async function releaseEscrow(taskId: string): Promise<{
   record.status = "RELEASED";
   record.settlementTxHash = txHash;
   record.updatedAt = new Date().toISOString();
+  dbUpsertEscrow({
+    task_id: taskId, amount: record.amount, payer: record.from,
+    payee: record.to, status: "RELEASED", escrow_tx_hash: record.escrowTxHash,
+    settlement_tx_hash: txHash,
+  }).catch(() => {});
 
   return { txHash, record };
 }
@@ -137,6 +148,11 @@ export async function refundEscrow(taskId: string): Promise<{
   record.status = "REFUNDED";
   record.settlementTxHash = txHash;
   record.updatedAt = new Date().toISOString();
+  dbUpsertEscrow({
+    task_id: taskId, amount: record.amount, payer: record.from,
+    payee: record.to, status: "REFUNDED", escrow_tx_hash: record.escrowTxHash,
+    settlement_tx_hash: txHash,
+  }).catch(() => {});
 
   return { txHash, record };
 }
