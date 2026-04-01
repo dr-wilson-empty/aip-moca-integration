@@ -10,6 +10,7 @@ interface AgentWithMeta extends AgentCard {
   onChain?: boolean;
   avgRating?: number;
   ratingCount?: number;
+  registeredAt?: number;
 }
 
 interface Category { id: string; name: string; icon: string; }
@@ -193,12 +194,19 @@ export default function MarketplacePage() {
               onClick={() => router.push(`/agent/${encodeURIComponent(agent.did)}`)}
               className="text-left border border-mint/10 rounded-xl p-6 transition-all duration-300 hover:border-mint/30 hover:bg-forest-deep/20 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-accent/5 group relative"
             >
-              {/* Trending badge */}
-              {topAgentDids.has(agent.did) && (
-                <span className="absolute top-3 right-3 font-mono text-[9px] uppercase px-2 py-0.5 border rounded border-yellow-800/40 text-yellow-400 bg-yellow-900/10">
-                  Trending
-                </span>
-              )}
+              {/* Badges top-right */}
+              <div className="absolute top-3 right-3 flex gap-1.5">
+                {agent.registeredAt && (Date.now() / 1000 - agent.registeredAt) < 604800 && (
+                  <span className="font-mono text-[9px] uppercase px-2 py-0.5 border rounded border-green-800/40 text-green-400 bg-green-900/10">
+                    New
+                  </span>
+                )}
+                {topAgentDids.has(agent.did) && (
+                  <span className="font-mono text-[9px] uppercase px-2 py-0.5 border rounded border-yellow-800/40 text-yellow-400 bg-yellow-900/10">
+                    Trending
+                  </span>
+                )}
+              </div>
 
               {/* Name */}
               <div className="mb-3">

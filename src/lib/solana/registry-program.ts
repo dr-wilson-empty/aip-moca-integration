@@ -252,7 +252,7 @@ function recordToAgentCard(record: ParsedAgentRecord): AgentCard | null {
 }
 
 /** Fetch all on-chain agent records */
-export async function fetchAllOnChainAgents(): Promise<(AgentCard & { onChain: boolean; agentId: string; owner: string })[]> {
+export async function fetchAllOnChainAgents(): Promise<(AgentCard & { onChain: boolean; agentId: string; owner: string; registeredAt?: number })[]> {
   const connection = getConnection();
   const accounts = await connection.getProgramAccounts(REGISTRY_PROGRAM_ID, {
     filters: [
@@ -268,7 +268,7 @@ export async function fetchAllOnChainAgents(): Promise<(AgentCard & { onChain: b
     if (!record.did.startsWith("did:aip:")) continue;
     const card = recordToAgentCard(record);
     if (card) {
-      cards.push({ ...card, onChain: true, agentId: record.agentId, owner: record.owner });
+      cards.push({ ...card, onChain: true, agentId: record.agentId, owner: record.owner, registeredAt: record.registeredAt });
     }
   }
   return cards;
