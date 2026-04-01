@@ -15,7 +15,7 @@ function StateBadge({ state }: { state: TaskState }) {
     WORKING: "border-blue-800/40 text-blue-400 bg-blue-900/10",
   };
   return (
-    <span className={`font-mono text-[9px] uppercase px-2 py-0.5 border rounded ${map[state]}`}>
+    <span className={`font-mono text-xs uppercase px-2 py-0.5 border rounded ${map[state]}`}>
       {state}
     </span>
   );
@@ -59,7 +59,7 @@ export default function TaskTable() {
               <button
                 key={opt.value}
                 onClick={() => setFilter(opt.value)}
-                className={`font-mono text-[9px] uppercase tracking-wider px-3 py-2 border transition-colors ${
+                className={`font-mono text-xs uppercase tracking-wider px-3 py-2 border transition-colors ${
                   filter === opt.value
                     ? "border-accent/40 text-accent bg-accent/10"
                     : "border-forest-deep/60 text-muted hover:text-off-white"
@@ -76,7 +76,7 @@ export default function TaskTable() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search tasks..."
-          className="bg-forest-deep/30 border border-forest-deep/60 px-3 py-2 rounded-lg font-mono text-[10px] text-off-white placeholder-muted/50 outline-none focus:border-accent/60 transition-colors w-64"
+          className="bg-forest-deep/30 border border-forest-deep/60 px-3 py-2 rounded-lg font-mono text-sm text-off-white placeholder-muted/50 outline-none focus:border-accent/60 transition-colors w-64"
         />
       </div>
 
@@ -114,18 +114,18 @@ export default function TaskTable() {
             key={task.id}
             className="grid grid-cols-[1fr_1fr_1fr_1fr_80px_80px_70px_60px] gap-0 border-b border-forest-deep/30 px-4 py-3 hover:bg-forest-deep/30 transition-colors items-center"
           >
-            <span className="font-mono text-[10px] text-accent">{task.id}</span>
-            <span className="font-mono text-[10px] text-off-white">{task.counterpartAgent}</span>
-            <span className="font-mono text-[10px] text-muted">{task.capability}</span>
-            <span className="font-mono text-[10px] text-muted">
+            <span className="font-mono text-sm text-accent">{task.id}</span>
+            <span className="font-mono text-sm text-off-white">{task.counterpartAgent}</span>
+            <span className="font-mono text-sm text-muted">{task.capability}</span>
+            <span className="font-mono text-sm text-muted">
               {new Date(task.startedAt).toTimeString().slice(0, 8)}
             </span>
-            <span className="font-mono text-[10px] text-body">{task.duration}</span>
+            <span className="font-mono text-sm text-body">{task.duration}</span>
             <StateBadge state={task.state} />
-            <span className="font-mono text-[10px] text-yellow-400">{task.usdcSpent}</span>
+            <span className="font-mono text-sm text-yellow-400">{task.usdcSpent}</span>
             <button
               onClick={() => setSelected(task)}
-              className="font-mono text-[9px] text-muted uppercase hover:text-accent transition-colors text-right"
+              className="font-mono text-xs text-muted uppercase hover:text-accent transition-colors text-right"
             >
               Detail →
             </button>

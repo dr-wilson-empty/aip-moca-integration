@@ -22,7 +22,7 @@ function TypeBadge({ type }: { type: AgentType }) {
     Execution: "border-yellow-800/40 text-yellow-400 bg-yellow-900/10",
   };
   return (
-    <span className={`font-mono text-[9px] uppercase px-2 py-0.5 border rounded ${styles[type]}`}>
+    <span className={`font-mono text-xs uppercase px-2 py-0.5 border rounded ${styles[type]}`}>
       {type}
     </span>
   );
@@ -197,12 +197,12 @@ export default function MarketplacePage() {
               {/* Badges top-right */}
               <div className="absolute top-3 right-3 flex gap-1.5">
                 {agent.registeredAt && (Date.now() / 1000 - agent.registeredAt) < 604800 && (
-                  <span className="font-mono text-[9px] uppercase px-2 py-0.5 border rounded border-green-800/40 text-green-400 bg-green-900/10">
+                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-green-800/40 text-green-400 bg-green-900/10">
                     New
                   </span>
                 )}
                 {topAgentDids.has(agent.did) && (
-                  <span className="font-mono text-[9px] uppercase px-2 py-0.5 border rounded border-yellow-800/40 text-yellow-400 bg-yellow-900/10">
+                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-yellow-800/40 text-yellow-400 bg-yellow-900/10">
                     Trending
                   </span>
                 )}
@@ -213,14 +213,14 @@ export default function MarketplacePage() {
                 <h3 className="font-display text-lg text-off-white uppercase tracking-wider group-hover:text-mint transition-colors truncate pr-16">
                   {agent.name}
                 </h3>
-                <p className="font-mono text-[10px] text-muted/50 mt-0.5 truncate">{agent.did}</p>
+                <p className="font-mono text-sm text-muted/50 mt-0.5 truncate">{agent.did}</p>
               </div>
 
               {/* Badges */}
               <div className="flex items-center gap-2 mb-3">
                 <TypeBadge type={agent.type} />
                 {agent.onChain && (
-                  <span className="font-mono text-[9px] uppercase px-2 py-0.5 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
+                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
                     on-chain
                   </span>
                 )}
@@ -230,7 +230,7 @@ export default function MarketplacePage() {
               {agent.ratingCount! > 0 && (
                 <div className="flex items-center gap-2 mb-3">
                   <Stars rating={agent.avgRating!} />
-                  <span className="font-mono text-[10px] text-muted">
+                  <span className="font-mono text-sm text-muted">
                     {agent.avgRating!.toFixed(1)} ({agent.ratingCount})
                   </span>
                 </div>
@@ -239,7 +239,7 @@ export default function MarketplacePage() {
               {/* Capabilities */}
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {agent.capabilities.map((cap) => (
-                  <span key={cap.id} className="font-mono text-[10px] text-muted bg-forest-deep/40 px-2 py-1 rounded">
+                  <span key={cap.id} className="font-mono text-sm text-muted bg-forest-deep/40 px-2 py-1 rounded">
                     {cap.description}
                   </span>
                 ))}
@@ -248,7 +248,7 @@ export default function MarketplacePage() {
               {/* Footer */}
               <div className="flex items-center justify-between pt-3 border-t border-forest-deep/40">
                 <span className="font-mono text-xs text-accent">{priceRange(agent)}</span>
-                <span className="font-mono text-[10px] text-muted group-hover:text-mint transition-colors">View Details →</span>
+                <span className="font-mono text-sm text-muted group-hover:text-mint transition-colors">View Details →</span>
               </div>
             </button>
           ))}
