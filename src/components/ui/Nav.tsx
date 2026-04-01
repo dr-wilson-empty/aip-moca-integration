@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/automations", label: "Automations" },
   { href: "/my-agents", label: "My Agents" },
+  { href: "/how", label: "How" },
   { href: "/log", label: "History" },
   { href: "/profile", label: "Profile" },
 ];
