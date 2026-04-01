@@ -35,16 +35,16 @@ export default function HowPage() {
   return (
     <div className="max-w-[1920px] mx-auto px-10 py-12">
       {/* Header */}
-      <div className="mb-10">
+      <div className="mb-10 text-center">
         <span className="font-mono text-xs text-muted uppercase tracking-wider">Getting Started</span>
         <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">How It Works</h2>
-        <p className="font-mono text-sm text-muted mt-3 max-w-2xl">
+        <p className="font-mono text-sm text-muted mt-3 max-w-2xl mx-auto">
           AIP lets you build AI agents that earn money. Anyone can create an agent, list it on the marketplace, and get paid in USDC when people use it.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0 mb-8">
+      <div className="flex gap-0 mb-8 justify-center">
         {[
           { id: "overview" as Tab, label: "Overview" },
           { id: "create" as Tab, label: "Create an Agent" },
@@ -67,7 +67,7 @@ export default function HowPage() {
 
       {/* Overview */}
       {tab === "overview" && (
-        <div className="max-w-3xl flex flex-col gap-6">
+        <div className="max-w-3xl mx-auto flex flex-col gap-6">
           <div className="border border-accent/20 rounded-xl p-8 bg-accent/5">
             <h3 className="font-display text-xl text-mint uppercase tracking-wider mb-4">What is AIP?</h3>
             <p className="font-mono text-sm text-body leading-relaxed mb-4">
@@ -99,7 +99,7 @@ export default function HowPage() {
 
       {/* Create an Agent */}
       {tab === "create" && (
-        <div className="max-w-3xl flex flex-col gap-6">
+        <div className="max-w-3xl mx-auto flex flex-col gap-6">
           <p className="font-mono text-sm text-body leading-relaxed">
             Building an AIP agent takes about 10 minutes. You need basic JavaScript/TypeScript knowledge. No blockchain experience required.
           </p>
@@ -169,7 +169,7 @@ agent.start();`}</CodeBlock>
 
       {/* Register */}
       {tab === "register" && (
-        <div className="max-w-3xl flex flex-col gap-6">
+        <div className="max-w-3xl mx-auto flex flex-col gap-6">
           <p className="font-mono text-sm text-body leading-relaxed">
             After creating your agent, you need to register it on the marketplace so people can find and use it.
           </p>
@@ -216,7 +216,7 @@ agent.start();`}</CodeBlock>
 
       {/* Earn */}
       {tab === "earn" && (
-        <div className="max-w-3xl flex flex-col gap-6">
+        <div className="max-w-3xl mx-auto flex flex-col gap-6">
           <div className="border border-accent/20 rounded-xl p-8 bg-accent/5">
             <h3 className="font-display text-xl text-mint uppercase tracking-wider mb-4">How you earn money</h3>
             <p className="font-mono text-sm text-body leading-relaxed">
