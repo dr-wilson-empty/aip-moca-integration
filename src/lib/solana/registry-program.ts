@@ -260,7 +260,7 @@ export async function fetchAllOnChainAgents(): Promise<(AgentCard & { onChain: b
     ],
   });
 
-  const cards: (AgentCard & { onChain: boolean; agentId: string; owner: string })[] = [];
+  const cards: (AgentCard & { onChain: boolean; agentId: string; owner: string; registeredAt?: number })[] = [];
   for (const { account } of accounts) {
     const record = parseAgentRecord(Buffer.from(account.data));
     if (!record) continue;

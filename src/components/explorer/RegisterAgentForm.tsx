@@ -5,6 +5,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useAgentRegistry, type AgentParams } from "@/hooks/useRegisterAgent";
 import MonoLabel from "@/components/ui/MonoLabel";
 import BtnPrimary from "@/components/ui/BtnPrimary";
+import AgentAnalytics from "./AgentAnalytics";
 
 interface CapabilityRow {
   id: string;
@@ -209,6 +210,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
                       </span>
                     ))}
                   </div>
+                  <AgentAnalytics did={agent.did} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <button
