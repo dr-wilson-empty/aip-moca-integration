@@ -125,7 +125,7 @@ export default function MarketplacePage() {
               onClick={() => setSearch(cat.name.split(" ")[0])}
               className="font-mono text-xs text-muted border border-forest-deep/40 px-3 py-1.5 rounded-lg hover:border-mint/20 hover:text-mint transition-all"
             >
-              {cat.icon} {cat.name}
+              {cat.name}
             </button>
           ))}
           {search && (

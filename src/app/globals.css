@@ -10,6 +10,10 @@
   padding: 0;
 }
 
+html {
+  font-size: 20px;
+}
+
 body {
   background-color: #010001;
   color: #E7FFEF;
