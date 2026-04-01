@@ -28,7 +28,7 @@ export default function AgentAnalytics({ did }: { did: string }) {
     <div className="mt-2">
       <button
         onClick={() => setOpen(!open)}
-        className="font-mono text-[10px] text-muted hover:text-mint transition-colors"
+        className="font-mono text-sm text-muted hover:text-mint transition-colors"
       >
         {open ? "Hide Analytics" : "Show Analytics"}
       </button>
@@ -36,35 +36,35 @@ export default function AgentAnalytics({ did }: { did: string }) {
       {open && (
         <div className="mt-2 border border-forest-deep/30 rounded-lg p-3 bg-forest-deep/10">
           {!data ? (
-            <span className="font-mono text-[10px] text-muted animate-pulse">Loading...</span>
+            <span className="font-mono text-sm text-muted animate-pulse">Loading...</span>
           ) : (
             <div className="flex flex-col gap-3">
               {/* Stats row */}
               <div className="grid grid-cols-4 gap-2">
                 <div className="text-center">
                   <span className="font-display text-sm text-mint block">{data.completedTasks}</span>
-                  <span className="font-mono text-[9px] text-muted">Completed</span>
+                  <span className="font-mono text-xs text-muted">Completed</span>
                 </div>
                 <div className="text-center">
                   <span className="font-display text-sm text-red-400 block">{data.failedTasks}</span>
-                  <span className="font-mono text-[9px] text-muted">Failed</span>
+                  <span className="font-mono text-xs text-muted">Failed</span>
                 </div>
                 <div className="text-center">
                   <span className="font-display text-sm text-accent block">{data.totalRevenue}</span>
-                  <span className="font-mono text-[9px] text-muted">USDC Earned</span>
+                  <span className="font-mono text-xs text-muted">USDC Earned</span>
                 </div>
                 <div className="text-center">
                   <span className="font-display text-sm text-yellow-400 block">
                     {parseFloat(data.avgRating) > 0 ? `${data.avgRating}★` : "—"}
                   </span>
-                  <span className="font-mono text-[9px] text-muted">{data.ratingCount} ratings</span>
+                  <span className="font-mono text-xs text-muted">{data.ratingCount} ratings</span>
                 </div>
               </div>
 
               {/* Activity bar chart (last 7 days) */}
               {data.dailyActivity.length > 0 && (
                 <div>
-                  <span className="font-mono text-[9px] text-muted block mb-1">Last 7 days</span>
+                  <span className="font-mono text-xs text-muted block mb-1">Last 7 days</span>
                   <div className="flex items-end gap-1 h-10">
                     {data.dailyActivity.map((d) => {
                       const max = Math.max(...data.dailyActivity.map((x) => x.count), 1);
@@ -76,7 +76,7 @@ export default function AgentAnalytics({ did }: { did: string }) {
                             style={{ height: `${h}%` }}
                             title={`${d.date}: ${d.count} tasks`}
                           />
-                          <span className="font-mono text-[7px] text-muted/40">
+                          <span className="font-mono text-xs text-muted/40">
                             {d.date.slice(8)}
                           </span>
                         </div>
