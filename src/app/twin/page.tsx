@@ -35,7 +35,7 @@ export default function TwinPage() {
   const { address, did, fetchBalance } = useWalletStore();
   const { setCounterpart } = useAgentStore();
   const { addTask } = useLogStore();
-  const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded } = useTwinStore();
+  const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded, clearMessages } = useTwinStore();
   const { submitTaskWithPayment } = useX402Payment();
   const { startTask, resetTask, taskState, artifact, escrowTxHash, settlementTxHash, log } = useTaskStore();
 
@@ -283,6 +283,11 @@ export default function TwinPage() {
         <p className="font-mono text-xs text-muted max-w-sm text-right">
           Tell me what you need. I will find the right agents and handle everything.
         </p>
+        {messages.length > 0 && !isProcessing && (
+          <button onClick={() => clearMessages()} className="font-mono text-xs text-red-400 hover:text-red-300 transition-colors">
+            Clear Chat
+          </button>
+        )}
       </div>
 
       {/* Messages */}
