@@ -5,6 +5,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useAgentRegistry, type AgentParams } from "@/hooks/useRegisterAgent";
 import MonoLabel from "@/components/ui/MonoLabel";
 import BtnPrimary from "@/components/ui/BtnPrimary";
+import AgentAnalytics from "./AgentAnalytics";
 
 interface CapabilityRow {
   id: string;
@@ -196,29 +197,30 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-display text-sm text-mint uppercase tracking-wider">{agent.name}</span>
-                    <span className="font-mono text-[10px] text-purple-400 uppercase px-1.5 py-0.5 border rounded border-purple-800/40 bg-purple-900/10">
+                    <span className="font-mono text-sm text-purple-400 uppercase px-1.5 py-0.5 border rounded border-purple-800/40 bg-purple-900/10">
                       on-chain
                     </span>
                   </div>
-                  <p className="font-mono text-[10px] text-muted truncate">{agent.endpoint}</p>
-                  <p className="font-mono text-[10px] text-muted/50">id: {agent.agentId}</p>
+                  <p className="font-mono text-sm text-muted truncate">{agent.endpoint}</p>
+                  <p className="font-mono text-sm text-muted/50">id: {agent.agentId}</p>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
                     {agent.capabilities.map((c) => (
-                      <span key={c.id} className="font-mono text-[10px] text-muted">
+                      <span key={c.id} className="font-mono text-sm text-muted">
                         {c.description} <span className="text-accent">{c.amount} USDC</span>
                       </span>
                     ))}
                   </div>
+                  <AgentAnalytics did={agent.did} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => startEdit(agent)}
-                    className="font-mono text-[10px] text-mint hover:text-accent px-2 py-1 border border-mint/20 rounded"
+                    className="font-mono text-sm text-mint hover:text-accent px-2 py-1 border border-mint/20 rounded"
                   >Edit</button>
                   <button
                     onClick={() => handleDeregister(agent.agentId)}
                     disabled={loading}
-                    className="font-mono text-[10px] text-red-400 hover:text-red-300 px-2 py-1 border border-red-800/30 rounded"
+                    className="font-mono text-sm text-red-400 hover:text-red-300 px-2 py-1 border border-red-800/30 rounded"
                   >{loading ? "..." : "Delete"}</button>
                 </div>
               </div>
@@ -253,7 +255,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
             maxLength={32}
             className="w-full bg-bg-base border border-mint/20 rounded px-3 py-2 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none"
           />
-          <p className="font-mono text-[10px] text-muted/50 mt-1">Only lowercase letters, numbers, hyphens. Max 32 chars.</p>
+          <p className="font-mono text-sm text-muted/50 mt-1">Only lowercase letters, numbers, hyphens. Max 32 chars.</p>
         </div>
       )}
 
@@ -293,13 +295,13 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
             <div key={idx} className="border border-forest-deep/40 rounded p-3 flex flex-col gap-2">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <span className="font-mono text-[10px] text-muted/60 uppercase block mb-1">Capability ID</span>
+                  <span className="font-mono text-sm text-muted/60 uppercase block mb-1">Capability ID</span>
                   <input type="text" value={cap.id} onChange={(e) => updateCapability(idx, "id", e.target.value)}
                     placeholder="text.summarize"
                     className="w-full bg-bg-base border border-mint/10 rounded px-2 py-1.5 font-mono text-xs text-mint placeholder:text-muted/40 focus:border-mint/30 focus:outline-none" />
                 </div>
                 <div>
-                  <span className="font-mono text-[10px] text-muted/60 uppercase block mb-1">Display Name</span>
+                  <span className="font-mono text-sm text-muted/60 uppercase block mb-1">Display Name</span>
                   <input type="text" value={cap.description} onChange={(e) => updateCapability(idx, "description", e.target.value)}
                     placeholder="Summarize Text"
                     className="w-full bg-bg-base border border-mint/10 rounded px-2 py-1.5 font-mono text-xs text-mint placeholder:text-muted/40 focus:border-mint/30 focus:outline-none" />
@@ -307,7 +309,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
               </div>
               <div className="flex items-center gap-2">
                 <div>
-                  <span className="font-mono text-[10px] text-muted/60 uppercase block mb-1">Price</span>
+                  <span className="font-mono text-sm text-muted/60 uppercase block mb-1">Price</span>
                   <div className="flex items-center gap-2">
                     <input type="number" step="0.01" min="0.01" value={cap.amount}
                       onChange={(e) => updateCapability(idx, "amount", e.target.value)}

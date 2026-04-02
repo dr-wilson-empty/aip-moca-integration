@@ -12,18 +12,44 @@ const SOLANA_EXPLORER = "https://explorer.solana.com/tx";
  * - Plain text / markdown (auto-detected)
  */
 export function parseArtifact(raw: string): Artifact {
-  // Try JSON parse first
+  // Strip markdown code block wrappers if present
+  let cleaned = raw.trim();
+  const codeBlockMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  if (codeBlockMatch) cleaned = codeBlockMatch[1].trim();
+
+  // Try JSON parse
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && parsed.type) {
-      return parsed as Artifact;
+    const parsed = JSON.parse(cleaned);
+    if (parsed && typeof parsed === "object") {
+      // Has explicit type field → use as-is
+      if (parsed.type && typeof parsed.type === "string") {
+        // If type is "json" and has data field, render as json
+        if (parsed.type === "json" && parsed.data) {
+          return { type: "json", data: parsed.data };
+        }
+        return parsed as Artifact;
+      }
+      // No type field → json type
+      return { type: "json", data: parsed };
     }
-    // Valid JSON but not artifact format → json type
-    return { type: "json", data: parsed };
   } catch {
-    // Not JSON — treat as text/markdown
-    return { type: "text", content: raw };
+    // Maybe JSON is embedded in text — try to extract
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed && typeof parsed === "object") {
+          if (parsed.type === "json" && parsed.data) {
+            return { type: "json", data: parsed.data };
+          }
+          return { type: "json", data: parsed };
+        }
+      } catch { /* not valid JSON */ }
+    }
   }
+
+  // Not JSON — treat as text/markdown
+  return { type: "text", content: raw };
 }
 
 /** Render artifact based on type */
@@ -109,8 +135,35 @@ function renderInline(text: string): React.ReactNode {
 }
 
 function JsonArtifact({ data, compact }: { data: unknown; compact?: boolean }) {
-  const [expanded, setExpanded] = useState(!compact);
+  const [expanded, setExpanded] = useState(true);
   const jsonStr = JSON.stringify(data, null, 2);
+
+  // Try to render structured data nicely
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const obj = data as Record<string, unknown>;
+    const title = obj.title as string | undefined;
+    const summary = obj.summary as string | undefined;
+    const metrics = obj.metrics as Array<{ label: string; value: string }> | undefined;
+
+    if (title || metrics) {
+      return (
+        <div className={compact ? "max-h-48 overflow-y-auto" : ""}>
+          {title && <h3 className="font-display text-sm text-mint uppercase tracking-wider mb-2">{title}</h3>}
+          {metrics && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {metrics.map((m, i) => (
+                <div key={i} className="border border-forest-deep/40 rounded p-2">
+                  <span className="font-mono text-[9px] text-muted uppercase block">{m.label}</span>
+                  <span className="font-mono text-xs text-accent">{m.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {summary && <p className="font-mono text-xs text-body leading-relaxed">{summary}</p>}
+        </div>
+      );
+    }
+  }
 
   return (
     <div>

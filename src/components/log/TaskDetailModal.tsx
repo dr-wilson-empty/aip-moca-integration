@@ -72,7 +72,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
               href={`${SOLANA_EXPLORER}/${task.escrowTxHash}?cluster=devnet`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-[10px] text-muted hover:text-accent transition-colors"
+              className="font-mono text-sm text-muted hover:text-accent transition-colors"
             >
               ◎ Escrow Tx: {task.escrowTxHash}
             </a>
@@ -82,7 +82,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
               href={`${SOLANA_EXPLORER}/${task.settlementTxHash}?cluster=devnet`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-[10px] text-muted hover:text-accent transition-colors"
+              className="font-mono text-sm text-muted hover:text-accent transition-colors"
             >
               ◎ Settlement Tx: {task.settlementTxHash}
             </a>
@@ -94,7 +94,7 @@ export default function TaskDetailModal({ task, onClose }: Props) {
           <MonoLabel className="mb-2">Event Log</MonoLabel>
           <div className="flex flex-col gap-1">
             {task.log.map((entry) => (
-              <div key={entry.id} className="flex items-start gap-3 font-mono text-[10px]">
+              <div key={entry.id} className="flex items-start gap-3 font-mono text-sm">
                 <span className="text-forest-mid shrink-0">{entry.timestamp}</span>
                 <span className="text-accent uppercase shrink-0">[{entry.eventType}]</span>
                 <span className="text-body">{entry.message}</span>

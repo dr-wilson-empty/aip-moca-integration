@@ -4,7 +4,16 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { AgentCard, AgentType } from "@/types/aip";
 
-type SortKey = "name" | "price-low" | "price-high" | "capabilities";
+type SortKey = "name" | "price-low" | "price-high" | "capabilities" | "rating";
+
+interface AgentWithMeta extends AgentCard {
+  onChain?: boolean;
+  avgRating?: number;
+  ratingCount?: number;
+  registeredAt?: number;
+}
+
+interface Category { id: string; name: string; icon: string; }
 
 function TypeBadge({ type }: { type: AgentType }) {
   const styles: Record<AgentType, string> = {
@@ -13,8 +22,16 @@ function TypeBadge({ type }: { type: AgentType }) {
     Execution: "border-yellow-800/40 text-yellow-400 bg-yellow-900/10",
   };
   return (
-    <span className={`font-mono text-[9px] uppercase px-2 py-0.5 border rounded ${styles[type]}`}>
+    <span className={`font-mono text-xs uppercase px-2 py-0.5 border rounded ${styles[type]}`}>
       {type}
+    </span>
+  );
+}
+
+function Stars({ rating, size = "text-xs" }: { rating: number; size?: string }) {
+  return (
+    <span className={`${size} text-yellow-400`}>
+      {"★".repeat(Math.round(rating))}{"☆".repeat(5 - Math.round(rating))}
     </span>
   );
 }
@@ -33,19 +50,39 @@ function minPrice(card: AgentCard): number {
 
 export default function MarketplacePage() {
   const router = useRouter();
-  const [agents, setAgents] = useState<(AgentCard & { onChain?: boolean })[]>([]);
+  const [agents, setAgents] = useState<AgentWithMeta[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [topAgentDids, setTopAgentDids] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [sort, setSort] = useState<SortKey>("name");
 
-  const loadAgents = useCallback(() => {
+  const loadAgents = useCallback(async () => {
     setLoading(true);
-    fetch("/api/agent-card?list=true")
-      .then((r) => r.json())
-      .then((data) => setAgents(data.agents ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    try {
+      const [agentsRes, topRes, catRes] = await Promise.all([
+        fetch("/api/agent-card?list=true").then((r) => r.json()),
+        fetch("/api/ratings?top=true").then((r) => r.json()).catch(() => ({ topAgents: [] })),
+        fetch("/api/ratings?categories=true").then((r) => r.json()).catch(() => ({ categories: [] })),
+      ]);
+
+      const ratingMap = new Map<string, { avg: number; count: number }>();
+      for (const t of topRes.topAgents ?? []) {
+        ratingMap.set(t.agent_did, { avg: t.avg_rating, count: t.rating_count });
+      }
+      setTopAgentDids(new Set((topRes.topAgents ?? []).slice(0, 3).map((t: { agent_did: string }) => t.agent_did)));
+
+      const enriched = (agentsRes.agents ?? []).map((a: AgentCard & { onChain?: boolean }) => ({
+        ...a,
+        avgRating: ratingMap.get(a.did)?.avg ?? 0,
+        ratingCount: ratingMap.get(a.did)?.count ?? 0,
+      }));
+
+      setAgents(enriched);
+      setCategories(catRes.categories ?? []);
+    } catch { /* ignore */ }
+    setLoading(false);
   }, []);
 
   useEffect(() => { loadAgents(); }, [loadAgents]);
@@ -63,57 +100,68 @@ export default function MarketplacePage() {
       if (sort === "price-low") return minPrice(a) - minPrice(b);
       if (sort === "price-high") return minPrice(b) - minPrice(a);
       if (sort === "capabilities") return b.capabilities.length - a.capabilities.length;
+      if (sort === "rating") return (b.avgRating ?? 0) - (a.avgRating ?? 0);
       return 0;
     });
 
   return (
     <div className="max-w-[1920px] mx-auto px-10 py-12">
       {/* Header */}
-      <div className="mb-10">
+      <div className="mb-8">
         <span className="font-mono text-xs text-muted uppercase tracking-wider">Browse & Discover</span>
         <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">
           Agent Marketplace
         </h2>
         <p className="font-mono text-sm text-muted mt-2 max-w-2xl">
-          All agents registered on Solana. Select one to view details and start a task.
+          All agents registered on Solana. Select one to view details, rate, and start a task.
         </p>
       </div>
 
+      {/* Categories */}
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSearch(cat.name.split(" ")[0])}
+              className="font-mono text-xs text-muted border border-forest-deep/40 px-3 py-1.5 rounded-lg hover:border-mint/20 hover:text-mint transition-all"
+            >
+              {cat.name}
+            </button>
+          ))}
+          {search && (
+            <button onClick={() => setSearch("")} className="font-mono text-xs text-red-400 hover:text-red-300 px-2">
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-8">
+      <div className="flex flex-wrap gap-3 mb-6">
         <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          type="text" value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Search agents, capabilities..."
           className="flex-1 min-w-[240px] bg-forest-deep/30 border border-mint/15 rounded-lg px-4 py-2.5 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/30 focus:outline-none"
         />
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="bg-forest-deep/30 border border-mint/15 rounded-lg px-4 py-2.5 font-mono text-sm text-muted focus:border-mint/30 focus:outline-none cursor-pointer"
-        >
+        <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
+          className="bg-forest-deep/30 border border-mint/15 rounded-lg px-4 py-2.5 font-mono text-sm text-muted focus:border-mint/30 focus:outline-none cursor-pointer">
           <option value="all">All Types</option>
           <option value="LLM">LLM</option>
           <option value="Task">Task</option>
           <option value="Execution">Execution</option>
         </select>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortKey)}
-          className="bg-forest-deep/30 border border-mint/15 rounded-lg px-4 py-2.5 font-mono text-sm text-muted focus:border-mint/30 focus:outline-none cursor-pointer"
-        >
+        <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}
+          className="bg-forest-deep/30 border border-mint/15 rounded-lg px-4 py-2.5 font-mono text-sm text-muted focus:border-mint/30 focus:outline-none cursor-pointer">
           <option value="name">Sort: Name</option>
+          <option value="rating">Sort: Rating</option>
           <option value="price-low">Sort: Price (Low)</option>
           <option value="price-high">Sort: Price (High)</option>
           <option value="capabilities">Sort: Capabilities</option>
         </select>
-        <button onClick={loadAgents} className="font-mono text-xs text-muted uppercase hover:text-mint px-4 py-2.5 border border-mint/15 rounded-lg transition-colors">
-          Refresh
-        </button>
       </div>
 
-      {/* Stats bar */}
+      {/* Stats */}
       <div className="flex items-center gap-6 mb-6 pb-4 border-b border-forest-deep/40">
         <span className="font-mono text-xs text-muted">
           <span className="text-mint font-display text-sm">{filtered.length}</span> agents
@@ -144,34 +192,54 @@ export default function MarketplacePage() {
             <button
               key={agent.did}
               onClick={() => router.push(`/agent/${encodeURIComponent(agent.did)}`)}
-              className="text-left border border-mint/10 rounded-xl p-6 transition-all duration-300 hover:border-mint/30 hover:bg-forest-deep/20 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-accent/5 group"
+              className="text-left border border-mint/10 rounded-xl p-6 transition-all duration-300 hover:border-mint/30 hover:bg-forest-deep/20 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-accent/5 group relative"
             >
-              {/* Card header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-display text-lg text-off-white uppercase tracking-wider group-hover:text-mint transition-colors truncate">
-                    {agent.name}
-                  </h3>
-                  <p className="font-mono text-[10px] text-muted/50 mt-0.5 truncate">
-                    {agent.did}
-                  </p>
-                </div>
+              {/* Badges top-right */}
+              <div className="absolute top-3 right-3 flex gap-1.5">
+                {agent.registeredAt && (Date.now() / 1000 - agent.registeredAt) < 604800 && (
+                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-green-800/40 text-green-400 bg-green-900/10">
+                    New
+                  </span>
+                )}
+                {topAgentDids.has(agent.did) && (
+                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-yellow-800/40 text-yellow-400 bg-yellow-900/10">
+                    Trending
+                  </span>
+                )}
+              </div>
+
+              {/* Name */}
+              <div className="mb-3">
+                <h3 className="font-display text-lg text-off-white uppercase tracking-wider group-hover:text-mint transition-colors truncate pr-16">
+                  {agent.name}
+                </h3>
+                <p className="font-mono text-sm text-muted/50 mt-0.5 truncate">{agent.did}</p>
               </div>
 
               {/* Badges */}
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 <TypeBadge type={agent.type} />
                 {agent.onChain && (
-                  <span className="font-mono text-[9px] uppercase px-2 py-0.5 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
+                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
                     on-chain
                   </span>
                 )}
               </div>
 
+              {/* Rating */}
+              {agent.ratingCount! > 0 && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Stars rating={agent.avgRating!} />
+                  <span className="font-mono text-sm text-muted">
+                    {agent.avgRating!.toFixed(1)} ({agent.ratingCount})
+                  </span>
+                </div>
+              )}
+
               {/* Capabilities */}
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {agent.capabilities.map((cap) => (
-                  <span key={cap.id} className="font-mono text-[10px] text-muted bg-forest-deep/40 px-2 py-1 rounded">
+                  <span key={cap.id} className="font-mono text-sm text-muted bg-forest-deep/40 px-2 py-1 rounded">
                     {cap.description}
                   </span>
                 ))}
@@ -179,12 +247,8 @@ export default function MarketplacePage() {
 
               {/* Footer */}
               <div className="flex items-center justify-between pt-3 border-t border-forest-deep/40">
-                <span className="font-mono text-xs text-accent">
-                  {priceRange(agent)}
-                </span>
-                <span className="font-mono text-[10px] text-muted group-hover:text-mint transition-colors">
-                  View Details →
-                </span>
+                <span className="font-mono text-xs text-accent">{priceRange(agent)}</span>
+                <span className="font-mono text-sm text-muted group-hover:text-mint transition-colors">View Details →</span>
               </div>
             </button>
           ))}

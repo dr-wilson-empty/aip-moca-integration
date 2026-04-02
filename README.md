@@ -88,14 +88,24 @@ npm run dev
 # Open http://localhost:3000
 ```
 
+### One Command Start
+
+```bash
+npm run dev:full
+```
+
+This starts both the web app (port 3000) and all agent services (ports 4001-4003) with a single command.
+
 ### Usage Flow
 1. Connect Phantom wallet at `/connect`
 2. Browse agents at `/marketplace`
 3. Click an agent to see details at `/agent/[did]`
 4. Start a task at `/dashboard` — Phantom signs escrow, agent processes, payment settles
-5. Or use Digital Twin at `/twin` — just describe what you need in plain language
-6. View history at `/log` (persisted in Supabase)
-7. Register your own agents at `/my-agents`
+5. Or use **Digital Twin** at `/twin` — describe what you need in plain language, Twin auto-selects agents
+6. Set up **Automations** at `/automations` — scheduled recurring tasks with budget control
+7. Configure **Preferences** at `/profile` — language, detail level, custom instructions
+8. View history at `/log` (persisted in Supabase)
+9. Register your own agents at `/my-agents`
 
 ---
 
@@ -108,15 +118,18 @@ aip-website/
 │   │   ├── marketplace/              # Agent marketplace (browse, search, filter)
 │   │   ├── agent/[did]/              # Agent detail page
 │   │   ├── dashboard/                # Task submission + live monitoring
-│   │   ├── twin/                     # Digital Twin chat interface
+│   │   ├── twin/                     # Digital Twin chat (AI agent selection + pipeline)
+│   │   ├── automations/              # Scheduled recurring tasks with budget control
 │   │   ├── my-agents/                # Agent management (register/edit/delete)
-│   │   ├── profile/                  # Wallet, balances, DID
+│   │   ├── profile/                  # Wallet, balances, DID, Twin preferences
 │   │   ├── log/                      # Task history (Supabase-backed)
 │   │   ├── connect/                  # Wallet connection
 │   │   ├── task/[taskId]/            # Task detail page
 │   │   └── api/                      # Backend API routes
 │   │       ├── task/                 # Task creation, quote, SSE stream
-│   │       ├── twin/analyze/         # Digital Twin intent analysis
+│   │       ├── twin/                 # Twin analyze, messages persistence
+│   │       ├── automations/          # CRUD + run + results
+│   │       ├── preferences/          # User preference management
 │   │       ├── agent-card/           # Agent registry, detail, my-agents
 │   │       ├── payment/              # Escrow + settlement
 │   │       ├── tasks/history/        # Persistent task history
@@ -137,7 +150,7 @@ aip-website/
 │   │   ├── agentStore.ts             # Selected agent
 │   │   ├── taskStore.ts              # Active task + SSE
 │   │   ├── logStore.ts               # Task history (localStorage + Supabase)
-│   │   └── twinStore.ts              # Digital Twin messages
+│   │   └── twinStore.ts              # Twin messages (Supabase-persisted)
 │   ├── lib/
 │   │   ├── solana/                   # Blockchain interaction
 │   │   │   ├── escrow-program.ts     # Escrow PDA instructions
@@ -154,7 +167,9 @@ aip-website/
 │   │   │   └── agent-card-store.ts  # Hybrid in-memory + on-chain store
 │   │   ├── supabase/                 # Database layer
 │   │   │   ├── client.ts            # Supabase client
-│   │   │   └── db.ts                # Persistence functions
+│   │   │   ├── db.ts                # Tasks, escrows, agents, twin persistence
+│   │   │   ├── automations.ts       # Automation rules + results
+│   │   │   └── preferences.ts       # User preferences
 │   │   └── identity/                 # DID generation + verification
 │   └── types/
 │       └── aip.ts                    # TypeScript types (Task, AgentCard, Artifact)
@@ -254,6 +269,35 @@ agent.start();
 ```
 
 Then register on-chain via `/my-agents` in the UI.
+
+---
+
+## Digital Twin
+
+Your personal AI assistant at `/twin`. Describe what you need in natural language — Twin handles the rest.
+
+**Single task:** "Summarize the AIP protocol" → Twin selects Summary Agent → executes → returns result
+
+**Multi-agent pipeline:** "Fetch Solana staking data and summarize it" → Twin chains Data Agent → Summary Agent → sequential execution
+
+**Features:**
+- AI-powered agent + capability matching (Claude Haiku)
+- Pipeline orchestration (sequential multi-agent tasks)
+- User preferences (language, detail level, custom instructions)
+- Chat history persisted in Supabase
+- Suggested prompts for quick start
+
+---
+
+## Automations
+
+Scheduled recurring tasks at `/automations`. Set it and forget it.
+
+**Create:** Name + prompt + schedule (1min/5min/hourly/daily/weekly) + budget limit
+
+**Execution:** Server-side `node-cron` scheduler checks every minute, runs automations that are due. Agent called directly via A2A (no wallet signing needed).
+
+**Budget control:** Per-automation spending limit. Stops when exceeded.
 
 ---
 

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { taskBodySchema } from "@/lib/validation";
 import { createTask, listTasks, getTask } from "@/lib/protocol/task-machine";
 import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/escrow";
 import { getCardByEndpoint } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { dispatchToAgent } from "@/lib/protocol/a2a-dispatcher";
+import { dbTrackTask } from "@/lib/supabase/preferences";
 import {
   buildPaymentRequirements,
   verifyPaymentPayload,
@@ -66,55 +68,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const {
-    agentEndpoint,
-    capability,
-    input,
-    amount,
-    callerDid,
-    callerAddress,
-    taskId: bodyTaskId,
-  } = body as {
-    agentEndpoint?: string;
-    capability?: string;
-    input?: string;
-    amount?: string;
-    callerDid?: string;
-    callerAddress?: string;
-    taskId?: string;
-  };
-
-  if (!agentEndpoint || !capability || !input || !amount || !callerDid || !callerAddress) {
+  const parsed = taskBodySchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Required: agentEndpoint, capability, input, amount, callerDid, callerAddress" },
+      { error: parsed.error.issues.map((i) => i.message).join(", ") },
       { status: 400 }
     );
   }
 
-  // Input uzunluk siniri
-  if (input.length > 2000) {
-    return NextResponse.json(
-      { error: "Input too long: maximum 2000 characters" },
-      { status: 400 }
-    );
-  }
-
-  // Amount dogrulama
-  const parsedAmount = parseFloat(amount);
-  if (isNaN(parsedAmount) || parsedAmount <= 0 || parsedAmount > 100) {
-    return NextResponse.json(
-      { error: "Invalid amount: must be between 0 and 100 USDC" },
-      { status: 400 }
-    );
-  }
-
-  // DID format kontrolu
-  if (!callerDid.startsWith("did:key:z")) {
-    return NextResponse.json(
-      { error: "Invalid DID format: must start with did:key:z" },
-      { status: 400 }
-    );
-  }
+  const { agentEndpoint, capability, input, amount, callerDid, callerAddress, taskId: bodyTaskId } = parsed.data;
 
   // Karsi ajan card'ini bul
   const agentCard = getCardByEndpoint(agentEndpoint);
@@ -265,6 +227,7 @@ export async function POST(request: NextRequest) {
         if (action === "release") {
           const result = await releaseEscrow(taskId);
           logger.info("escrow", "released", { taskId, txHash: result.txHash });
+          dbTrackTask(callerAddress, capability, agentCard.did).catch(() => {});
           return result.txHash;
         } else {
           const result = await refundEscrow(taskId);

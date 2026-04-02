@@ -40,7 +40,7 @@ export default function StatsRow() {
             key={s.label}
             className="border border-forest-deep/60 bg-forest-deep/20 p-4 rounded-lg flex flex-col gap-2"
           >
-            <span className="font-mono text-[9px] text-muted uppercase tracking-wider">
+            <span className="font-mono text-xs text-muted uppercase tracking-wider">
               {s.label}
             </span>
             <span className={`font-display text-xl uppercase ${s.color}`}>
@@ -53,7 +53,7 @@ export default function StatsRow() {
       {/* Mini activity bar chart */}
       {recentTasks.length > 0 && (
         <div className="border border-forest-deep/60 bg-forest-deep/20 p-4 rounded-lg">
-          <span className="font-mono text-[9px] text-muted uppercase tracking-wider block mb-3">
+          <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-3">
             Recent Activity
           </span>
           <div className="flex items-end gap-1 h-12">
@@ -87,8 +87,8 @@ export default function StatsRow() {
             ))}
           </div>
           <div className="flex justify-between mt-1">
-            <span className="font-mono text-[8px] text-muted">Latest</span>
-            <span className="font-mono text-[8px] text-muted">Oldest</span>
+            <span className="font-mono text-xs text-muted">Latest</span>
+            <span className="font-mono text-xs text-muted">Oldest</span>
           </div>
         </div>
       )}
