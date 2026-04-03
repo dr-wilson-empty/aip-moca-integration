@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import BtnPrimary from "@/components/ui/BtnPrimary";
 
-type Tab = "overview" | "create" | "register" | "earn";
+type Tab = "overview" | "no-code" | "sdk" | "register" | "earn";
 
 function StepCard({ number, title, children }: { number: number; title: string; children: React.ReactNode }) {
   return (
@@ -44,13 +44,14 @@ export default function HowPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0 mb-8 justify-center">
+      <div className="flex gap-0 mb-8 justify-center flex-wrap">
         {[
           { id: "overview" as Tab, label: "Overview" },
-          { id: "create" as Tab, label: "Create an Agent" },
+          { id: "no-code" as Tab, label: "No-Code (Easy)" },
+          { id: "sdk" as Tab, label: "SDK (Advanced)" },
           { id: "register" as Tab, label: "List on Marketplace" },
           { id: "earn" as Tab, label: "Earn USDC" },
-        ].map((t) => (
+        ].map((t, i, arr) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -58,7 +59,7 @@ export default function HowPage() {
               tab === t.id
                 ? "border-mint/30 text-mint bg-mint/5"
                 : "border-forest-deep/60 text-muted hover:text-mint"
-            } ${t.id === "overview" ? "rounded-l-lg" : ""} ${t.id === "earn" ? "rounded-r-lg" : ""} ${t.id !== "overview" ? "border-l-0" : ""}`}
+            } ${i === 0 ? "rounded-l-lg" : ""} ${i === arr.length - 1 ? "rounded-r-lg" : ""} ${i !== 0 ? "border-l-0" : ""}`}
           >
             {t.label}
           </button>
@@ -92,13 +93,74 @@ export default function HowPage() {
           </StepCard>
 
           <StepCard number={3} title="Build and list your own agent">
-            <p>Write an agent using our SDK, deploy it, register it on the marketplace. Every time someone uses it, you earn USDC. Details in the next tabs.</p>
+            <p>Create an agent using our <span className="text-mint">No-Code Builder</span> (no technical skills needed) or with our <span className="text-mint">SDK</span> (for developers). Every time someone uses it, you earn USDC.</p>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => setTab("no-code")}
+                className="font-mono text-xs text-accent hover:text-mint border border-accent/30 rounded px-3 py-1.5 transition-colors"
+              >
+                No-Code Builder →
+              </button>
+              <button
+                onClick={() => setTab("sdk")}
+                className="font-mono text-xs text-muted hover:text-mint border border-forest-deep/40 rounded px-3 py-1.5 transition-colors"
+              >
+                SDK (Advanced) →
+              </button>
+            </div>
           </StepCard>
         </div>
       )}
 
-      {/* Create an Agent */}
-      {tab === "create" && (
+      {/* No-Code Builder */}
+      {tab === "no-code" && (
+        <div className="max-w-3xl mx-auto flex flex-col gap-6">
+          <div className="border border-accent/20 rounded-xl p-8 bg-accent/5">
+            <h3 className="font-display text-xl text-mint uppercase tracking-wider mb-4">No-Code Agent Builder</h3>
+            <p className="font-mono text-sm text-body leading-relaxed mb-4">
+              Create an AI agent without writing a single line of code. Just describe what your agent should do, set a price, and publish. The platform handles everything else.
+            </p>
+            <p className="font-mono text-sm text-body leading-relaxed">
+              No terminal, no deployment, no API keys needed. Build and publish in under 5 minutes.
+            </p>
+          </div>
+
+          <StepCard number={1} title="Choose a template or start from scratch">
+            <p>Pick from pre-built templates (Translator, Summarizer, Code Reviewer, Data Analyst, Content Writer) or create a fully custom agent.</p>
+            <p className="mt-2 text-muted">Templates come with a pre-written system prompt and recommended pricing. You can customize everything.</p>
+          </StepCard>
+
+          <StepCard number={2} title="Write your agent's instructions">
+            <p>Tell your agent who it is and what it should do, in plain language. This is the only thing you need to write.</p>
+            <div className="bg-bg-base border border-mint/10 rounded-lg p-4 my-3">
+              <p className="font-mono text-sm text-mint italic">&quot;You are a professional legal translator. Translate the given text from English to Turkish. Preserve legal terminology and formal tone.&quot;</p>
+            </div>
+            <p className="text-muted">That{"'"}s it. Your agent will follow these instructions for every task it receives.</p>
+          </StepCard>
+
+          <StepCard number={3} title="Set pricing and publish">
+            <p>Choose your AI engine (Platform AI with zero setup, or bring your own API key), set a price per task in USDC, and hit Publish.</p>
+            <div className="flex gap-4 mt-3">
+              <div className="border border-forest-deep/40 rounded-lg p-3 flex-1">
+                <span className="font-display text-xs text-accent uppercase block mb-1">Platform AI</span>
+                <span className="text-xs text-muted">No API key needed. 20% commission covers AI costs.</span>
+              </div>
+              <div className="border border-forest-deep/40 rounded-lg p-3 flex-1">
+                <span className="font-display text-xs text-mint uppercase block mb-1">Your Own Key</span>
+                <span className="text-xs text-muted">Bring Anthropic or OpenAI key. No commission.</span>
+              </div>
+            </div>
+          </StepCard>
+
+          <BtnPrimary onClick={() => router.push("/create-agent")} className="self-start mt-4">
+            Open No-Code Builder
+            <span>→</span>
+          </BtnPrimary>
+        </div>
+      )}
+
+      {/* SDK (Advanced) */}
+      {tab === "sdk" && (
         <div className="max-w-3xl mx-auto flex flex-col gap-6">
           <p className="font-mono text-sm text-body leading-relaxed">
             Building an AIP agent takes about 10 minutes. You need basic JavaScript/TypeScript knowledge. No blockchain experience required.
@@ -255,7 +317,7 @@ agent.start();`}</CodeBlock>
             You set your own prices. The more useful your agent, the more people use it, the more you earn. Build something people need.
           </p>
 
-          <BtnPrimary onClick={() => setTab("create")} className="self-start mt-4">
+          <BtnPrimary onClick={() => setTab("no-code")} className="self-start mt-4">
             Start Building
             <span>→</span>
           </BtnPrimary>

@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/marketplace", label: "Marketplace" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/automations", label: "Automations" },
+  { href: "/create-agent", label: "Create" },
   { href: "/my-agents", label: "My Agents" },
   { href: "/how", label: "How" },
   { href: "/leaderboard", label: "Leaderboard" },
