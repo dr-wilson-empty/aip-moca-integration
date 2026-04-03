@@ -170,6 +170,9 @@ export default function MarketplacePage() {
           <span className="text-accent font-display text-sm">{filtered.filter((a) => a.onChain).length}</span> on-chain
         </span>
         <span className="font-mono text-xs text-muted">
+          <span className="text-cyan-400 font-display text-sm">{filtered.filter((a) => a.did.startsWith("did:aip:hosted:")).length}</span> hosted
+        </span>
+        <span className="font-mono text-xs text-muted">
           <span className="text-blue-400 font-display text-sm">{filtered.reduce((sum, a) => sum + a.capabilities.length, 0)}</span> capabilities
         </span>
       </div>
@@ -219,11 +222,15 @@ export default function MarketplacePage() {
               {/* Badges */}
               <div className="flex items-center gap-2 mb-3">
                 <TypeBadge type={agent.type} />
-                {agent.onChain && (
+                {agent.did.startsWith("did:aip:hosted:") ? (
+                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-cyan-800/40 text-cyan-400 bg-cyan-900/10">
+                    hosted
+                  </span>
+                ) : agent.onChain ? (
                   <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
                     on-chain
                   </span>
-                )}
+                ) : null}
               </div>
 
               {/* Rating */}
