@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { taskBodySchema } from "@/lib/validation";
 import { createTask, listTasks, getTask } from "@/lib/protocol/task-machine";
-import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/escrow";
+import { createEscrowRecord, releaseEscrow, refundEscrow, getAuthorityAddress } from "@/lib/payment/escrow";
 import { getCardByEndpoint } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { dispatchToAgent } from "@/lib/protocol/a2a-dispatcher";
@@ -14,6 +14,7 @@ import {
   decodeX402Header,
   type X402PaymentPayload,
 } from "@/lib/payment/x402";
+import { getCommissionTarget } from "@/lib/payment/commission";
 import { logger } from "@/lib/logger";
 
 seedDemoAgents();
@@ -106,12 +107,17 @@ export async function POST(request: NextRequest) {
     const taskId = bodyTaskId || `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     logger.info("x402", "payment_required", { callerAddress, amount, agent: agentCard.name });
 
+    // Hosted agent (tier=platform) → payee = platform authority (commission split later)
+    // SDK/custom agents → payee = agent's wallet (no commission)
+    const commissionTarget = getCommissionTarget(agentEndpoint);
+    const payee = commissionTarget ? getAuthorityAddress() : (agentCard.walletAddress ?? callerAddress);
+
     const requirements = buildPaymentRequirements(
       amount,
       "/api/task",
       `Task: ${capability} via ${agentCard.name}`,
       taskId,
-      agentCard.walletAddress ?? callerAddress
+      payee
     );
 
     return new NextResponse(
@@ -153,12 +159,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const commissionTargetVerify = getCommissionTarget(agentEndpoint);
+  const payeeVerify = commissionTargetVerify ? getAuthorityAddress() : (agentCard.walletAddress ?? callerAddress);
+
   const requirements = buildPaymentRequirements(
     amount,
     "/api/task",
     `Task: ${capability}`,
     taskId,
-    agentCard.walletAddress ?? callerAddress
+    payeeVerify
   );
   const verifyResult = verifyPaymentPayload(paymentPayload, requirements);
 
@@ -206,12 +215,17 @@ export async function POST(request: NextRequest) {
     escrowTxHash,
   });
 
+  // For hosted agents with platform AI, payee is platform authority (commission split on release)
+  const commissionTargetEscrow = getCommissionTarget(agentEndpoint);
+  const escrowPayee = commissionTargetEscrow ? getAuthorityAddress() : (agentCard.walletAddress ?? callerAddress);
+
   createEscrowRecord({
     taskId,
     amount,
     from: callerAddress,
-    to: agentCard.walletAddress ?? callerAddress,
+    to: escrowPayee,
     escrowTxHash,
+    agentEndpoint,
   });
 
   // Dispatch to real agent service via HTTP JSON-RPC

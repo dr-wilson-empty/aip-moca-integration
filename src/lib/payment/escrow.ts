@@ -5,6 +5,8 @@ import {
   programReleaseEscrow,
   programRefundEscrow,
 } from "@/lib/solana/escrow-program";
+import { sendAgentShare, getCommissionTarget, calculateSplit } from "./commission";
+import { logger } from "@/lib/logger";
 
 /* ------------------------------------------------------------------ */
 /*  Authority Keypair (server wallet — can release/refund escrows)      */
@@ -46,9 +48,12 @@ export interface EscrowRecord {
   taskId: string;
   amount: string;
   from: string;        // Payer wallet address
-  to: string;          // Payee (agent) wallet address
+  to: string;          // Payee wallet address (platform for hosted, agent for SDK)
   escrowTxHash: string; // initialize_escrow transaction hash
   settlementTxHash?: string;
+  commissionTxHash?: string;   // SPL transfer from platform to agent (if commission)
+  commissionRate?: string;     // e.g. "0.20" for 20%
+  agentEndpoint?: string;      // agent endpoint for commission check
   status: EscrowStatus;
   createdAt: string;
   updatedAt: string;
@@ -66,6 +71,7 @@ export function createEscrowRecord(params: {
   from: string;
   to: string;
   escrowTxHash: string;
+  agentEndpoint?: string;
 }): EscrowRecord {
   const now = new Date().toISOString();
   const record: EscrowRecord = {
@@ -98,8 +104,15 @@ function getUsdcMint(): PublicKey {
 }
 
 /**
- * Release escrow — transfer USDC from PDA vault to payee (agent).
- * Server signs as authority via program instruction.
+ * Release escrow — transfer USDC from PDA vault to payee.
+ *
+ * For hosted agents (tier=platform):
+ *   1. Escrow releases to platform authority wallet (payee = authority)
+ *   2. Platform sends 80% to agent owner via SPL transfer
+ *   3. Platform keeps 20% as commission
+ *
+ * For SDK/custom agents:
+ *   1. Escrow releases directly to agent wallet (no commission)
  */
 export async function releaseEscrow(taskId: string): Promise<{
   txHash: string;
@@ -113,11 +126,42 @@ export async function releaseEscrow(taskId: string): Promise<{
   const payeeWallet = new PublicKey(record.to);
   const mint = getUsdcMint();
 
+  // Step 1: Release escrow on-chain (to payee — platform or agent)
   const txHash = await programReleaseEscrow(authorityKp, taskId, payeeWallet, mint);
 
   record.status = "RELEASED";
   record.settlementTxHash = txHash;
   record.updatedAt = new Date().toISOString();
+
+  // Step 2: If hosted agent with platform AI, split commission
+  // The escrow was released to platform wallet — now send agent their 80%
+  if (record.agentEndpoint) {
+    const agentOwnerAddress = getCommissionTarget(record.agentEndpoint);
+    if (agentOwnerAddress) {
+      const split = calculateSplit(record.amount);
+      logger.info("commission", "splitting", {
+        taskId,
+        total: record.amount,
+        agentShare: split.agentUsdc,
+        platformShare: split.platformUsdc,
+        agentOwner: agentOwnerAddress,
+      });
+
+      const shareTx = await sendAgentShare(
+        authorityKp,
+        new PublicKey(agentOwnerAddress),
+        record.amount,
+        mint,
+        taskId,
+      );
+
+      if (shareTx) {
+        record.commissionTxHash = shareTx;
+        record.commissionRate = "0.20";
+      }
+    }
+  }
+
   dbUpsertEscrow({
     task_id: taskId, amount: record.amount, payer: record.from,
     payee: record.to, status: "RELEASED", escrow_tx_hash: record.escrowTxHash,
