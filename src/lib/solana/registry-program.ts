@@ -274,11 +274,13 @@ export async function fetchAllOnChainAgents(): Promise<(AgentCard & { onChain: b
   return cards;
 }
 
-/** Fetch agents owned by a specific wallet */
-export async function fetchAgentsByOwner(ownerPubkey: string): Promise<ParsedAgentRecord[]> {
+/** Fetch agents owned by a specific wallet, including PDA addresses */
+export async function fetchAgentsByOwner(ownerPubkey: string): Promise<(ParsedAgentRecord & { pda: string })[]> {
   const connection = getConnection();
   const ownerBytes = new PublicKey(ownerPubkey).toBuffer();
 
+  // memcmp offset 0: 8-byte account discriminator (Anchor adds this automatically)
+  // memcmp offset 8: 32-byte owner pubkey (first field in AgentRecord after discriminator)
   const accounts = await connection.getProgramAccounts(REGISTRY_PROGRAM_ID, {
     filters: [
       { memcmp: { offset: 0, bytes: AGENT_RECORD_DISCRIMINATOR.toString("base64"), encoding: "base64" } },
@@ -286,10 +288,12 @@ export async function fetchAgentsByOwner(ownerPubkey: string): Promise<ParsedAge
     ],
   });
 
-  const records: ParsedAgentRecord[] = [];
-  for (const { account } of accounts) {
+  const records: (ParsedAgentRecord & { pda: string })[] = [];
+  for (const { pubkey, account } of accounts) {
     const record = parseAgentRecord(Buffer.from(account.data));
-    if (record && record.did.startsWith("did:aip:")) records.push(record);
+    if (record && record.did.startsWith("did:aip:")) {
+      records.push({ ...record, pda: pubkey.toBase58() });
+    }
   }
   return records;
 }

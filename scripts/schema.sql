@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS agent_cache (
   on_chain BOOLEAN DEFAULT false,
   agent_id TEXT,
   owner TEXT,
+  source TEXT DEFAULT 'synced',  -- 'ui' = registered via AIP UI, 'synced' = discovered via chain sync
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

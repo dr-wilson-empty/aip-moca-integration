@@ -90,6 +90,7 @@ export interface DbAgent {
   on_chain?: boolean;
   agent_id?: string;
   owner?: string;
+  source?: string; // 'ui' | 'synced'
 }
 
 export async function dbUpsertAgent(agent: DbAgent): Promise<void> {
@@ -105,6 +106,29 @@ export async function dbListAgents(): Promise<DbAgent[]> {
     const { data } = await sb.from("agent_cache").select("*").order("created_at", { ascending: false });
     return data ?? [];
   } catch { return []; }
+}
+
+/** Mark an agent as registered via UI (for source tracking) */
+export async function dbMarkAgentUIRegistered(did: string, owner: string, agentId: string): Promise<void> {
+  try {
+    const sb = getSupabase();
+    await sb.from("agent_cache").upsert(
+      { did, owner, agent_id: agentId, source: "ui", name: "", endpoint: "", type: "Task" },
+      { onConflict: "did" }
+    );
+  } catch { /* non-blocking */ }
+}
+
+/** Get agents registered via UI for a specific owner */
+export async function dbGetUIRegisteredDids(owner: string): Promise<Set<string>> {
+  try {
+    const sb = getSupabase();
+    const { data } = await sb.from("agent_cache")
+      .select("did")
+      .eq("owner", owner)
+      .eq("source", "ui");
+    return new Set((data ?? []).map((r: { did: string }) => r.did));
+  } catch { return new Set(); }
 }
 
 /* ------------------------------------------------------------------ */
