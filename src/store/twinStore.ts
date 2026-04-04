@@ -33,13 +33,19 @@ export interface TwinMessage {
   escrowTxHash?: string;
   settlementTxHash?: string;
   state?: "planning" | "confirming" | "executing" | "completed" | "failed";
+  /** Chain ID for autonomous execution */
+  chainId?: string;
+  /** Whether this pipeline is running in autonomous mode */
+  autonomous?: boolean;
 }
 
 interface TwinState {
   messages: TwinMessage[];
   isProcessing: boolean;
+  autonomousMode: boolean;
   loaded: boolean;
   walletAddress: string | null;
+  setAutonomousMode: (v: boolean) => void;
   setWallet: (addr: string | null) => void;
   addMessage: (msg: TwinMessage, walletAddress?: string) => void;
   updateMessage: (id: string, update: Partial<TwinMessage>, walletAddress?: string) => void;
@@ -61,8 +67,10 @@ function persistMsg(action: "insert" | "update", walletAddress: string | undefin
 export const useTwinStore = create<TwinState>()((set, get) => ({
   messages: [],
   isProcessing: false,
+  autonomousMode: false,
   loaded: false,
   walletAddress: null,
+  setAutonomousMode: (v) => set({ autonomousMode: v }),
   setWallet: (addr) => set({ walletAddress: addr }),
   addMessage: (msg, walletOverride) => {
     set((s) => ({ messages: [...s.messages, msg] }));

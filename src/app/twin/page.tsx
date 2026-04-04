@@ -45,6 +45,7 @@ export default function TwinPage() {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const startTimeRef = useRef("");
+  const { autonomousMode, setAutonomousMode } = useTwinStore();
 
   useTaskSSE(activeTaskId);
 
@@ -258,10 +259,115 @@ export default function TwinPage() {
     }
   };
 
+  /* ---- Autonomous chain execution ---- */
+  const executeAutonomousChain = async (msgId: string) => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg?.steps?.length || !address || !did) return;
+
+    updateMessage(msgId, { state: "executing", autonomous: true });
+    setProcessing(true);
+
+    try {
+      // Submit chain to server — server handles all escrows + execution
+      const res = await fetch("/api/chain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          callerAddress: address,
+          callerDid: did,
+          steps: msg.steps.map((s) => ({
+            agentDid: s.agentDid,
+            agentName: s.agentName,
+            agentEndpoint: s.agentEndpoint,
+            walletAddress: s.walletAddress || "",
+            capabilityId: s.capabilityId,
+            capabilityDescription: s.capabilityDescription,
+            estimatedCost: s.estimatedCost,
+            label: s.label,
+            inputFromPrev: s.inputFromPrev,
+            input: s.input || "",
+            status: "pending",
+          })),
+          totalCost: msg.totalCost || "0",
+          depositTxHash: "autonomous-mode", // Server-side budget, no user deposit needed for devnet
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        updateMessage(msgId, { state: "failed", content: `Chain failed: ${err.error || "Unknown error"}` });
+        setProcessing(false);
+        return;
+      }
+
+      const { chain } = await res.json();
+      updateMessage(msgId, { chainId: chain.id });
+
+      // Poll chain status
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await fetch(`/api/chain?id=${chain.id}`);
+          if (!pollRes.ok) return;
+          const { chain: updated } = await pollRes.json();
+
+          // Update step statuses in UI
+          if (updated.steps) {
+            for (let i = 0; i < updated.steps.length; i++) {
+              const chainStep = updated.steps[i];
+              updateStep(msgId, i, {
+                status: chainStep.status,
+                taskId: chainStep.taskId,
+                artifact: chainStep.artifact,
+                escrowTxHash: chainStep.escrowTxHash,
+                settlementTxHash: chainStep.settlementTxHash,
+              });
+            }
+            updateMessage(msgId, { currentStep: updated.currentStep });
+          }
+
+          if (updated.status === "completed") {
+            clearInterval(pollInterval);
+            updateMessage(msgId, {
+              state: "completed",
+              artifact: updated.finalArtifact,
+              content: `Autonomous pipeline completed. Total spent: ${updated.totalSpent} USDC`,
+            });
+            setProcessing(false);
+            if (address) fetchBalance(address);
+          } else if (updated.status === "failed") {
+            clearInterval(pollInterval);
+            const failedStep = updated.steps.find((s: { status: string }) => s.status === "failed");
+            updateMessage(msgId, {
+              state: "failed",
+              content: `Pipeline failed at step ${updated.currentStep + 1}: ${failedStep?.error || "Unknown error"}`,
+            });
+            setProcessing(false);
+            if (address) fetchBalance(address);
+          }
+        } catch { /* retry on next poll */ }
+      }, 1000);
+
+      // Safety timeout: stop polling after 5 minutes
+      setTimeout(() => clearInterval(pollInterval), 300000);
+    } catch (err) {
+      updateMessage(msgId, {
+        state: "failed",
+        content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      setProcessing(false);
+    }
+  };
+
   /* ---- Confirm pipeline ---- */
   const handleConfirm = (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg?.steps?.length) return;
+
+    // If autonomous mode AND pipeline, run via chain executor
+    if (autonomousMode && msg.mode === "pipeline") {
+      executeAutonomousChain(msgId);
+      return;
+    }
 
     updateMessage(msgId, { state: "executing" });
     executeStep(msgId, 0);
@@ -280,9 +386,17 @@ export default function TwinPage() {
           <span className="font-mono text-xs text-muted uppercase tracking-wider">Your AI Assistant</span>
           <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">Digital Twin</h2>
         </div>
-        <p className="font-mono text-xs text-muted max-w-sm text-right">
-          Tell me what you need. I will find the right agents and handle everything.
-        </p>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <span className="font-mono text-[10px] text-muted uppercase">Autonomous</span>
+            <button
+              onClick={() => setAutonomousMode(!autonomousMode)}
+              className={`relative w-9 h-5 rounded-full transition-colors ${autonomousMode ? "bg-accent" : "bg-forest-deep/60"}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-off-white transition-transform ${autonomousMode ? "left-[18px]" : "left-0.5"}`} />
+            </button>
+          </label>
+        </div>
         {messages.length > 0 && !isProcessing && (
           <button onClick={() => clearMessages()} className="font-mono text-xs text-red-400 hover:text-red-300 transition-colors">
             Clear Chat
@@ -360,7 +474,9 @@ export default function TwinPage() {
                   <div className="flex gap-2">
                     <button onClick={() => handleConfirm(msg.id)}
                       className="flex-1 font-mono text-xs text-bg-base bg-accent px-3 py-2 rounded-lg hover:bg-mint transition-colors">
-                      {msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
+                      {autonomousMode && msg.mode === "pipeline"
+                        ? "Run Autonomously"
+                        : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
                     </button>
                     <button onClick={() => handleCancel(msg.id)}
                       className="font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:text-red-400 hover:border-red-800/30 transition-colors">

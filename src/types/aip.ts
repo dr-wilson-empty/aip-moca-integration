@@ -29,6 +29,50 @@ export interface AgentCard {
   walletAddress?: string; // Solana wallet for receiving payments
 }
 
+/* ------------------------------------------------------------------ */
+/*  Task Chain (Phase 5 — Agent Chaining)                              */
+/* ------------------------------------------------------------------ */
+
+export type ChainStatus = "pending" | "executing" | "completed" | "failed";
+
+export interface ChainStep {
+  agentDid: string;
+  agentName: string;
+  agentEndpoint: string;
+  walletAddress: string;
+  capabilityId: string;
+  capabilityDescription: string;
+  estimatedCost: string;
+  label: string;
+  /** If true, uses previous step's output as input */
+  inputFromPrev: boolean;
+  /** Static input (used if inputFromPrev is false) */
+  input: string;
+  /** Runtime state */
+  status: ChainStatus;
+  taskId?: string;
+  artifact?: string;
+  escrowTxHash?: string;
+  settlementTxHash?: string;
+  error?: string;
+}
+
+export interface TaskChain {
+  id: string;
+  callerAddress: string;
+  callerDid: string;
+  steps: ChainStep[];
+  totalCost: string;
+  totalSpent: string;
+  status: ChainStatus;
+  /** On-chain tx hash for the initial budget deposit */
+  depositTxHash: string;
+  currentStep: number;
+  createdAt: string;
+  completedAt?: string;
+  finalArtifact?: string;
+}
+
 /** Registration source for My Agents dashboard */
 export type RegistrationSource = "ui" | "external" | "hosted";
 
