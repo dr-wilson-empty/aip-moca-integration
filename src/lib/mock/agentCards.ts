@@ -32,7 +32,7 @@ export const WEB_SEARCH_AGENT: AgentCard = {
   version: "1.0.0",
   endpoint: "http://localhost:3000/api/web/agent",
   type: "Task",
-  walletAddress: "",
+  walletAddress: "7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX",
   capabilities: [
     {
       id: "web.search",
