@@ -84,7 +84,8 @@ export async function POST(request: NextRequest) {
 
   const amount = parseFloat(cap.pricing.amount);
   const amountStr = cap.pricing.amount;
-  const taskId = `delegate_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Task ID must be ≤64 bytes (Solana PDA seed limit)
+  const taskId = `d_${Math.random().toString(36).slice(2, 10)}`;
 
   logger.info("delegate", "starting", {
     taskId,

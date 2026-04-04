@@ -86,7 +86,7 @@ export function createAndExecuteChain(params: {
   depositTxHash: string;
 }): TaskChain {
   const chain: TaskChain = {
-    id: `chain_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `ch_${Math.random().toString(36).slice(2, 10)}`,
     callerAddress: params.callerAddress,
     callerDid: params.callerDid,
     steps: params.steps.map((s) => ({ ...s, status: "pending" })),
@@ -150,7 +150,9 @@ async function runChain(chain: TaskChain): Promise<void> {
       }
     }
 
-    const taskId = `chain_${chain.id}_step${i}_${Date.now()}`;
+    // Task ID must be ≤64 bytes (Solana PDA seed limit for escrow)
+    const shortId = Math.random().toString(36).slice(2, 8);
+    const taskId = `cs${i}_${shortId}`;
     step.taskId = taskId;
     const amount = parseFloat(step.estimatedCost);
 
