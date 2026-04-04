@@ -370,8 +370,8 @@ export default function TwinPage() {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg?.steps?.length) return;
 
-    // If autonomous mode AND pipeline, run via chain executor
-    if (autonomousMode && msg.mode === "pipeline") {
+    // If autonomous mode, run via chain executor (single or pipeline)
+    if (autonomousMode) {
       executeAutonomousChain(msgId);
       return;
     }
@@ -481,7 +481,7 @@ export default function TwinPage() {
                   <div className="flex gap-2">
                     <button onClick={() => handleConfirm(msg.id)}
                       className="flex-1 font-mono text-xs text-bg-base bg-accent px-3 py-2 rounded-lg hover:bg-mint transition-colors">
-                      {autonomousMode && msg.mode === "pipeline"
+                      {autonomousMode
                         ? "Run Autonomously"
                         : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
                     </button>

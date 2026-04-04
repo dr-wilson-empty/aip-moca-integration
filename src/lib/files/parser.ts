@@ -24,8 +24,9 @@ export interface ParseResult {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_TEXT_LENGTH = 50_000; // Limit text sent to agent
 
-/** Minimum chars per page to consider pdf-parse output valid */
-const MIN_CHARS_PER_PAGE = 50;
+/** Minimum meaningful chars per page to consider pdf-parse output valid.
+ *  Scanned PDFs often produce whitespace/garbage chars that pass a low threshold. */
+const MIN_CHARS_PER_PAGE = 100;
 
 const SUPPORTED_TYPES: Record<string, string> = {
   "application/pdf": "pdf",
@@ -106,7 +107,11 @@ async function parsePdf(buffer: Buffer): Promise<ParseResult> {
     const trimmed = textResult.text.trim();
     const charsPerPage = textResult.numpages > 0 ? trimmed.length / textResult.numpages : trimmed.length;
 
-    if (charsPerPage >= MIN_CHARS_PER_PAGE) {
+    // Check both character count and actual word count
+    const wordCount = trimmed.split(/\s+/).filter((w) => w.length > 1).length;
+    const wordsPerPage = textResult.numpages > 0 ? wordCount / textResult.numpages : wordCount;
+
+    if (charsPerPage >= MIN_CHARS_PER_PAGE && wordsPerPage >= 20) {
       // Good text extraction — use it directly
       return {
         text: trimmed.slice(0, MAX_TEXT_LENGTH),
