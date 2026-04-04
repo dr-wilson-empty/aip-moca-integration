@@ -1,6 +1,6 @@
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
-import { COUNTERPART_AGENT_CARDS } from "@/lib/mock/agentCards";
+import { COUNTERPART_AGENT_CARDS, WEB_SEARCH_AGENT } from "@/lib/mock/agentCards";
 import { registerCard, syncFromChain } from "./agent-card-store";
 import { registerAgentOnChain, isAgentOnChain } from "@/lib/solana/registry-program";
 
@@ -30,6 +30,8 @@ export function seedDemoAgents(): void {
   for (const card of Object.values(COUNTERPART_AGENT_CARDS)) {
     registerCard(card);
   }
+  // Platform-hosted Web Search Agent (uses Tavily API, no external process needed)
+  registerCard(WEB_SEARCH_AGENT);
 
   // On-chain registration + sync (background)
   if (!gs.__aip_chain_registered) {

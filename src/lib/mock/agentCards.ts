@@ -25,6 +25,23 @@ export const MY_AGENT_CARD: AgentCard = {
   ],
 };
 
+/** Platform-hosted Web Search Agent — uses Tavily API */
+export const WEB_SEARCH_AGENT: AgentCard = {
+  did: "did:aip:platform:web-search",
+  name: "Web Search Agent",
+  version: "1.0.0",
+  endpoint: "http://localhost:3000/api/web/agent",
+  type: "Task",
+  walletAddress: "",
+  capabilities: [
+    {
+      id: "web.search",
+      description: "Web Search",
+      pricing: { amount: "0.02", token: "USDC", network: "solana" },
+    },
+  ],
+};
+
 export const COUNTERPART_AGENT_CARDS: Record<string, AgentCard> = {
   "http://localhost:4001/a2a": {
     did: "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias8siQUmpwds8Q9",
