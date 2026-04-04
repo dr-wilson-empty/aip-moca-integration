@@ -191,7 +191,7 @@ async function runChain(chain: TaskChain): Promise<void> {
         taskId,
         amount: step.estimatedCost,
         from: chain.callerAddress,
-        to: step.walletAddress || "",
+        to: step.walletAddress || authorityKp.publicKey.toBase58(),
         escrowTxHash,
         agentEndpoint: step.agentEndpoint,
       });
