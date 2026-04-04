@@ -4,9 +4,11 @@ import { webSearch, formatSearchResults } from "@/lib/web/search";
 /**
  * POST /api/web/agent
  * JSON-RPC 2.0 endpoint for the platform-hosted Web Search Agent.
- * Compatible with the A2A protocol — receives task/create, returns results.
  *
- * This agent searches the web via Tavily API and returns formatted results.
+ * This is an INTELLIGENT search agent:
+ * 1. Searches the web via Tavily API
+ * 2. Analyzes results with Claude Haiku
+ * 3. Returns a structured, actionable answer — not raw links
  */
 
 interface JsonRpcRequest {
@@ -16,7 +18,6 @@ interface JsonRpcRequest {
   id: string | number;
 }
 
-// In-memory task store for this agent
 const tasks = new Map<string, { status: string; artifact?: string; error?: string }>();
 
 export async function POST(request: NextRequest) {
@@ -33,22 +34,24 @@ export async function POST(request: NextRequest) {
     const input = (params?.input as string) || "";
     const taskId = (params?.taskId as string) || `ws_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-    // Mark as working
     tasks.set(taskId, { status: "WORKING" });
 
-    // Return immediately, process in background
     const response = NextResponse.json({
       jsonrpc: "2.0",
       result: { taskId, status: "WORKING" },
       id,
     });
 
-    // Execute search in background
+    // Search + analyze in background
     (async () => {
       try {
-        const searchResult = await webSearch(input, 5);
-        const formatted = formatSearchResults(searchResult);
-        tasks.set(taskId, { status: "COMPLETED", artifact: formatted });
+        // Step 1: Search the web
+        const searchResult = await webSearch(input, 8);
+        const rawResults = formatSearchResults(searchResult);
+
+        // Step 2: Analyze with Claude Haiku — produce structured answer
+        const analyzed = await analyzeSearchResults(input, rawResults);
+        tasks.set(taskId, { status: "COMPLETED", artifact: analyzed });
       } catch (err) {
         tasks.set(taskId, {
           status: "FAILED",
@@ -86,7 +89,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ jsonrpc: "2.0", error: { code: -32601, message: `Unknown method: ${method}` }, id });
 }
 
-/** GET /.well-known/agent.json equivalent — agent card */
+/** GET — agent card */
 export async function GET() {
   return NextResponse.json({
     did: "did:aip:platform:web-search",
@@ -100,4 +103,50 @@ export async function GET() {
       pricing: { amount: "0.02", token: "USDC", network: "solana" },
     }],
   });
+}
+
+/* ------------------------------------------------------------------ */
+/*  AI Analysis Layer                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Analyze raw search results with Claude Haiku.
+ * Produces a structured, actionable answer instead of raw links.
+ */
+async function analyzeSearchResults(userQuery: string, rawResults: string): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return rawResults; // fallback to raw if no key
+
+  try {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey });
+
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 2048,
+      system:
+        "You are a web research analyst. The user asked a question and I searched the web for them. " +
+        "Analyze the search results and produce a CLEAR, STRUCTURED answer.\n\n" +
+        "RULES:\n" +
+        "- Extract specific data from results: prices, ratings, seller names, direct URLs\n" +
+        "- If the user asks for cheapest/best: rank the options and give a clear verdict\n" +
+        "- Include DIRECT seller links (not comparison sites) when possible\n" +
+        "- Format prices clearly with currency\n" +
+        "- If comparing products/sellers, use a table format\n" +
+        "- End with a clear recommendation based on what the user asked\n" +
+        "- Answer in the same language as the user's query\n" +
+        "- Do NOT just list links — analyze, compare, and recommend\n" +
+        "- If data is incomplete, say what you found and what needs more research",
+      messages: [{
+        role: "user",
+        content: `User query: "${userQuery}"\n\nSearch results:\n${rawResults}`,
+      }],
+    });
+
+    const block = response.content[0];
+    if (block.type === "text") return block.text;
+    return rawResults;
+  } catch {
+    return rawResults; // fallback to raw results if analysis fails
+  }
 }
