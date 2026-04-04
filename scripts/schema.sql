@@ -93,7 +93,43 @@ CREATE TABLE IF NOT EXISTS agent_budget_txns (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Automations table (with webhook trigger support — Phase 5)
+CREATE TABLE IF NOT EXISTS automations (
+  id TEXT PRIMARY KEY,
+  wallet_address TEXT NOT NULL,
+  name TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  schedule TEXT NOT NULL DEFAULT 'daily',
+  budget_limit NUMERIC(20, 6) NOT NULL DEFAULT 1.0,
+  budget_period TEXT NOT NULL DEFAULT 'daily',
+  enabled BOOLEAN DEFAULT true,
+  last_run TIMESTAMPTZ,
+  total_spent NUMERIC(20, 6) NOT NULL DEFAULT 0,
+  run_count INTEGER NOT NULL DEFAULT 0,
+  trigger_type TEXT NOT NULL DEFAULT 'schedule',  -- 'schedule' | 'webhook'
+  webhook_secret TEXT,                            -- HMAC secret for webhook auth
+  last_trigger_at TIMESTAMPTZ,                    -- rate limiting: last webhook trigger time
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Automation results table
+CREATE TABLE IF NOT EXISTS automation_results (
+  id TEXT PRIMARY KEY,
+  automation_id TEXT NOT NULL,
+  agent_name TEXT,
+  capability TEXT,
+  input TEXT,
+  artifact TEXT,
+  estimated_cost TEXT,
+  status TEXT,
+  trigger_source TEXT DEFAULT 'manual',  -- 'manual' | 'schedule' | 'webhook'
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_automations_wallet ON automations(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_automations_trigger ON automations(trigger_type);
+CREATE INDEX IF NOT EXISTS idx_automation_results_auto ON automation_results(automation_id);
 CREATE INDEX IF NOT EXISTS idx_agent_budgets_owner ON agent_budgets(owner_wallet);
 CREATE INDEX IF NOT EXISTS idx_agent_budget_txns_agent ON agent_budget_txns(agent_did);
 CREATE INDEX IF NOT EXISTS idx_tasks_caller ON tasks(caller_address);

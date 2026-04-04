@@ -3,6 +3,8 @@
  */
 import { getSupabase } from "./client";
 
+export type TriggerType = "schedule" | "webhook";
+
 export interface DbAutomation {
   id: string;
   wallet_address: string;
@@ -15,6 +17,9 @@ export interface DbAutomation {
   last_run?: string;
   total_spent: number;
   run_count: number;
+  trigger_type: TriggerType;
+  webhook_secret?: string;
+  last_trigger_at?: string;
   created_at?: string;
 }
 
@@ -27,6 +32,7 @@ export interface DbAutomationResult {
   artifact?: string;
   estimated_cost?: string;
   status?: string;
+  trigger_source?: string; // 'manual' | 'schedule' | 'webhook'
   created_at?: string;
 }
 
