@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletStore } from "@/store/walletStore";
@@ -195,6 +195,9 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Agent Memories */}
+      <AgentMemories wallet={address} />
+
       {/* Quick Links */}
       <div className="grid grid-cols-2 gap-6 mt-6">
         <div className="border border-mint/10 rounded-xl p-6 col-span-2">
@@ -253,6 +256,102 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Agent Memories Section                                             */
+/* ------------------------------------------------------------------ */
+
+interface MemoryEntry {
+  id: string;
+  agent_did: string;
+  memory_type: string;
+  content: string;
+  created_at?: string;
+}
+
+function AgentMemories({ wallet }: { wallet: string }) {
+  const [memories, setMemories] = useState<MemoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadMemories = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/memory?wallet=${wallet}`)
+      .then((r) => r.json())
+      .then((d) => setMemories(d.memories ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [wallet]);
+
+  useEffect(() => { loadMemories(); }, [loadMemories]);
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/memory?id=${id}`, { method: "DELETE" });
+    loadMemories();
+  };
+
+  const handleClearAll = async () => {
+    await fetch(`/api/memory?wallet=${wallet}&all=true`, { method: "DELETE" });
+    loadMemories();
+  };
+
+  // Group by agent
+  const grouped = memories.reduce<Record<string, MemoryEntry[]>>((acc, m) => {
+    (acc[m.agent_did] ??= []).push(m);
+    return acc;
+  }, {});
+
+  return (
+    <div className="border border-mint/10 rounded-xl p-6 mt-6">
+      <div className="flex items-center justify-between mb-4">
+        <span className="font-mono text-xs text-muted uppercase tracking-wider">Agent Memories</span>
+        {memories.length > 0 && (
+          <button onClick={handleClearAll}
+            className="font-mono text-[10px] text-red-400 hover:text-red-300 transition-colors">
+            Clear All
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="font-mono text-xs text-muted animate-pulse">Loading memories...</p>
+      ) : memories.length === 0 ? (
+        <p className="font-mono text-xs text-muted">
+          No memories yet. Agents learn about your preferences as you interact with them.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {Object.entries(grouped).map(([agentDid, entries]) => (
+            <div key={agentDid} className="border border-forest-deep/40 rounded-lg p-4">
+              <span className="font-mono text-[10px] text-mint uppercase block mb-2">
+                {agentDid.length > 30 ? agentDid.slice(0, 20) + "..." : agentDid}
+              </span>
+              <div className="flex flex-col gap-1.5">
+                {entries.map((m) => (
+                  <div key={m.id} className="flex items-start justify-between gap-2 group">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span className={`font-mono text-[9px] uppercase px-1 py-0.5 rounded shrink-0 ${
+                        m.memory_type === "preference" ? "text-accent bg-accent/10" :
+                        m.memory_type === "fact" ? "text-purple-400 bg-purple-900/10" :
+                        "text-muted bg-forest-deep/30"
+                      }`}>
+                        {m.memory_type}
+                      </span>
+                      <span className="font-mono text-xs text-body">{m.content}</span>
+                    </div>
+                    <button onClick={() => handleDelete(m.id)}
+                      className="font-mono text-[9px] text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

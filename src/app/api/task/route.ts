@@ -256,7 +256,9 @@ export async function POST(request: NextRequest) {
         });
         return null;
       }
-    }
+    },
+    // Memory context: inject past memories, extract new ones after completion
+    { agentDid: agentCard.did, callerAddress }
   );
 
   // x402 payment response header

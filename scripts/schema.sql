@@ -126,7 +126,19 @@ CREATE TABLE IF NOT EXISTS automation_results (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Agent memory table (Phase 5 — per user-agent pair memory)
+CREATE TABLE IF NOT EXISTS agent_memory (
+  id TEXT PRIMARY KEY,
+  agent_did TEXT NOT NULL,
+  user_wallet TEXT NOT NULL,
+  memory_type TEXT NOT NULL DEFAULT 'preference',  -- 'preference' | 'context' | 'fact'
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  expires_at TIMESTAMPTZ
+);
+
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_agent_memory_pair ON agent_memory(agent_did, user_wallet);
 CREATE INDEX IF NOT EXISTS idx_automations_wallet ON automations(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_automations_trigger ON automations(trigger_type);
 CREATE INDEX IF NOT EXISTS idx_automation_results_auto ON automation_results(automation_id);
