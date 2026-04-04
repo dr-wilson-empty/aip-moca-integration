@@ -29,6 +29,27 @@ export interface AgentCard {
   walletAddress?: string; // Solana wallet for receiving payments
 }
 
+/** Registration source for My Agents dashboard */
+export type RegistrationSource = "ui" | "external" | "hosted";
+
+/** Extended agent entry returned by My Agents API */
+export interface MyAgentEntry {
+  did: string;
+  name: string;
+  version: string;
+  endpoint: string;
+  type: AgentType;
+  capabilities: Capability[];
+  walletAddress: string;
+  agentId: string;
+  registrationSource: RegistrationSource;
+  /** On-chain PDA address (null for hosted-only agents not yet on-chain) */
+  onChainPDA: string | null;
+  /** Owner wallet address */
+  owner: string;
+  registeredAt?: number;
+}
+
 export interface ProtocolNode {
   id: string;
   label: string;

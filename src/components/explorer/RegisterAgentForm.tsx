@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useRouter } from "next/navigation";
 import { useAgentRegistry, type AgentParams } from "@/hooks/useRegisterAgent";
+import { useAgentStore } from "@/store/agentStore";
+import type { MyAgentEntry } from "@/types/aip";
 import MonoLabel from "@/components/ui/MonoLabel";
 import BtnPrimary from "@/components/ui/BtnPrimary";
 import AgentAnalytics from "./AgentAnalytics";
@@ -13,26 +16,16 @@ interface CapabilityRow {
   amount: string;
 }
 
-interface MyAgent {
-  agentId: string;
-  did: string;
-  name: string;
-  endpoint: string;
-  agentType: number;
-  version: string;
-  capabilities: CapabilityRow[];
-}
-
 type View = "list" | "register" | "edit";
 
 export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () => void }) {
   const { publicKey } = useWallet();
+  const router = useRouter();
   const { register, update, deregister, loading, error } = useAgentRegistry();
+  const { myAgents, myAgentsLoading, syncFromChain } = useAgentStore();
 
   const [view, setView] = useState<View>("list");
-  const [myAgents, setMyAgents] = useState<MyAgent[]>([]);
-  const [loadingAgents, setLoadingAgents] = useState(true);
-  const [editAgent, setEditAgent] = useState<MyAgent | null>(null);
+  const [editAgent, setEditAgent] = useState<MyAgentEntry | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [txAction, setTxAction] = useState("");
 
@@ -46,40 +39,14 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
     { id: "", description: "", amount: "0.10" },
   ]);
 
-  // Fetch user's agents
-  const loadMyAgents = useCallback(() => {
-    if (!publicKey) return;
-    setLoadingAgents(true);
-    fetch(`/api/agent-card/my-agents?owner=${publicKey.toBase58()}`)
-      .then((r) => r.json())
-      .then((data) => {
-        const agents = (data.agents ?? []).map((a: Record<string, unknown>) => ({
-          agentId: a.agentId as string,
-          did: a.did as string,
-          name: a.name as string,
-          endpoint: a.endpoint as string,
-          agentType: a.agentType as number,
-          version: a.version as string,
-          capabilities: parseCapabilities(a.capabilitiesJson as string),
-        }));
-        setMyAgents(agents);
-      })
-      .catch(() => setMyAgents([]))
-      .finally(() => setLoadingAgents(false));
-  }, [publicKey]);
+  // Sync agents on wallet connection
+  useEffect(() => {
+    if (publicKey) syncFromChain(publicKey.toBase58());
+  }, [publicKey, syncFromChain]);
 
-  useEffect(() => { loadMyAgents(); }, [loadMyAgents]);
-
-  function parseCapabilities(json: string): CapabilityRow[] {
-    try {
-      const caps = JSON.parse(json);
-      return caps.map((c: { id: string; description: string; pricing: { amount: string } }) => ({
-        id: c.id,
-        description: c.description,
-        amount: c.pricing?.amount || "0.10",
-      }));
-    } catch { return []; }
-  }
+  const handleRefresh = useCallback(() => {
+    if (publicKey) syncFromChain(publicKey.toBase58());
+  }, [publicKey, syncFromChain]);
 
   const resetForm = () => {
     setAgentId(""); setName(""); setEndpoint("");
@@ -88,14 +55,17 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
     setEditAgent(null);
   };
 
-  const startEdit = (agent: MyAgent) => {
+  const startEdit = (agent: MyAgentEntry) => {
     setEditAgent(agent);
     setAgentId(agent.agentId);
     setName(agent.name);
     setEndpoint(agent.endpoint);
-    setAgentType(agent.agentType);
+    setAgentType(agent.type === "LLM" ? 0 : agent.type === "Execution" ? 2 : 1);
     setVersion(agent.version);
-    setCapabilities(agent.capabilities.length ? agent.capabilities : [{ id: "", description: "", amount: "0.10" }]);
+    const caps = agent.capabilities.map((c) => ({
+      id: c.id, description: c.description, amount: c.pricing?.amount || "0.10",
+    }));
+    setCapabilities(caps.length ? caps : [{ id: "", description: "", amount: "0.10" }]);
     setView("edit");
   };
 
@@ -129,21 +99,63 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
     })),
   });
 
+  /** Track UI registration in Supabase so we can distinguish UI vs external */
+  const trackUIRegistration = async (did: string, owner: string, agId: string) => {
+    try {
+      await fetch("/api/agent-card/my-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ did, owner, agentId: agId }),
+      });
+    } catch { /* non-blocking */ }
+  };
+
   const handleRegister = async () => {
-    if (!isValid) return;
-    const sig = await register(buildParams());
-    if (sig) { setTxHash(sig); setTxAction("registered"); loadMyAgents(); onRegistered?.(); }
+    if (!isValid || !publicKey) return;
+    const params = buildParams();
+    const sig = await register(params);
+    if (sig) {
+      // Track this as a UI registration
+      const ownerAddr = publicKey.toBase58();
+      const did = `did:aip:${ownerAddr.slice(0, 8)}:${params.agentId}`;
+      await trackUIRegistration(did, ownerAddr, params.agentId);
+      setTxHash(sig);
+      setTxAction("registered");
+      syncFromChain(ownerAddr);
+      onRegistered?.();
+    }
   };
 
   const handleUpdate = async () => {
-    if (!isValid || !editAgent) return;
+    if (!isValid || !editAgent || !publicKey) return;
     const sig = await update(buildParams());
-    if (sig) { setTxHash(sig); setTxAction("updated"); loadMyAgents(); onRegistered?.(); }
+    if (sig) {
+      setTxHash(sig);
+      setTxAction("updated");
+      syncFromChain(publicKey.toBase58());
+      onRegistered?.();
+    }
   };
 
   const handleDeregister = async (id: string) => {
+    if (!publicKey) return;
     const sig = await deregister(id);
-    if (sig) { setTxHash(sig); setTxAction("deregistered"); loadMyAgents(); onRegistered?.(); }
+    if (sig) {
+      setTxHash(sig);
+      setTxAction("deregistered");
+      syncFromChain(publicKey.toBase58());
+      onRegistered?.();
+    }
+  };
+
+  const handleDeleteHosted = async (id: string) => {
+    if (!publicKey) return;
+    try {
+      const res = await fetch(`/api/hosted-agent/register?agentId=${id}&owner=${publicKey.toBase58()}`, {
+        method: "DELETE",
+      });
+      if (res.ok) syncFromChain(publicKey.toBase58());
+    } catch { /* ignore */ }
   };
 
   if (!publicKey) {
@@ -178,17 +190,32 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="font-mono text-xs text-mint uppercase">My Agents</span>
-          <BtnPrimary variant="secondary" onClick={startRegister} className="text-[11px] px-3 py-1.5">
-            + New Agent
-          </BtnPrimary>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={myAgentsLoading}
+              className="font-mono text-[11px] px-2.5 py-1.5 border border-mint/20 rounded text-muted hover:text-mint hover:border-mint/40 transition-colors disabled:opacity-50"
+            >
+              {myAgentsLoading ? "Syncing..." : "Refresh from Chain"}
+            </button>
+            <BtnPrimary onClick={() => router.push("/create-agent")} className="text-[11px] px-3 py-1.5">
+              + No-Code
+            </BtnPrimary>
+            <BtnPrimary variant="secondary" onClick={startRegister} className="text-[11px] px-3 py-1.5">
+              + SDK
+            </BtnPrimary>
+          </div>
         </div>
 
-        {loadingAgents ? (
-          <p className="font-mono text-xs text-muted">Loading...</p>
+        {myAgentsLoading ? (
+          <p className="font-mono text-xs text-muted">Loading agents from chain...</p>
         ) : myAgents.length === 0 ? (
           <div className="border border-forest-deep/40 rounded-lg p-6 text-center">
-            <p className="font-mono text-sm text-muted mb-3">You have no agents registered on-chain.</p>
-            <BtnPrimary onClick={startRegister}>Register Your First Agent</BtnPrimary>
+            <p className="font-mono text-sm text-muted mb-3">You have no agents yet.</p>
+            <div className="flex gap-3 justify-center">
+              <BtnPrimary onClick={() => router.push("/create-agent")}>Create with No-Code</BtnPrimary>
+              <BtnPrimary variant="secondary" onClick={startRegister}>Register with SDK</BtnPrimary>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -197,28 +224,49 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-display text-sm text-mint uppercase tracking-wider">{agent.name}</span>
-                    <span className="font-mono text-sm text-purple-400 uppercase px-1.5 py-0.5 border rounded border-purple-800/40 bg-purple-900/10">
-                      on-chain
-                    </span>
+                    <SourceBadge source={agent.registrationSource} />
                   </div>
                   <p className="font-mono text-sm text-muted truncate">{agent.endpoint}</p>
                   <p className="font-mono text-sm text-muted/50">id: {agent.agentId}</p>
+
+                  {/* PDA address with Solana Explorer deeplink */}
+                  {agent.onChainPDA && (
+                    <a
+                      href={`https://explorer.solana.com/address/${agent.onChainPDA}?cluster=devnet`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="font-mono text-sm text-accent/60 hover:text-accent transition-colors inline-flex items-center gap-1"
+                    >
+                      PDA: {agent.onChainPDA.slice(0, 8)}...{agent.onChainPDA.slice(-6)}
+                      <span className="text-[10px]">&#8599;</span>
+                    </a>
+                  )}
+
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
                     {agent.capabilities.map((c) => (
                       <span key={c.id} className="font-mono text-sm text-muted">
-                        {c.description} <span className="text-accent">{c.amount} USDC</span>
+                        {c.description} <span className="text-accent">{c.pricing?.amount || "?"} USDC</span>
                       </span>
                     ))}
                   </div>
                   <AgentAnalytics did={agent.did} />
                 </div>
                 <div className="flex flex-col gap-1.5">
+                  {agent.registrationSource !== "hosted" && agent.registrationSource !== "external" && (
+                    <button
+                      onClick={() => startEdit(agent)}
+                      className="font-mono text-sm text-mint hover:text-accent px-2 py-1 border border-mint/20 rounded"
+                    >Edit</button>
+                  )}
+                  {agent.registrationSource === "external" && (
+                    <button
+                      onClick={() => startEdit(agent)}
+                      className="font-mono text-sm text-mint hover:text-accent px-2 py-1 border border-mint/20 rounded"
+                    >Claim</button>
+                  )}
                   <button
-                    onClick={() => startEdit(agent)}
-                    className="font-mono text-sm text-mint hover:text-accent px-2 py-1 border border-mint/20 rounded"
-                  >Edit</button>
-                  <button
-                    onClick={() => handleDeregister(agent.agentId)}
+                    onClick={() => agent.registrationSource === "hosted"
+                      ? handleDeleteHosted(agent.agentId)
+                      : handleDeregister(agent.agentId)}
                     disabled={loading}
                     className="font-mono text-sm text-red-400 hover:text-red-300 px-2 py-1 border border-red-800/30 rounded"
                   >{loading ? "..." : "Delete"}</button>
@@ -336,4 +384,34 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
       </BtnPrimary>
     </div>
   );
+}
+
+/** Badge component for registration source */
+function SourceBadge({ source }: { source: string }) {
+  switch (source) {
+    case "hosted":
+      return (
+        <span className="font-mono text-sm text-cyan-400 uppercase px-1.5 py-0.5 border rounded border-cyan-800/40 bg-cyan-900/10">
+          hosted
+        </span>
+      );
+    case "external":
+      return (
+        <span className="font-mono text-sm text-amber-400 uppercase px-1.5 py-0.5 border rounded border-amber-800/40 bg-amber-900/10">
+          external
+        </span>
+      );
+    case "ui":
+      return (
+        <span className="font-mono text-sm text-purple-400 uppercase px-1.5 py-0.5 border rounded border-purple-800/40 bg-purple-900/10">
+          on-chain
+        </span>
+      );
+    default:
+      return (
+        <span className="font-mono text-sm text-muted uppercase px-1.5 py-0.5 border rounded border-muted/20">
+          {source}
+        </span>
+      );
+  }
 }
