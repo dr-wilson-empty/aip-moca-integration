@@ -2,10 +2,12 @@
  * Web Search — Tavily Search API integration.
  *
  * Tavily is purpose-built for AI agents: returns clean, structured
- * search results with content snippets ready for LLM consumption.
+ * search results with content ready for LLM consumption.
  *
- * Free tier: 1000 credits/month, no credit card required.
- * We use search_depth="basic" (1 credit) for most queries.
+ * Features:
+ * - Advanced search depth for deeper results
+ * - Raw content extraction for full page data
+ * - Multi-query support for comprehensive research
  */
 import { logger } from "@/lib/logger";
 
@@ -19,6 +21,7 @@ export interface SearchResult {
   title: string;
   url: string;
   content: string;
+  rawContent?: string;
   score: number;
 }
 
@@ -37,13 +40,15 @@ export interface SearchResponse {
  * Search the web using Tavily API.
  *
  * @param query — search query string
- * @param maxResults — number of results (default 5, max 10)
+ * @param maxResults — number of results (default 8, max 10)
  * @param searchDepth — "basic" (1 credit) or "advanced" (2 credits)
+ * @param includeRawContent — include full page content (more data for analysis)
  */
 export async function webSearch(
   query: string,
-  maxResults = 5,
-  searchDepth: "basic" | "advanced" = "basic"
+  maxResults = 8,
+  searchDepth: "basic" | "advanced" = "advanced",
+  includeRawContent = true
 ): Promise<SearchResponse> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
@@ -62,9 +67,9 @@ export async function webSearch(
         search_depth: searchDepth,
         max_results: Math.min(maxResults, 10),
         include_answer: false,
-        include_raw_content: false,
+        include_raw_content: includeRawContent,
       }),
-      signal: AbortSignal.timeout(15000), // 15s timeout
+      signal: AbortSignal.timeout(20000), // 20s timeout for advanced searches
     });
 
     if (!res.ok) {
@@ -80,6 +85,7 @@ export async function webSearch(
       title: r.title as string || "",
       url: r.url as string || "",
       content: r.content as string || "",
+      rawContent: r.raw_content as string | undefined,
       score: r.score as number || 0,
     }));
 
@@ -87,6 +93,8 @@ export async function webSearch(
       query,
       resultCount: results.length,
       responseTime,
+      depth: searchDepth,
+      rawContent: includeRawContent,
     });
 
     return { query, results, responseTime };
@@ -98,7 +106,40 @@ export async function webSearch(
 }
 
 /**
+ * Multi-query search — runs multiple searches and merges results.
+ * Deduplicates by URL. Used for comprehensive research.
+ */
+export async function multiSearch(
+  queries: string[],
+  maxResultsPerQuery = 5
+): Promise<{ allResults: SearchResult[]; totalTime: number }> {
+  const t0 = Date.now();
+  const allResults: SearchResult[] = [];
+  const seenUrls = new Set<string>();
+
+  // Run all queries in parallel
+  const responses = await Promise.all(
+    queries.map((q) => webSearch(q, maxResultsPerQuery, "advanced", true))
+  );
+
+  for (const response of responses) {
+    for (const result of response.results) {
+      if (!seenUrls.has(result.url)) {
+        seenUrls.add(result.url);
+        allResults.push(result);
+      }
+    }
+  }
+
+  // Sort by relevance score
+  allResults.sort((a, b) => b.score - a.score);
+
+  return { allResults, totalTime: Date.now() - t0 };
+}
+
+/**
  * Format search results as text for agent consumption.
+ * Includes raw content when available for richer analysis.
  */
 export function formatSearchResults(response: SearchResponse): string {
   if (response.error) {
@@ -116,6 +157,41 @@ export function formatSearchResults(response: SearchResponse): string {
     lines.push(`${i + 1}. ${r.title}`);
     lines.push(`   URL: ${r.url}`);
     lines.push(`   ${r.content}`);
+
+    // Include raw content excerpt for richer data (prices, details)
+    if (r.rawContent) {
+      const excerpt = r.rawContent.slice(0, 2000);
+      lines.push(`   --- Page Content ---`);
+      lines.push(`   ${excerpt}`);
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Format multi-search results.
+ */
+export function formatMultiSearchResults(
+  queries: string[],
+  allResults: SearchResult[]
+): string {
+  const lines = [`Web research results (${queries.length} searches, ${allResults.length} unique results)\n`];
+
+  for (let i = 0; i < allResults.length; i++) {
+    const r = allResults[i];
+    lines.push(`${i + 1}. ${r.title}`);
+    lines.push(`   URL: ${r.url}`);
+    lines.push(`   ${r.content}`);
+
+    if (r.rawContent) {
+      const excerpt = r.rawContent.slice(0, 2000);
+      lines.push(`   --- Page Content ---`);
+      lines.push(`   ${excerpt}`);
+    }
+
     lines.push("");
   }
 
