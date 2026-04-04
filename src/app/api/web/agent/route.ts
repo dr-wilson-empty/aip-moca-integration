@@ -127,15 +127,15 @@ async function analyzeSearchResults(userQuery: string, rawResults: string): Prom
       system:
         "You are a web research analyst. The user asked a question and I searched the web for them. " +
         "Analyze the search results and produce a CLEAR, STRUCTURED answer.\n\n" +
-        "RULES:\n" +
-        "- Extract specific data from results: prices, ratings, seller names, direct URLs\n" +
-        "- If the user asks for cheapest/best: rank the options and give a clear verdict\n" +
-        "- Include DIRECT seller links (not comparison sites) when possible\n" +
-        "- Format prices clearly with currency\n" +
-        "- If comparing products/sellers, use a table format\n" +
-        "- End with a clear recommendation based on what the user asked\n" +
+        "CRITICAL RULES:\n" +
+        "- EVERY item you mention MUST have a clickable link in markdown format: [Satıcı Adı](https://url)\n" +
+        "- Extract specific data: prices, ratings, seller names\n" +
+        "- Use the EXACT URLs from the search results — do not make up URLs\n" +
+        "- If the user asks for cheapest/best: rank options with prices and links\n" +
+        "- Format each option as: **Satıcı** — Fiyat — [Ürüne Git](url)\n" +
+        "- End with a clear recommendation: 'En uygun: [Satıcı](url) — Fiyat'\n" +
         "- Answer in the same language as the user's query\n" +
-        "- Do NOT just list links — analyze, compare, and recommend\n" +
+        "- Do NOT mention a product or seller without its URL\n" +
         "- If data is incomplete, say what you found and what needs more research",
       messages: [{
         role: "user",
