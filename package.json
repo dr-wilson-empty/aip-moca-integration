@@ -31,10 +31,12 @@
     "multiformats": "^13.4.2",
     "next": "^14.2.35",
     "node-cron": "^4.2.1",
+    "pdf-parse": "^1.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tweetnacl": "^1.0.3",
     "uint8arrays": "^5.1.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.76",
     "zustand": "^5.0.12"
   },

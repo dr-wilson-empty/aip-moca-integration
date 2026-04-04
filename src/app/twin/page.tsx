@@ -11,6 +11,7 @@ import { useTaskSSE } from "@/hooks/useTaskSSE";
 import { useTaskStore } from "@/store/taskStore";
 import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
 import BtnPrimary from "@/components/ui/BtnPrimary";
+import FileUpload from "@/components/ui/FileUpload";
 import type { Task } from "@/types/aip";
 
 const SOLANA_EXPLORER = "https://explorer.solana.com/tx";
@@ -40,6 +41,8 @@ export default function TwinPage() {
   const { startTask, resetTask, taskState, artifact, escrowTxHash, settlementTxHash, log } = useTaskStore();
 
   const [input, setInput] = useState("");
+  const [fileContext, setFileContext] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [activeMsgId, setActiveMsgId] = useState<string | null>(null);
   const [activeStepIdx, setActiveStepIdx] = useState<number>(-1);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
@@ -218,9 +221,13 @@ export default function TwinPage() {
   const handleSend = async () => {
     if (!input.trim() || isProcessing) return;
     const userMsg = input.trim();
+    // Append file context to the message if a file was uploaded
+    const fullMsg = fileContext ? `${userMsg}\n\n${fileContext}` : userMsg;
     setInput("");
+    setFileContext(null);
+    setFileName(null);
 
-    addMessage({ id: genId(), role: "user", content: userMsg, timestamp: new Date().toLocaleTimeString() }, address ?? undefined);
+    addMessage({ id: genId(), role: "user", content: fileContext ? `${userMsg} [+ ${fileName}]` : userMsg, timestamp: new Date().toLocaleTimeString() }, address ?? undefined);
 
     setProcessing(true);
     const planMsgId = genId();
@@ -230,7 +237,7 @@ export default function TwinPage() {
       const res = await fetch("/api/twin/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, walletAddress: address }),
+        body: JSON.stringify({ message: fullMsg, walletAddress: address }),
       });
 
       if (!res.ok) {
@@ -563,15 +570,35 @@ export default function TwinPage() {
         <div ref={bottomRef} />
       </div>
 
+      {/* File upload indicator */}
+      {fileName && (
+        <div className="flex items-center gap-2 mb-2 px-2">
+          <span className="font-mono text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded">
+            {fileName}
+          </span>
+          <button onClick={() => { setFileContext(null); setFileName(null); }}
+            className="font-mono text-[9px] text-red-400 hover:text-red-300">remove</button>
+        </div>
+      )}
+
       {/* Input */}
-      <div className="flex gap-3">
+      <div className="flex gap-3 items-end">
+        <div className="shrink-0">
+          <FileUpload
+            disabled={isProcessing}
+            onFileContent={(content, name) => {
+              setFileContext(content);
+              setFileName(name);
+            }}
+          />
+        </div>
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
           disabled={isProcessing}
-          placeholder="Tell your Twin what to do..."
+          placeholder={fileName ? `Ask about ${fileName}...` : "Tell your Twin what to do..."}
           className="flex-1 bg-forest-deep/30 border border-mint/20 rounded-xl px-5 py-3 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none disabled:opacity-50"
         />
         <BtnPrimary onClick={handleSend} disabled={!input.trim() || isProcessing}>
