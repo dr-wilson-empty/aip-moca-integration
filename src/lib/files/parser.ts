@@ -1,8 +1,14 @@
 /**
  * File Parser — extract text content from uploaded files.
  *
- * Supports: PDF, XLSX, CSV, TXT, JSON
- * Parsed content is sent to agents as text input.
+ * Supports: PDF, XLSX, CSV, TXT, JSON, images
+ *
+ * PDF strategy (hybrid):
+ *   1. Try pdf-parse for text extraction (fast, text-based PDFs)
+ *   2. If text is too short → PDF is likely scanned/image-based
+ *   3. Fall back to Claude Vision API — sends raw PDF as document
+ *   4. Claude reads the PDF visually (tables, handwriting, scanned text)
+ *   5. User always gets a result, never an error about "can't read"
  */
 
 export interface ParseResult {
@@ -11,10 +17,15 @@ export interface ParseResult {
   pageCount?: number;
   rowCount?: number;
   error?: string;
+  /** If true, content was extracted via Claude Vision (scanned PDF fallback) */
+  visionFallback?: boolean;
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_TEXT_LENGTH = 50_000; // Limit text sent to agent
+
+/** Minimum chars per page to consider pdf-parse output valid */
+const MIN_CHARS_PER_PAGE = 50;
 
 const SUPPORTED_TYPES: Record<string, string> = {
   "application/pdf": "pdf",
@@ -66,7 +77,7 @@ export async function parseFile(buffer: Buffer, mimeType: string, fileName: stri
       case "json":
         return parseJson(buffer);
       case "image":
-        return parseImage(buffer, mimeType, fileName);
+        return await parseImage(buffer, mimeType, fileName);
       default:
         return { text: "", type: "error", error: `Unhandled type: ${fileType}` };
     }
@@ -76,23 +87,111 @@ export async function parseFile(buffer: Buffer, mimeType: string, fileName: stri
 }
 
 /* ------------------------------------------------------------------ */
-/*  Individual parsers                                                 */
+/*  PDF — hybrid: text extraction + Claude Vision fallback             */
 /* ------------------------------------------------------------------ */
 
 async function parsePdf(buffer: Buffer): Promise<ParseResult> {
-  // pdf-parse v1.1.1 exports a function directly
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> = require("pdf-parse");
-  const data = await pdfParse(buffer);
-  const text = data.text.slice(0, MAX_TEXT_LENGTH);
+  // Step 1: Try text extraction with pdf-parse
+  let textResult: { text: string; numpages: number } | null = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> = require("pdf-parse");
+    textResult = await pdfParse(buffer);
+  } catch {
+    // pdf-parse failed — will fall back to Vision
+  }
+
+  // Step 2: Check if text extraction produced meaningful content
+  if (textResult) {
+    const trimmed = textResult.text.trim();
+    const charsPerPage = textResult.numpages > 0 ? trimmed.length / textResult.numpages : trimmed.length;
+
+    if (charsPerPage >= MIN_CHARS_PER_PAGE) {
+      // Good text extraction — use it directly
+      return {
+        text: trimmed.slice(0, MAX_TEXT_LENGTH),
+        type: "pdf",
+        pageCount: textResult.numpages,
+      };
+    }
+  }
+
+  // Step 3: Text extraction failed or produced garbage → use Claude Vision
+  const visionResult = await extractWithVision(buffer, "application/pdf");
+  if (visionResult) {
+    return {
+      text: visionResult.slice(0, MAX_TEXT_LENGTH),
+      type: "pdf",
+      pageCount: textResult?.numpages,
+      visionFallback: true,
+    };
+  }
+
+  // Step 4: Both methods failed — return whatever text we got
   return {
-    text,
+    text: textResult?.text.slice(0, MAX_TEXT_LENGTH) || "[PDF could not be read — file may contain only images without text]",
     type: "pdf",
-    pageCount: data.numpages,
+    pageCount: textResult?.numpages,
   };
 }
 
+/* ------------------------------------------------------------------ */
+/*  Claude Vision — reads documents/images visually                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Use Claude API to visually read a document or image.
+ * Supports PDF (via document type) and images (via image type).
+ */
+async function extractWithVision(buffer: Buffer, mimeType: string): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey });
+
+    const base64 = buffer.toString("base64");
+    const isPdf = mimeType === "application/pdf";
+
+    // Build message content with document/image blocks
+    const content: Array<{ type: string; source?: Record<string, string>; text?: string }> = isPdf
+      ? [{
+          type: "document" as const,
+          source: { type: "base64" as const, media_type: "application/pdf", data: base64 },
+        }, {
+          type: "text" as const,
+          text: "Extract ALL text content from this document. Preserve the structure: headings, tables, lists, paragraphs. If there are tables, format them with | separators. Output only the extracted content, no commentary.",
+        }]
+      : [{
+          type: "image" as const,
+          source: { type: "base64" as const, media_type: mimeType as "image/png" | "image/jpeg" | "image/gif" | "image/webp", data: base64 },
+        }, {
+          type: "text" as const,
+          text: "Describe what you see in this image in detail. If there is text, extract it. If there are tables or charts, describe their content.",
+        }];
+
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4096,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages: [{ role: "user", content: content as any }],
+    });
+
+    const block = response.content[0];
+    if (block.type === "text") return block.text;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Other parsers                                                      */
+/* ------------------------------------------------------------------ */
+
 function parseXlsx(buffer: Buffer): ParseResult {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const XLSX = require("xlsx");
   const workbook = XLSX.read(buffer, { type: "buffer" });
   const sheets: string[] = [];
@@ -104,8 +203,7 @@ function parseXlsx(buffer: Buffer): ParseResult {
     totalRows += json.length;
 
     sheets.push(`[Sheet: ${sheetName}]`);
-    // Convert to CSV-like text
-    for (const row of json.slice(0, 200)) { // Limit rows
+    for (const row of json.slice(0, 200)) {
       sheets.push((row as unknown[]).map(String).join("\t"));
     }
     if (json.length > 200) {
@@ -131,18 +229,20 @@ function parseTxt(buffer: Buffer): ParseResult {
 
 function parseJson(buffer: Buffer): ParseResult {
   const content = buffer.toString("utf-8");
-  // Validate JSON
-  JSON.parse(content);
+  JSON.parse(content); // validate
   const text = content.slice(0, MAX_TEXT_LENGTH);
   return { text, type: "json" };
 }
 
-function parseImage(buffer: Buffer, mimeType: string, fileName: string): ParseResult {
-  const base64 = buffer.toString("base64");
-  const dataUrl = `data:${mimeType};base64,${base64}`;
-  // For images, return a description prompt instead of raw data
+async function parseImage(buffer: Buffer, mimeType: string, fileName: string): Promise<ParseResult> {
+  // Try Claude Vision for image analysis
+  const visionResult = await extractWithVision(buffer, mimeType);
+  if (visionResult) {
+    return { text: visionResult, type: "image", visionFallback: true };
+  }
+
   return {
-    text: `[Image file: ${fileName}, size: ${(buffer.length / 1024).toFixed(1)}KB, type: ${mimeType}]`,
+    text: `[Image file: ${fileName}, size: ${(buffer.length / 1024).toFixed(1)}KB — vision analysis unavailable]`,
     type: "image",
   };
 }
