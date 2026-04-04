@@ -139,7 +139,7 @@ async function analyzeSearchResults(userQuery: string, rawResults: string): Prom
         "- If data is incomplete, say what you found and what needs more research",
       messages: [{
         role: "user",
-        content: `User query: "${userQuery}"\n\nSearch results:\n${rawResults}`,
+        content: `User query: "${userQuery}"\n\nSearch results:\n${rawResults}\n\nREMINDER: Every product, seller, or resource you mention MUST include its URL as a markdown link. No exceptions. Format: [Name](url)`,
       }],
     });
 
