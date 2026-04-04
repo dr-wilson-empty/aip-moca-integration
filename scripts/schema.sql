@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   settlement_tx_hash TEXT,
   artifact TEXT,
   fail_reason TEXT,
+  delegated_by TEXT,                    -- DID of the agent that delegated this task (null = human)
+  is_agent_task BOOLEAN DEFAULT false,  -- true if created by agent-to-agent delegation
   log JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -67,7 +69,33 @@ CREATE TABLE IF NOT EXISTS twin_messages (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Agent budgets table (Phase 5 — agent-to-agent payments)
+CREATE TABLE IF NOT EXISTS agent_budgets (
+  agent_did TEXT PRIMARY KEY,
+  owner_wallet TEXT NOT NULL,
+  balance NUMERIC(20, 6) NOT NULL DEFAULT 0,
+  max_per_task NUMERIC(20, 6) NOT NULL DEFAULT 1.0,
+  total_spent NUMERIC(20, 6) NOT NULL DEFAULT 0,
+  total_deposited NUMERIC(20, 6) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Agent budget transactions log (deposits, spends, refunds)
+CREATE TABLE IF NOT EXISTS agent_budget_txns (
+  id TEXT PRIMARY KEY,
+  agent_did TEXT NOT NULL REFERENCES agent_budgets(agent_did),
+  type TEXT NOT NULL,  -- 'deposit' | 'spend' | 'refund' | 'release'
+  amount NUMERIC(20, 6) NOT NULL,
+  task_id TEXT,
+  target_agent_did TEXT,
+  tx_hash TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_agent_budgets_owner ON agent_budgets(owner_wallet);
+CREATE INDEX IF NOT EXISTS idx_agent_budget_txns_agent ON agent_budget_txns(agent_did);
 CREATE INDEX IF NOT EXISTS idx_tasks_caller ON tasks(caller_address);
 CREATE INDEX IF NOT EXISTS idx_tasks_state ON tasks(state);
 CREATE INDEX IF NOT EXISTS idx_escrows_status ON escrows(status);

@@ -24,6 +24,8 @@ export interface DbTask {
   settlement_tx_hash?: string;
   artifact?: string;
   fail_reason?: string;
+  delegated_by?: string;
+  is_agent_task?: boolean;
   log: unknown[];
   created_at?: string;
   updated_at?: string;
