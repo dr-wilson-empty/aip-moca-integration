@@ -120,17 +120,50 @@ function TextArtifact({ content, compact }: { content: string; compact?: boolean
   );
 }
 
-/** Inline formatting: **bold**, `code`, [links] */
+/** Inline formatting: **bold**, `code`, [links](url) */
 function renderInline(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i} className="text-mint">{part.slice(2, -2)}</strong>;
+  // First pass: extract markdown links [text](url)
+  const withLinks = text.split(/(\[.*?\]\(.*?\))/g);
+  return withLinks.map((segment, si) => {
+    // Check for markdown link
+    const linkMatch = segment.match(/^\[(.*?)\]\((.*?)\)$/);
+    if (linkMatch) {
+      return (
+        <a key={si} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
+          className="text-accent hover:text-mint underline underline-offset-2 transition-colors">
+          {linkMatch[1]}
+        </a>
+      );
     }
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return <code key={i} className="bg-forest-deep/40 px-1 py-0.5 rounded text-accent">{part.slice(1, -1)}</code>;
-    }
-    return <span key={i}>{part}</span>;
+
+    // Second pass: bold and code
+    const parts = segment.split(/(\*\*.*?\*\*|`.*?`)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={`${si}_${i}`} className="text-mint">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={`${si}_${i}`} className="bg-forest-deep/40 px-1 py-0.5 rounded text-accent">{part.slice(1, -1)}</code>;
+      }
+
+      // Check for bare URLs (https://...)
+      const urlParts = part.split(/(https?:\/\/[^\s)]+)/g);
+      if (urlParts.length > 1) {
+        return urlParts.map((up, ui) => {
+          if (up.match(/^https?:\/\//)) {
+            return (
+              <a key={`${si}_${i}_${ui}`} href={up} target="_blank" rel="noopener noreferrer"
+                className="text-accent hover:text-mint underline underline-offset-2 transition-colors break-all">
+                {up.length > 50 ? up.slice(0, 47) + "..." : up}
+              </a>
+            );
+          }
+          return <span key={`${si}_${i}_${ui}`}>{up}</span>;
+        });
+      }
+
+      return <span key={`${si}_${i}`}>{part}</span>;
+    });
   });
 }
 
