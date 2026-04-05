@@ -164,14 +164,31 @@ export async function dbUpdateTwinMessage(id: string, update: Partial<DbTwinMess
   } catch { /* non-blocking */ }
 }
 
-export async function dbGetTwinMessages(walletAddress: string, limit = 50): Promise<DbTwinMessage[]> {
+export async function dbGetTwinMessages(walletAddress: string, limit = 200, before?: string): Promise<DbTwinMessage[]> {
   try {
     const sb = getSupabase();
-    const { data } = await sb.from("twin_messages")
+    let q = sb.from("twin_messages")
       .select("*")
       .eq("wallet_address", walletAddress)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(limit);
-    return data ?? [];
+
+    if (before) {
+      q = q.lt("created_at", before);
+    }
+
+    const { data } = await q;
+    // Reverse to return chronological order (oldest first)
+    return (data ?? []).reverse();
   } catch { return []; }
+}
+
+export async function dbGetTwinMessageCount(walletAddress: string): Promise<number> {
+  try {
+    const sb = getSupabase();
+    const { count } = await sb.from("twin_messages")
+      .select("*", { count: "exact", head: true })
+      .eq("wallet_address", walletAddress);
+    return count ?? 0;
+  } catch { return 0; }
 }

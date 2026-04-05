@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
 import { useAgentStore } from "@/store/agentStore";
@@ -36,7 +36,7 @@ export default function TwinPage() {
   const { address, did, fetchBalance } = useWalletStore();
   const { setCounterpart } = useAgentStore();
   const { addTask } = useLogStore();
-  const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded, clearMessages } = useTwinStore();
+  const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded, loading, loadMore, hasMore, loadingMore, clearMessages } = useTwinStore();
   const { submitTaskWithPayment } = useX402Payment();
   const { startTask, resetTask, taskState, artifact, escrowTxHash, settlementTxHash, log } = useTaskStore();
 
@@ -47,6 +47,8 @@ export default function TwinPage() {
   const [activeStepIdx, setActiveStepIdx] = useState<number>(-1);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const loadMoreScrollRef = useRef<{ height: number; pending: boolean }>({ height: 0, pending: false });
   const startTimeRef = useRef("");
   const { autonomousMode, setAutonomousMode } = useTwinStore();
 
@@ -54,17 +56,34 @@ export default function TwinPage() {
 
   const { setWallet } = useTwinStore();
 
-  // Set wallet + load twin history from Supabase
+  // Set wallet + load twin history from Supabase on every mount (stale-while-revalidate)
   useEffect(() => {
     if (address) {
       setWallet(address);
-      if (!loaded) loadFromServer(address);
+      loadFromServer(address);
     }
-  }, [address, loaded, loadFromServer, setWallet]);
+  }, [address, loadFromServer, setWallet]);
 
   useEffect(() => {
+    // Don't auto-scroll to bottom when loading older messages
+    if (loadMoreScrollRef.current.pending) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Restore scroll position after "Load More" prepends older messages
+  useLayoutEffect(() => {
+    if (loadMoreScrollRef.current.pending && scrollRef.current) {
+      const diff = scrollRef.current.scrollHeight - loadMoreScrollRef.current.height;
+      if (diff > 0) scrollRef.current.scrollTop += diff;
+      loadMoreScrollRef.current = { height: 0, pending: false };
+    }
+  }, [messages]);
+
+  const handleLoadMore = () => {
+    if (!address || !scrollRef.current) return;
+    loadMoreScrollRef.current = { height: scrollRef.current.scrollHeight, pending: true };
+    loadMore(address);
+  };
 
   /* ---- Track step completion ---- */
   const handleStepComplete = useCallback(() => {
@@ -412,8 +431,26 @@ export default function TwinPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
-        {messages.length === 0 && (
+      <div ref={scrollRef} className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
+        {/* Loading skeleton on first load */}
+        {!loaded && loading && (
+          <div className="flex-1 flex items-center justify-center">
+            <span className="font-mono text-sm text-muted animate-pulse">Loading chat history...</span>
+          </div>
+        )}
+
+        {/* Load More button — older messages */}
+        {hasMore && (
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="self-center font-mono text-[10px] text-muted border border-forest-deep/40 px-4 py-1.5 rounded-lg hover:border-mint/20 hover:text-mint transition-all disabled:opacity-50"
+          >
+            {loadingMore ? "Loading..." : "Load older messages"}
+          </button>
+        )}
+
+        {messages.length === 0 && loaded && (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center py-20">
             <div className="w-16 h-16 border border-mint/20 rounded-full flex items-center justify-center">
               <span className="font-display text-2xl text-mint">T</span>
