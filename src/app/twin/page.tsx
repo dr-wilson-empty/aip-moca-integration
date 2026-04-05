@@ -353,16 +353,71 @@ export default function TwinPage() {
 
           if (updated.status === "completed") {
             clearInterval(pollInterval);
+
+            // Build chain summary
+            const stepSummary = (updated.steps as Array<{ agentName: string; capabilityDescription: string; estimatedCost: string; status: string }>)
+              .map((s, i) => `${i + 1}. ${s.agentName} — ${s.capabilityDescription} (${s.status === "completed" ? s.estimatedCost + " USDC" : "FAILED"})`)
+              .join("\n");
+            const summaryContent = `Autonomous pipeline completed.\n\n${stepSummary}\n\nTotal: ${updated.totalSpent} USDC`;
+
             updateMessage(msgId, {
               state: "completed",
               artifact: updated.finalArtifact,
-              content: `Autonomous pipeline completed. Total spent: ${updated.totalSpent} USDC`,
+              content: summaryContent,
             });
+
+            // Add each chain step to task history (logStore)
+            for (const step of updated.steps as Array<{ taskId?: string; agentName: string; capabilityDescription: string; capabilityId: string; input: string; estimatedCost: string; status: string; artifact?: string; escrowTxHash?: string; settlementTxHash?: string }>) {
+              if (step.taskId) {
+                addTask({
+                  id: step.taskId,
+                  counterpartAgent: step.agentName,
+                  capability: step.capabilityId || step.capabilityDescription,
+                  input: step.input || "",
+                  startedAt: updated.createdAt || new Date().toISOString(),
+                  duration: "—",
+                  state: step.status === "completed" ? "COMPLETED" : "FAILED",
+                  usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00",
+                  artifact: step.artifact,
+                  escrowTxHash: step.escrowTxHash,
+                  settlementTxHash: step.settlementTxHash,
+                  log: [],
+                  isAgentTask: true,
+                  delegatedBy: did || undefined,
+                  chainId: chain.id,
+                });
+              }
+            }
+
             setProcessing(false);
             if (address) fetchBalance(address);
           } else if (updated.status === "failed") {
             clearInterval(pollInterval);
             const failedStep = updated.steps.find((s: { status: string }) => s.status === "failed");
+
+            // Add completed steps to task history even on partial failure
+            for (const step of updated.steps as Array<{ taskId?: string; agentName: string; capabilityDescription: string; capabilityId: string; input: string; estimatedCost: string; status: string; artifact?: string; escrowTxHash?: string; settlementTxHash?: string }>) {
+              if (step.taskId && (step.status === "completed" || step.status === "failed")) {
+                addTask({
+                  id: step.taskId,
+                  counterpartAgent: step.agentName,
+                  capability: step.capabilityId || step.capabilityDescription,
+                  input: step.input || "",
+                  startedAt: updated.createdAt || new Date().toISOString(),
+                  duration: "—",
+                  state: step.status === "completed" ? "COMPLETED" : "FAILED",
+                  usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00",
+                  artifact: step.artifact,
+                  escrowTxHash: step.escrowTxHash,
+                  settlementTxHash: step.settlementTxHash,
+                  log: [],
+                  isAgentTask: true,
+                  delegatedBy: did || undefined,
+                  chainId: chain.id,
+                });
+              }
+            }
+
             updateMessage(msgId, {
               state: "failed",
               content: `Pipeline failed at step ${updated.currentStep + 1}: ${failedStep?.error || "Unknown error"}`,

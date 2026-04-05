@@ -26,6 +26,7 @@ export interface DbTask {
   fail_reason?: string;
   delegated_by?: string;
   is_agent_task?: boolean;
+  chain_id?: string;
   log: unknown[];
   created_at?: string;
   updated_at?: string;

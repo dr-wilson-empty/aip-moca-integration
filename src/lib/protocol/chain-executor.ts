@@ -210,6 +210,7 @@ async function runChain(chain: TaskChain): Promise<void> {
         escrowTxHash,
         delegatedBy: chain.callerDid,
         isAgentTask: true,
+        chainId: chain.id,
       });
 
       logger.info("chain", "step_escrow", { chainId: chain.id, step: i + 1, escrowTxHash });

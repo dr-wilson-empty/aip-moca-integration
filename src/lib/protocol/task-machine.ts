@@ -24,6 +24,8 @@ export interface TaskRecord {
   delegatedBy?: string;
   /** True if this task was created by agent-to-agent delegation */
   isAgentTask?: boolean;
+  /** Chain ID for grouped autonomous pipeline tasks */
+  chainId?: string;
   log: LogEntry[];
   createdAt: string;
   updatedAt: string;
@@ -112,6 +114,7 @@ function persistTask(task: TaskRecord): void {
     fail_reason: task.failReason,
     delegated_by: task.delegatedBy,
     is_agent_task: task.isAgentTask ?? false,
+    chain_id: task.chainId,
     log: task.log,
   }).catch(() => {});
 }
@@ -133,6 +136,7 @@ export function createTask(params: {
   escrowTxHash: string;
   delegatedBy?: string;
   isAgentTask?: boolean;
+  chainId?: string;
 }): TaskRecord {
   const now = new Date().toISOString();
   const task: TaskRecord = {

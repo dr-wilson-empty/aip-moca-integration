@@ -55,6 +55,18 @@ export default function TaskDetailModal({ task, onClose }: Props) {
             <MonoLabel className="mb-1">USDC Spent</MonoLabel>
             <p className="font-mono text-xs text-yellow-400">{task.usdcSpent} USDC</p>
           </div>
+          {task.isAgentTask && (
+            <div>
+              <MonoLabel className="mb-1">Source</MonoLabel>
+              <p className="font-mono text-xs text-purple-400">Agent Task (autonomous)</p>
+            </div>
+          )}
+          {task.chainId && (
+            <div>
+              <MonoLabel className="mb-1">Chain</MonoLabel>
+              <p className="font-mono text-xs text-cyan-400">{task.chainId}</p>
+            </div>
+          )}
         </div>
 
         {/* Artifact */}
