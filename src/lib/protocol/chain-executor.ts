@@ -26,6 +26,7 @@ import bs58 from "bs58";
 import { getConnection } from "@/lib/solana/connection";
 import { buildInitializeEscrowIx } from "@/lib/solana/escrow-program";
 import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/escrow";
+import { reserveBudget, refundBudget } from "@/lib/payment/agent-budget";
 import { createTask, completeTask, failTask, acceptTask } from "./task-machine";
 import { executeTask } from "./a2a-client";
 import { logger } from "@/lib/logger";
@@ -84,6 +85,8 @@ export function createAndExecuteChain(params: {
   steps: ChainStep[];
   totalCost: string;
   depositTxHash: string;
+  /** Agent DID whose budget funds this chain (autonomous mode) */
+  budgetAgentDid?: string;
 }): TaskChain {
   const chain: TaskChain = {
     id: `ch_${Math.random().toString(36).slice(2, 10)}`,
@@ -107,7 +110,7 @@ export function createAndExecuteChain(params: {
   });
 
   // Execute in background (non-blocking)
-  runChain(chain).catch((err) => {
+  runChain(chain, params.budgetAgentDid).catch((err) => {
     logger.error("chain", "fatal", {
       chainId: chain.id,
       error: err instanceof Error ? err.message : String(err),
@@ -120,9 +123,9 @@ export function createAndExecuteChain(params: {
 
 /**
  * Run chain steps sequentially.
- * Each step: create escrow → dispatch to agent → wait → release/refund → next
+ * Each step: reserve budget → create escrow → dispatch to agent → wait → release/refund → next
  */
-async function runChain(chain: TaskChain): Promise<void> {
+async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void> {
   const authorityKp = getAuthorityKeypair();
   const mint = getUsdcMint();
   const connection = getConnection();
@@ -155,6 +158,24 @@ async function runChain(chain: TaskChain): Promise<void> {
     const taskId = `cs${i}_${shortId}`;
     step.taskId = taskId;
     const amount = parseFloat(step.estimatedCost);
+
+    // 0. Reserve from budget (autonomous mode)
+    let budgetReserved = false;
+    if (budgetAgentDid) {
+      try {
+        await reserveBudget(budgetAgentDid, amount, taskId, step.agentDid);
+        budgetReserved = true;
+        logger.info("chain", "budget_reserved", { chainId: chain.id, step: i + 1, amount, budgetAgentDid });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error("chain", "budget_reserve_failed", { chainId: chain.id, step: i + 1, error: msg });
+        step.status = "failed";
+        step.error = `Budget reserve failed: ${msg}`;
+        chain.status = "failed";
+        chain.totalSpent = totalSpent.toFixed(2);
+        return;
+      }
+    }
 
     // 1. Create on-chain escrow for this step
     try {
@@ -217,6 +238,10 @@ async function runChain(chain: TaskChain): Promise<void> {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error("chain", "step_escrow_failed", { chainId: chain.id, step: i + 1, error: msg });
+      // Refund budget if reserved
+      if (budgetReserved && budgetAgentDid) {
+        await refundBudget(budgetAgentDid, amount, taskId).catch(() => {});
+      }
       step.status = "failed";
       step.error = `Escrow failed: ${msg}`;
       chain.status = "failed";
@@ -255,6 +280,9 @@ async function runChain(chain: TaskChain): Promise<void> {
         // Agent failed — refund this step
         try { acceptTask(taskId); } catch { /* state edge case */ }
         await refundEscrow(taskId).catch(() => {});
+        if (budgetReserved && budgetAgentDid) {
+          await refundBudget(budgetAgentDid, amount, taskId).catch(() => {});
+        }
         try { failTask(taskId, result.error || "Agent returned FAILED"); } catch { /* state edge case */ }
 
         step.status = "failed";
@@ -272,8 +300,11 @@ async function runChain(chain: TaskChain): Promise<void> {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
 
-      // Refund escrow on error
+      // Refund escrow + budget on error
       await refundEscrow(taskId).catch(() => {});
+      if (budgetReserved && budgetAgentDid) {
+        await refundBudget(budgetAgentDid, amount, taskId).catch(() => {});
+      }
       try { acceptTask(taskId); } catch { /* state edge case */ }
       try { failTask(taskId, msg); } catch { /* state edge case */ }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getConnection } from "@/lib/solana/connection";
 import { createAndExecuteChain, getChain, listChains } from "@/lib/protocol/chain-executor";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
+import { dbGetBudgetsByOwner } from "@/lib/supabase/agent-budgets";
 import type { ChainStep } from "@/types/aip";
 
 seedDemoAgents();
@@ -68,8 +69,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify the deposit transaction exists on-chain
-  // In autonomous mode on devnet, the platform authority funds escrows directly
+  // Autonomous mode: verify agent budget is sufficient
+  let budgetAgentDid: string | undefined;
+  if (depositTxHash === "autonomous-mode") {
+    const budgets = await dbGetBudgetsByOwner(callerAddress);
+    const totalNeeded = parseFloat(totalCost);
+    // Find an agent budget with enough balance
+    const sufficient = budgets.find((b) => b.balance >= totalNeeded);
+    if (sufficient) {
+      budgetAgentDid = sufficient.agent_did;
+    } else {
+      const totalAvailable = budgets.reduce((s, b) => s + b.balance, 0);
+      if (totalAvailable < totalNeeded) {
+        return NextResponse.json(
+          { error: `Insufficient budget: ${totalAvailable.toFixed(2)} USDC available, ${totalNeeded.toFixed(2)} USDC needed. Deposit more USDC in My Agents.` },
+          { status: 402 }
+        );
+      }
+      // Use budget with highest balance
+      budgetAgentDid = budgets.sort((a, b) => b.balance - a.balance)[0]?.agent_did;
+    }
+  }
+
+  // Verify the deposit transaction exists on-chain (non-autonomous mode)
   if (depositTxHash !== "autonomous-mode") {
     try {
       const connection = getConnection();
@@ -106,6 +128,7 @@ export async function POST(request: NextRequest) {
     steps,
     totalCost,
     depositTxHash,
+    budgetAgentDid,
   });
 
   return NextResponse.json({ ok: true, chain }, { status: 201 });
