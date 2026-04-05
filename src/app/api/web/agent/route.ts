@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  webSearch,
-  multiSearch,
-  formatSearchResults,
-  formatMultiSearchResults,
-  type SearchResult,
-} from "@/lib/web/search";
+import { webSearch, formatSearchResults } from "@/lib/web/search";
+import { scrapeUrls } from "@/lib/web/firecrawl";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/web/agent
- * JSON-RPC 2.0 — Intelligent Web Search Agent.
+ * JSON-RPC 2.0 — Web Search Agent v5 (Tavily + Firecrawl).
  *
- * Two-phase search:
- * 1. Primary search (advanced + raw_content) — gets initial results
- * 2. Haiku analyzes results and decides if more searches needed
- * 3. If needed: agent runs targeted follow-up searches automatically
- * 4. Final analysis with all data — structured, accurate answer
+ * Product search flow:
+ *   1. Tavily Search → find e-commerce URLs
+ *   2. Firecrawl Scrape → JS-render pages, get real markdown content
+ *   3. Haiku → extract prices from real page content, format with direct URLs
+ *
+ * General search flow:
+ *   1. Tavily Search → get results
+ *   2. Haiku → summarize
  */
 
 interface JsonRpcRequest {
@@ -25,7 +24,21 @@ interface JsonRpcRequest {
   id: string | number;
 }
 
-const tasks = new Map<string, { status: string; artifact?: string; error?: string }>();
+// globalThis for persistence
+const g = globalThis as typeof globalThis & {
+  __aip_ws_tasks?: Map<string, { status: string; artifact?: string; error?: string }>;
+};
+if (!g.__aip_ws_tasks) g.__aip_ws_tasks = new Map();
+const tasks = g.__aip_ws_tasks;
+
+const PRODUCT_KEYWORDS = [
+  "fiyat", "price", "ucuz", "cheap", "satın", "buy", "karşılaştır",
+  "kaç tl", "kaç lira", "ne kadar", "en uygun", "indirim",
+];
+
+function isProductQuery(query: string): boolean {
+  return PRODUCT_KEYWORDS.some((kw) => query.toLowerCase().includes(kw));
+}
 
 export async function POST(request: NextRequest) {
   let body: JsonRpcRequest;
@@ -49,10 +62,11 @@ export async function POST(request: NextRequest) {
       id,
     });
 
-    // Intelligent search pipeline in background
     (async () => {
       try {
-        const artifact = await intelligentSearch(input);
+        const artifact = isProductQuery(input)
+          ? await productSearch(input)
+          : await generalSearch(input);
         tasks.set(taskId, { status: "COMPLETED", artifact });
       } catch (err) {
         tasks.set(taskId, {
@@ -70,20 +84,13 @@ export async function POST(request: NextRequest) {
     if (!taskId) {
       return NextResponse.json({ jsonrpc: "2.0", error: { code: -32602, message: "Missing taskId" }, id });
     }
-
     const task = tasks.get(taskId);
     if (!task) {
       return NextResponse.json({ jsonrpc: "2.0", error: { code: -32001, message: "Task not found" }, id });
     }
-
     return NextResponse.json({
       jsonrpc: "2.0",
-      result: {
-        taskId,
-        status: task.status,
-        ...(task.artifact ? { artifact: task.artifact } : {}),
-        ...(task.error ? { error: task.error } : {}),
-      },
+      result: { taskId, status: task.status, ...(task.artifact ? { artifact: task.artifact } : {}), ...(task.error ? { error: task.error } : {}) },
       id,
     });
   }
@@ -95,7 +102,7 @@ export async function GET() {
   return NextResponse.json({
     did: "did:aip:platform:web-search",
     name: "Web Search Agent",
-    version: "2.0.0",
+    version: "5.0.0",
     endpoint: "http://localhost:3000/api/web/agent",
     type: "Task",
     capabilities: [{
@@ -107,100 +114,112 @@ export async function GET() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Intelligent Search Pipeline                                        */
+/*  Product Search: Tavily → Firecrawl → Haiku                        */
 /* ------------------------------------------------------------------ */
 
-async function intelligentSearch(userQuery: string): Promise<string> {
+async function productSearch(userQuery: string): Promise<string> {
+  logger.info("web_agent", "product_search_start", { query: userQuery });
+
+  // Step 1: Tavily search — find product URLs
+  const searchResult = await webSearch(userQuery, 8, "advanced");
+
+  if (searchResult.results.length === 0) {
+    return `"${userQuery}" için sonuç bulunamadı.`;
+  }
+
+  // Step 2: Pick top e-commerce URLs for Firecrawl scraping
+  const ecomDomains = ["trendyol", "hepsiburada", "amazon.com.tr", "n11.com", "mediamarkt", "teknosa", "cimri", "akakce", "epey", "itopya", "vatanbilgisayar"];
+  const sortedResults = [...searchResult.results].sort((a, b) => {
+    const aScore = ecomDomains.some((d) => a.url.includes(d)) ? 0 : 1;
+    const bScore = ecomDomains.some((d) => b.url.includes(d)) ? 0 : 1;
+    return aScore - bScore || b.score - a.score;
+  });
+
+  // Scrape top 4 URLs with Firecrawl (JS rendering)
+  const urlsToScrape = sortedResults.slice(0, 4).map((r) => r.url);
+  logger.info("web_agent", "scraping_urls", { urls: urlsToScrape });
+
+  const scrapeResults = await scrapeUrls(urlsToScrape);
+
+  // Step 3: Build data for Haiku
+  const pageData: string[] = [
+    `PRODUCT SEARCH: "${userQuery}"`,
+    `Searched ${searchResult.results.length} sources, scraped ${scrapeResults.filter((r) => r.markdown).length} pages\n`,
+  ];
+
+  for (const scrape of scrapeResults) {
+    if (!scrape.markdown) continue;
+    pageData.push(`--- PAGE: ${scrape.url} ---`);
+    pageData.push(`Title: ${scrape.title || "Unknown"}`);
+    // Limit markdown content per page
+    pageData.push(scrape.markdown.slice(0, 4000));
+    pageData.push("");
+  }
+
+  // Also include search snippets
+  pageData.push("\nSEARCH SNIPPETS:");
+  for (const r of searchResult.results.slice(0, 5)) {
+    pageData.push(`  - ${r.title} | ${r.url}`);
+    pageData.push(`    ${r.content.slice(0, 200)}`);
+  }
+
+  const allData = pageData.join("\n");
+
+  // Step 4: Haiku analyzes real page content
+  return await analyzeWithHaiku(userQuery, allData);
+}
+
+/* ------------------------------------------------------------------ */
+/*  General Search: Tavily → Haiku                                     */
+/* ------------------------------------------------------------------ */
+
+async function generalSearch(userQuery: string): Promise<string> {
+  const searchResult = await webSearch(userQuery, 8, "advanced");
+  const rawResults = formatSearchResults(searchResult);
+
+  return await analyzeWithHaiku(userQuery, rawResults);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Haiku Analysis                                                     */
+/* ------------------------------------------------------------------ */
+
+async function analyzeWithHaiku(userQuery: string, data: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    const result = await webSearch(userQuery, 8);
-    return formatSearchResults(result);
+  if (!apiKey) return data;
+
+  try {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey });
+
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 3000,
+      system:
+        "You analyze real web page content to answer user queries.\n\n" +
+        "For product/price queries:\n" +
+        "- Extract EXACT prices from the scraped page content\n" +
+        "- Every product MUST have its DIRECT URL as a markdown link: [Seller - Product](url)\n" +
+        "- Use the EXACT page URL from the data — never invent or modify URLs\n" +
+        "- Sort by price, cheapest first\n" +
+        "- End with: 'En uygun: [Seller](url) — Price'\n" +
+        "- Filter out accessories, second-hand, game bundles — only show the actual product\n\n" +
+        "For general queries:\n" +
+        "- Summarize findings with [source links](url)\n\n" +
+        "RULES:\n" +
+        "- Only report prices you can see in the page content\n" +
+        "- Answer in the user's language\n" +
+        "- Do NOT invent URLs or prices",
+      messages: [{
+        role: "user",
+        content: `User: "${userQuery}"\n\n${data}`,
+      }],
+    });
+
+    const block = response.content[0];
+    if (block.type === "text") return block.text;
+    return data;
+  } catch {
+    return data;
   }
-
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey });
-
-  // Phase 1: Primary search (advanced depth + raw content)
-  const primaryResult = await webSearch(userQuery, 8, "advanced", true);
-  const primaryData = formatSearchResults(primaryResult);
-
-  // Phase 2: Ask Haiku if follow-up searches are needed
-  const planResponse = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
-    system:
-      "You are a search strategist. Analyze the initial search results and decide if follow-up searches are needed for a complete answer.\n\n" +
-      "If the results already contain enough specific data (exact prices, seller names, direct URLs, ratings), respond:\n" +
-      '{"needsMore": false}\n\n' +
-      "If the results are incomplete (only comparison sites, no direct prices, missing sellers), suggest 1-3 targeted follow-up queries:\n" +
-      '{"needsMore": true, "queries": ["specific query 1", "specific query 2"]}\n\n' +
-      "Follow-up query tips:\n" +
-      "- Target specific sellers: 'product name site:trendyol.com fiyat'\n" +
-      "- Target specific data: 'product name review rating'\n" +
-      "- Be specific, not generic\n\n" +
-      "Respond with ONLY JSON.",
-    messages: [{
-      role: "user",
-      content: `User query: "${userQuery}"\n\nInitial results summary:\n${primaryResult.results.map((r, i) => `${i + 1}. ${r.title} — ${r.url}\n   ${r.content.slice(0, 150)}`).join("\n")}`,
-    }],
-  });
-
-  let allResults: SearchResult[] = [...primaryResult.results];
-  let searchQueries = [userQuery];
-
-  // Phase 3: Run follow-up searches if needed
-  const planText = planResponse.content[0];
-  if (planText.type === "text") {
-    try {
-      const jsonMatch = planText.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const plan = JSON.parse(jsonMatch[0]);
-        if (plan.needsMore && plan.queries?.length > 0) {
-          const followUpQueries = (plan.queries as string[]).slice(0, 3);
-          searchQueries.push(...followUpQueries);
-
-          const { allResults: moreResults } = await multiSearch(followUpQueries, 5);
-
-          // Merge and deduplicate
-          const seenUrls = new Set(allResults.map((r) => r.url));
-          for (const r of moreResults) {
-            if (!seenUrls.has(r.url)) {
-              seenUrls.add(r.url);
-              allResults.push(r);
-            }
-          }
-        }
-      }
-    } catch { /* proceed with primary results */ }
-  }
-
-  // Phase 4: Final analysis with all collected data
-  const allData = formatMultiSearchResults(searchQueries, allResults);
-
-  const finalResponse = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 3000,
-    system:
-      "You are a web research analyst producing the FINAL answer for the user.\n\n" +
-      "You have comprehensive search data including full page content from multiple sources.\n\n" +
-      "CRITICAL RULES:\n" +
-      "- Extract EXACT prices from the page content — do not guess or approximate\n" +
-      "- EVERY product, seller, or resource MUST have a clickable markdown link: [Name](url)\n" +
-      "- Use the EXACT URLs from the search results\n" +
-      "- If comparing prices: create a clear ranked list, cheapest first\n" +
-      "- Format: **Satıcı** — Fiyat — [Ürüne Git](url)\n" +
-      "- End with a clear verdict: 'En uygun: [Satıcı](url) — Fiyat'\n" +
-      "- Answer in the same language as the user's query\n" +
-      "- Only report prices you can verify from the page content\n" +
-      "- If a price seems outdated or uncertain, note it\n" +
-      "- Do NOT invent or hallucinate any URLs or prices",
-    messages: [{
-      role: "user",
-      content: `User query: "${userQuery}"\n\nCollected web data (${searchQueries.length} searches, ${allResults.length} results):\n\n${allData}\n\nREMINDER: Every item MUST include its [clickable link](url). Extract EXACT prices from page content. Rank from cheapest to most expensive.`,
-    }],
-  });
-
-  const finalBlock = finalResponse.content[0];
-  if (finalBlock.type === "text") return finalBlock.text;
-  return allData;
 }
