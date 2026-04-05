@@ -121,22 +121,45 @@ async function productSearch(userQuery: string): Promise<string> {
   logger.info("web_agent", "product_search_start", { query: userQuery });
 
   // Step 1: Tavily search — find product URLs
-  const searchResult = await webSearch(userQuery, 8, "advanced");
+  const searchResult = await webSearch(userQuery, 10, "advanced");
 
   if (searchResult.results.length === 0) {
     return `"${userQuery}" için sonuç bulunamadı.`;
   }
 
-  // Step 2: Pick top e-commerce URLs for Firecrawl scraping
-  const ecomDomains = ["trendyol", "hepsiburada", "amazon.com.tr", "n11.com", "mediamarkt", "teknosa", "cimri", "akakce", "epey", "itopya", "vatanbilgisayar"];
-  const sortedResults = [...searchResult.results].sort((a, b) => {
-    const aScore = ecomDomains.some((d) => a.url.includes(d)) ? 0 : 1;
-    const bScore = ecomDomains.some((d) => b.url.includes(d)) ? 0 : 1;
-    return aScore - bScore || b.score - a.score;
-  });
+  // Step 2: Separate direct e-commerce URLs from comparison sites
+  const DIRECT_ECOM = ["trendyol.com", "hepsiburada.com", "amazon.com.tr", "n11.com", "mediamarkt.com.tr", "teknosa.com", "itopya.com", "vatanbilgisayar.com", "pttavm.com"];
+  const COMPARISON_SITES = ["cimri.com", "akakce.com", "epey.com", "fiyat.com", "en-ucuz.com"];
 
-  // Scrape top 4 URLs with Firecrawl (JS rendering)
-  const urlsToScrape = sortedResults.slice(0, 4).map((r) => r.url);
+  const directUrls = searchResult.results.filter((r) =>
+    DIRECT_ECOM.some((d) => r.url.includes(d))
+  );
+  const comparisonUrls = searchResult.results.filter((r) =>
+    COMPARISON_SITES.some((d) => r.url.includes(d))
+  );
+
+  // Step 3: If not enough direct e-commerce URLs, do a targeted second search
+  if (directUrls.length < 3) {
+    const siteSearch = await webSearch(
+      `${userQuery} site:trendyol.com OR site:hepsiburada.com OR site:amazon.com.tr OR site:n11.com`,
+      5, "basic"
+    );
+    for (const r of siteSearch.results) {
+      if (DIRECT_ECOM.some((d) => r.url.includes(d)) && !directUrls.some((d) => d.url === r.url)) {
+        directUrls.push(r);
+      }
+    }
+  }
+
+  // Step 4: Pick URLs to scrape — prioritize direct e-commerce, add 1 comparison as fallback
+  const urlsToScrape: string[] = [];
+  for (const r of directUrls.slice(0, 4)) {
+    urlsToScrape.push(r.url);
+  }
+  // Add max 1 comparison site for extra price data (but Haiku won't use its links)
+  if (comparisonUrls.length > 0 && urlsToScrape.length < 5) {
+    urlsToScrape.push(comparisonUrls[0].url);
+  }
   logger.info("web_agent", "scraping_urls", { urls: urlsToScrape });
 
   const scrapeResults = await scrapeUrls(urlsToScrape);
@@ -199,17 +222,20 @@ async function analyzeWithHaiku(userQuery: string, data: string): Promise<string
         "You analyze real web page content to answer user queries.\n\n" +
         "For product/price queries:\n" +
         "- Extract EXACT prices from the scraped page content\n" +
-        "- Every product MUST have its DIRECT URL as a markdown link: [Seller - Product](url)\n" +
-        "- Use the EXACT page URL from the data — never invent or modify URLs\n" +
+        "- Every product MUST have a markdown link to the SELLER'S OWN WEBSITE: [Seller - Product](url)\n" +
+        "- CRITICAL: Use URLs from trendyol.com, hepsiburada.com, amazon.com.tr, n11.com, pttavm.com etc.\n" +
+        "- NEVER link to cimri.com, akakce.com, epey.com — these are comparison sites, not sellers\n" +
+        "- If you found a price on a comparison site, report the seller name and price but link to the seller's direct page from the scraped data\n" +
         "- Sort by price, cheapest first\n" +
-        "- End with: 'En uygun: [Seller](url) — Price'\n" +
-        "- Filter out accessories, second-hand, game bundles — only show the actual product\n\n" +
+        "- End with: 'En uygun: [Seller](direct_url) — Price'\n" +
+        "- Filter out accessories, cases, second-hand, game bundles — only the actual product\n\n" +
         "For general queries:\n" +
         "- Summarize findings with [source links](url)\n\n" +
         "RULES:\n" +
         "- Only report prices you can see in the page content\n" +
         "- Answer in the user's language\n" +
-        "- Do NOT invent URLs or prices",
+        "- Do NOT invent URLs or prices\n" +
+        "- NEVER use comparison site URLs as product links",
       messages: [{
         role: "user",
         content: `User: "${userQuery}"\n\n${data}`,
