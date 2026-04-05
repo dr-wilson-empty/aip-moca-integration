@@ -151,13 +151,27 @@ async function productSearch(userQuery: string): Promise<string> {
     }
   }
 
-  // Step 4: Pick URLs to scrape — prioritize direct e-commerce, add 1 comparison as fallback
+  // Step 4: Pick URLs to scrape — prioritize direct e-commerce
+  // Deduplicate by domain to get variety (not 4 Hepsiburada links)
   const urlsToScrape: string[] = [];
-  for (const r of directUrls.slice(0, 4)) {
-    urlsToScrape.push(r.url);
+  const seenDomains = new Set<string>();
+
+  for (const r of directUrls) {
+    if (urlsToScrape.length >= 6) break;
+    try {
+      const domain = new URL(r.url).hostname.replace("www.", "");
+      // Allow max 2 URLs per domain for variety
+      const domainCount = urlsToScrape.filter((u) => u.includes(domain)).length;
+      if (domainCount < 2) {
+        urlsToScrape.push(r.url);
+      }
+    } catch {
+      urlsToScrape.push(r.url);
+    }
   }
-  // Add max 1 comparison site for extra price data (but Haiku won't use its links)
-  if (comparisonUrls.length > 0 && urlsToScrape.length < 5) {
+
+  // Add 1 comparison site for supplementary price data
+  if (comparisonUrls.length > 0 && urlsToScrape.length < 7) {
     urlsToScrape.push(comparisonUrls[0].url);
   }
   logger.info("web_agent", "scraping_urls", { urls: urlsToScrape });
@@ -222,20 +236,24 @@ async function analyzeWithHaiku(userQuery: string, data: string): Promise<string
         "You analyze real web page content to answer user queries.\n\n" +
         "For product/price queries:\n" +
         "- Extract EXACT prices from the scraped page content\n" +
+        "- Show AT LEAST 5 different options from different sellers if available in the data\n" +
         "- Every product MUST have a markdown link to the SELLER'S OWN WEBSITE: [Seller - Product](url)\n" +
         "- CRITICAL: Use URLs from trendyol.com, hepsiburada.com, amazon.com.tr, n11.com, pttavm.com etc.\n" +
         "- NEVER link to cimri.com, akakce.com, epey.com — these are comparison sites, not sellers\n" +
-        "- If you found a price on a comparison site, report the seller name and price but link to the seller's direct page from the scraped data\n" +
+        "- If a comparison site page lists sellers with prices, extract each seller's name and price separately\n" +
+        "- Look for individual product URLs INSIDE scraped markdown (e.g. links within product cards on listing pages)\n" +
         "- Sort by price, cheapest first\n" +
         "- End with: 'En uygun: [Seller](direct_url) — Price'\n" +
-        "- Filter out accessories, cases, second-hand, game bundles — only the actual product\n\n" +
+        "- Filter out accessories, cases, second-hand, game bundles — only the actual product\n" +
+        "- If you cannot find 5 sellers, show as many as you have but explain why\n\n" +
         "For general queries:\n" +
         "- Summarize findings with [source links](url)\n\n" +
         "RULES:\n" +
         "- Only report prices you can see in the page content\n" +
         "- Answer in the user's language\n" +
         "- Do NOT invent URLs or prices\n" +
-        "- NEVER use comparison site URLs as product links",
+        "- NEVER use comparison site URLs as product links\n" +
+        "- If the user asks for a specific number of results, provide that many or explain why not",
       messages: [{
         role: "user",
         content: `User: "${userQuery}"\n\n${data}`,
