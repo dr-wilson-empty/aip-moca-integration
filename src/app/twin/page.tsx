@@ -541,7 +541,7 @@ export default function TwinPage() {
                 </span>
               )}
 
-              <p className="font-mono text-sm text-off-white leading-relaxed">{msg.content}</p>
+              <p className="font-mono text-sm text-off-white leading-relaxed whitespace-pre-wrap">{msg.content}</p>
 
               {/* Pipeline plan card */}
               {msg.steps && msg.state === "confirming" && (

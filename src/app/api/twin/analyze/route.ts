@@ -85,12 +85,21 @@ export async function POST(request: NextRequest) {
       "You are a Digital Twin planner for AIP (Agent Internet Protocol). " +
       "The user gives you a natural language instruction. Decide if it needs ONE agent or MULTIPLE agents in sequence.\n\n" +
       "Available agents and capabilities:\n" + availableCapabilities + "\n\n" +
+      "CAPABILITY USAGE GUIDE:\n" +
+      "- text.summarize: Use for ANY text processing — summarizing, rewriting, extracting info, creating recipes, formatting, analyzing content, answering questions about text. This is the DEFAULT for text tasks.\n" +
+      "- text.classify: ONLY returns a JSON category tag (GENERAL/DEFI/GOVERNANCE/etc). Do NOT use for content analysis, recipes, formatting, or any task that needs readable text output. Only use when user explicitly wants a category label.\n" +
+      "- web.search: Search the web for current information, prices, news, etc.\n" +
+      "- data.retrieve: Fetch structured data from blockchain/APIs (Solana, DeFi protocols).\n" +
+      "- code.audit: Analyze smart contract code for security vulnerabilities.\n" +
+      "- defi.analyze: Analyze DeFi protocol risks, TVL, yield strategies.\n\n" +
       "RULES:\n" +
       "- If the task can be done by a single capability, use mode 'single'\n" +
-      "- If the task needs multiple steps (e.g. 'fetch data then summarize', 'analyze and compare', 'get info about X and audit it'), use mode 'pipeline'\n" +
+      "- If the task needs multiple steps (e.g. 'fetch data then summarize', 'search and analyze'), use mode 'pipeline'\n" +
       "- Pipeline steps run sequentially — each step's output feeds into the next step's input\n" +
       "- For pipeline step 2+, set inputFromPrev to true (the previous step's result becomes input)\n" +
-      "- Keep pipelines to 2-4 steps maximum\n\n" +
+      "- Keep pipelines to 2-4 steps maximum\n" +
+      "- ALWAYS prefer text.summarize over text.classify for processing/transforming text content\n" +
+      "- text.classify should NEVER be the final step if the user expects readable content\n\n" +
       "Respond with ONLY valid JSON:\n\n" +
       "Single mode:\n" +
       '{"mode":"single","steps":[{"agentName":"...","capabilityId":"...","input":"...","label":"..."}],"explanation":"..."}\n\n' +
