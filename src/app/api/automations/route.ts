@@ -5,7 +5,9 @@ import {
   dbUpdateAutomation,
   dbDeleteAutomation,
   type DbAutomation,
+  type TriggerType,
 } from "@/lib/supabase/automations";
+import { generateWebhookSecret } from "@/lib/trigger/webhook";
 
 /**
  * GET /api/automations?wallet=xxx
@@ -29,27 +31,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { walletAddress, name, prompt, schedule, budgetLimit, budgetPeriod } = body as {
+  const { walletAddress, name, prompt, schedule, budgetLimit, budgetPeriod, triggerType } = body as {
     walletAddress?: string; name?: string; prompt?: string;
     schedule?: string; budgetLimit?: number; budgetPeriod?: string;
+    triggerType?: TriggerType;
   };
 
   if (!walletAddress || !name || !prompt) {
     return NextResponse.json({ error: "walletAddress, name, prompt required" }, { status: 400 });
   }
 
+  const trigger = triggerType || "schedule";
   const id = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const auto: DbAutomation = {
     id,
     wallet_address: walletAddress,
     name: name.trim(),
     prompt: prompt.trim(),
-    schedule: schedule || "daily",
+    schedule: trigger === "schedule" ? (schedule || "daily") : "manual",
     budget_limit: budgetLimit ?? 1.0,
     budget_period: budgetPeriod || "daily",
     enabled: true,
     total_spent: 0,
     run_count: 0,
+    trigger_type: trigger,
+    webhook_secret: trigger === "webhook" ? generateWebhookSecret() : undefined,
   };
 
   await dbCreateAutomation(auto);

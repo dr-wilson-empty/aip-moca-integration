@@ -16,6 +16,7 @@ import {
 import { executeTask } from "./a2a-client";
 import { logger } from "@/lib/logger";
 import { dbTrackTask } from "@/lib/supabase/preferences";
+import { buildMemoryContext, extractMemoryHints, saveMemories } from "@/lib/memory/agent-memory";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -37,7 +38,9 @@ export async function dispatchToAgent(
   capability: string,
   input: string,
   escrowTxHash: string,
-  onSettle: (action: "release" | "refund") => Promise<string | null>
+  onSettle: (action: "release" | "refund") => Promise<string | null>,
+  /** Optional: for agent memory context injection */
+  memoryCtx?: { agentDid: string; callerAddress: string }
 ): Promise<void> {
   const t0 = Date.now();
 
@@ -57,6 +60,17 @@ export async function dispatchToAgent(
     await sleep(200);
     sendRequest(taskId);
 
+    // Inject agent memory context into input (if available)
+    let enrichedInput = input;
+    if (memoryCtx) {
+      try {
+        const memContext = await buildMemoryContext(memoryCtx.agentDid, memoryCtx.callerAddress);
+        if (memContext) {
+          enrichedInput = input + memContext;
+        }
+      } catch { /* memory is best-effort */ }
+    }
+
     logger.info("a2a", "dispatching", { taskId, agentEndpoint, capability });
     const tAgent = Date.now();
 
@@ -64,7 +78,7 @@ export async function dispatchToAgent(
     const result = await executeTask(
       agentEndpoint,
       capability,
-      input,
+      enrichedInput,
       taskId,
       500,   // poll every 500ms
       60     // max 30 seconds
@@ -91,6 +105,20 @@ export async function dispatchToAgent(
         settleMs,
         totalMs,
       });
+
+      // Extract and save memory hints (async, non-blocking)
+      if (memoryCtx && result.artifact) {
+        extractMemoryHints(result.artifact, input).then((hints) => {
+          if (hints.length > 0) {
+            saveMemories(hints.map((h) => ({
+              agent_did: memoryCtx.agentDid,
+              user_wallet: memoryCtx.callerAddress,
+              memory_type: h.type,
+              content: h.content,
+            }))).catch(() => {});
+          }
+        }).catch(() => {});
+      }
     } else {
       const reason = result.error || "Agent returned FAILED status";
       logger.error("a2a", "agent_failed", { taskId, agentName, reason });

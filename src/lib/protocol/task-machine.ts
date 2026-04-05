@@ -20,6 +20,10 @@ export interface TaskRecord {
   settlementTxHash?: string;
   artifact?: string;
   failReason?: string;
+  /** DID of the agent that delegated this task (null/undefined = human-initiated) */
+  delegatedBy?: string;
+  /** True if this task was created by agent-to-agent delegation */
+  isAgentTask?: boolean;
   log: LogEntry[];
   createdAt: string;
   updatedAt: string;
@@ -106,6 +110,8 @@ function persistTask(task: TaskRecord): void {
     settlement_tx_hash: task.settlementTxHash,
     artifact: task.artifact,
     fail_reason: task.failReason,
+    delegated_by: task.delegatedBy,
+    is_agent_task: task.isAgentTask ?? false,
     log: task.log,
   }).catch(() => {});
 }
@@ -125,6 +131,8 @@ export function createTask(params: {
   input: string;
   amount: string;
   escrowTxHash: string;
+  delegatedBy?: string;
+  isAgentTask?: boolean;
 }): TaskRecord {
   const now = new Date().toISOString();
   const task: TaskRecord = {
@@ -135,7 +143,8 @@ export function createTask(params: {
     updatedAt: now,
   };
   tasks.set(task.id, task);
-  addLog(task, "IDENTITY", `Verifying agent ${params.agentName} identity...`);
+  const prefix = params.isAgentTask ? "[A2A] " : "";
+  addLog(task, "IDENTITY", `${prefix}Verifying agent ${params.agentName} identity...`);
   persistTask(task);
   return task;
 }

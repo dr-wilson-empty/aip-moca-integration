@@ -18,6 +18,8 @@ interface Automation {
   last_run?: string;
   total_spent: number;
   run_count: number;
+  trigger_type: "schedule" | "webhook";
+  webhook_secret?: string;
 }
 
 interface AutoResult {
@@ -47,6 +49,8 @@ export default function AutomationsPage() {
   const [schedule, setSchedule] = useState("daily");
   const [budgetLimit, setBudgetLimit] = useState("1.00");
   const [budgetPeriod, setBudgetPeriod] = useState("daily");
+  const [triggerType, setTriggerType] = useState<"schedule" | "webhook">("schedule");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadAutomations = useCallback(() => {
     if (!address) return;
@@ -78,9 +82,10 @@ export default function AutomationsPage() {
         schedule,
         budgetLimit: parseFloat(budgetLimit),
         budgetPeriod,
+        triggerType,
       }),
     });
-    setName(""); setPrompt(""); setShowForm(false);
+    setName(""); setPrompt(""); setTriggerType("schedule"); setShowForm(false);
     loadAutomations();
   };
 
@@ -174,7 +179,31 @@ export default function AutomationsPage() {
                 className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-4 py-2.5 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none resize-none" />
             </div>
 
+            {/* Trigger Type */}
+            <div>
+              <MonoLabel className="mb-1">Trigger Type</MonoLabel>
+              <div className="flex gap-2">
+                <button onClick={() => setTriggerType("schedule")}
+                  className={`flex-1 font-mono text-xs px-3 py-2.5 rounded-lg border transition-colors ${
+                    triggerType === "schedule"
+                      ? "border-mint/40 text-mint bg-mint/5"
+                      : "border-forest-deep/40 text-muted hover:border-mint/20"
+                  }`}>
+                  Schedule (cron)
+                </button>
+                <button onClick={() => setTriggerType("webhook")}
+                  className={`flex-1 font-mono text-xs px-3 py-2.5 rounded-lg border transition-colors ${
+                    triggerType === "webhook"
+                      ? "border-accent/40 text-accent bg-accent/5"
+                      : "border-forest-deep/40 text-muted hover:border-accent/20"
+                  }`}>
+                  Webhook (external)
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-3 gap-3">
+              {triggerType === "schedule" ? (
               <div>
                 <MonoLabel className="mb-1">Schedule</MonoLabel>
                 <select value={schedule} onChange={(e) => setSchedule(e.target.value)}
@@ -186,6 +215,14 @@ export default function AutomationsPage() {
                   <option value="weekly">Weekly</option>
                 </select>
               </div>
+              ) : (
+              <div>
+                <MonoLabel className="mb-1">Trigger</MonoLabel>
+                <div className="w-full bg-forest-deep/30 border border-accent/20 rounded-lg px-3 py-2.5 font-mono text-xs text-accent">
+                  Webhook URL will be generated
+                </div>
+              </div>
+              )}
               <div>
                 <MonoLabel className="mb-1">Budget Limit (USDC)</MonoLabel>
                 <input type="number" step="0.1" min="0.1" value={budgetLimit}
@@ -228,11 +265,57 @@ export default function AutomationsPage() {
                   <div className="flex items-center gap-3 mb-1">
                     <span className={`w-2 h-2 rounded-full ${auto.enabled ? "bg-accent" : "bg-muted"}`} />
                     <h3 className="font-display text-lg text-off-white uppercase tracking-wider">{auto.name}</h3>
-                    <span className="font-mono text-[10px] text-muted uppercase px-2 py-0.5 border border-forest-deep/40 rounded">
-                      {auto.schedule}
-                    </span>
+                    {auto.trigger_type === "webhook" ? (
+                      <span className="font-mono text-[10px] text-accent uppercase px-2 py-0.5 border border-accent/30 rounded bg-accent/5">
+                        webhook
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[10px] text-muted uppercase px-2 py-0.5 border border-forest-deep/40 rounded">
+                        {auto.schedule}
+                      </span>
+                    )}
                   </div>
                   <p className="font-mono text-sm text-muted truncate">{auto.prompt}</p>
+                  {auto.trigger_type === "webhook" && (
+                    <div className="mt-1.5 flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-muted/60">URL:</span>
+                        <code className="font-mono text-[10px] text-accent/80 bg-accent/5 px-1.5 py-0.5 rounded">
+                          {typeof window !== "undefined" ? window.location.origin : ""}/api/trigger/{auto.id}
+                        </code>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(`${window.location.origin}/api/trigger/${auto.id}`);
+                            setCopiedId(auto.id + "_url");
+                            setTimeout(() => setCopiedId(null), 2000);
+                          }}
+                          className="font-mono text-[9px] text-muted hover:text-mint transition-colors"
+                        >
+                          {copiedId === auto.id + "_url" ? "copied!" : "copy"}
+                        </button>
+                      </div>
+                      {auto.webhook_secret && (
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[10px] text-muted/60">Secret:</span>
+                          <code className="font-mono text-[10px] text-muted/50 bg-forest-deep/30 px-1.5 py-0.5 rounded">
+                            {auto.webhook_secret.slice(0, 12)}...
+                          </code>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(auto.webhook_secret!);
+                              setCopiedId(auto.id + "_secret");
+                              setTimeout(() => setCopiedId(null), 2000);
+                            }}
+                            className="font-mono text-[9px] text-muted hover:text-mint transition-colors"
+                          >
+                            {copiedId === auto.id + "_secret" ? "copied!" : "copy secret"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-4 mt-2">
                     <span className="font-mono text-xs text-muted">
                       Budget: <span className="text-accent">{auto.total_spent.toFixed(2)}</span> / {auto.budget_limit.toFixed(2)} USDC

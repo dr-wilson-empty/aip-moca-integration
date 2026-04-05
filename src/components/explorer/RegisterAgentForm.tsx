@@ -9,6 +9,7 @@ import type { MyAgentEntry } from "@/types/aip";
 import MonoLabel from "@/components/ui/MonoLabel";
 import BtnPrimary from "@/components/ui/BtnPrimary";
 import AgentAnalytics from "./AgentAnalytics";
+import AgentBudget from "./AgentBudget";
 
 interface CapabilityRow {
   id: string;
@@ -249,6 +250,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
                     ))}
                   </div>
                   <AgentAnalytics did={agent.did} />
+                  <AgentBudget agentDid={agent.did} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {agent.registrationSource !== "hosted" && agent.registrationSource !== "external" && (
