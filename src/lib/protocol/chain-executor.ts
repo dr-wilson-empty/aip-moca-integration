@@ -179,7 +179,12 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
 
     // 1. Create on-chain escrow for this step
     try {
-      const payeeWallet = new PublicKey(step.walletAddress || authorityKp.publicKey.toBase58());
+      // For hosted agents: escrow releases to platform authority (commission split happens after)
+      // For SDK agents: escrow releases directly to agent wallet
+      const isHosted = step.agentEndpoint.includes("/api/hosted-agent");
+      const payeeWallet = isHosted
+        ? authorityKp.publicKey
+        : new PublicKey(step.walletAddress || authorityKp.publicKey.toBase58());
       const payerAta = await getAssociatedTokenAddress(mint, authorityKp.publicKey);
 
       const tx = new Transaction();
@@ -212,7 +217,7 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
         taskId,
         amount: step.estimatedCost,
         from: chain.callerAddress,
-        to: step.walletAddress || authorityKp.publicKey.toBase58(),
+        to: isHosted ? authorityKp.publicKey.toBase58() : (step.walletAddress || authorityKp.publicKey.toBase58()),
         escrowTxHash,
         agentEndpoint: step.agentEndpoint,
       });
