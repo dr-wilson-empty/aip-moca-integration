@@ -49,7 +49,15 @@ export async function sendTaskCreate(
   });
 
   if (!res.ok) {
-    throw new Error(`Agent HTTP error: ${res.status} ${res.statusText}`);
+    if (res.status === 404) {
+      const isHosted = endpoint.includes("/api/hosted-agent");
+      throw new Error(
+        isHosted
+          ? `Hosted agent not found or inactive. Re-register the agent in My Agents. (${endpoint})`
+          : `Agent service offline or not reachable at ${endpoint}`
+      );
+    }
+    throw new Error(`Agent error ${res.status}: ${res.statusText} (${endpoint})`);
   }
 
   const data = (await res.json()) as JsonRpcResponse<TaskCreateResult>;
@@ -80,7 +88,10 @@ export async function pollTaskStatus(
   });
 
   if (!res.ok) {
-    throw new Error(`Agent HTTP error: ${res.status} ${res.statusText}`);
+    if (res.status === 404) {
+      throw new Error(`Agent lost connection during task execution (${endpoint})`);
+    }
+    throw new Error(`Agent status error ${res.status}: ${res.statusText} (${endpoint})`);
   }
 
   const data = (await res.json()) as JsonRpcResponse<TaskStatusResult>;

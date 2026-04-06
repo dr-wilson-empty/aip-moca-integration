@@ -138,7 +138,24 @@ CREATE TABLE IF NOT EXISTS agent_memory (
   expires_at TIMESTAMPTZ
 );
 
+-- Hosted agents table (persisted no-code agents)
+CREATE TABLE IF NOT EXISTS hosted_agents (
+  agent_id TEXT PRIMARY KEY,
+  owner_address TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  system_prompt TEXT NOT NULL,
+  tier TEXT NOT NULL DEFAULT 'platform',
+  provider TEXT NOT NULL DEFAULT 'anthropic',
+  custom_api_key TEXT,
+  capabilities_json TEXT NOT NULL DEFAULT '[]',
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_hosted_agents_owner ON hosted_agents(owner_address);
 CREATE INDEX IF NOT EXISTS idx_agent_memory_pair ON agent_memory(agent_did, user_wallet);
 CREATE INDEX IF NOT EXISTS idx_automations_wallet ON automations(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_automations_trigger ON automations(trigger_type);
