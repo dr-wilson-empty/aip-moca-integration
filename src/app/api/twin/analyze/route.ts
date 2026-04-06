@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
       "The user gives you a natural language instruction. Decide if it needs ONE agent or MULTIPLE agents in sequence.\n\n" +
       "Available agents and capabilities:\n" + availableCapabilities + "\n\n" +
       "CAPABILITY USAGE GUIDE:\n" +
+      "- text.translate: Use for translation tasks. Pass the FULL user message as input (including target language instruction).\n" +
       "- text.summarize: Use for ANY text processing — summarizing, rewriting, extracting info, creating recipes, formatting, analyzing content, answering questions about text. This is the DEFAULT for text tasks.\n" +
       "- text.classify: ONLY returns a JSON category tag (GENERAL/DEFI/GOVERNANCE/etc). Do NOT use for content analysis, recipes, formatting, or any task that needs readable text output. Only use when user explicitly wants a category label.\n" +
       "- web.search: Search the web for current information, prices, news, etc.\n" +
@@ -99,7 +100,8 @@ export async function POST(request: NextRequest) {
       "- For pipeline step 2+, set inputFromPrev to true (the previous step's result becomes input)\n" +
       "- Keep pipelines to 2-4 steps maximum\n" +
       "- ALWAYS prefer text.summarize over text.classify for processing/transforming text content\n" +
-      "- text.classify should NEVER be the final step if the user expects readable content\n\n" +
+      "- text.classify should NEVER be the final step if the user expects readable content\n" +
+      "- IMPORTANT: The 'input' field must contain the COMPLETE user message including all instructions (target language, format requests, etc). Never strip context from the input.\n\n" +
       "Respond with ONLY valid JSON:\n\n" +
       "Single mode:\n" +
       '{"mode":"single","steps":[{"agentName":"...","capabilityId":"...","input":"...","label":"..."}],"explanation":"..."}\n\n' +
