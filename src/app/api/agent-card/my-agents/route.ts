@@ -29,14 +29,36 @@ export async function GET(request: NextRequest) {
     ]);
 
     const agents: MyAgentEntry[] = [];
-    const seenDids = new Set<string>();
+    const seenAgentIds = new Set<string>();
 
-    // 1. On-chain agents (source of truth for identity)
+    // 1. Hosted agents first (no-code builder — they are the runtime source of truth)
+    for (const config of hostedConfigs) {
+      // Find matching on-chain record for PDA info
+      const onChainMatch = onChainRecords.find((r) => r.agentId === config.agentId);
+
+      agents.push({
+        did: onChainMatch?.did ?? `did:aip:hosted:${config.agentId}`,
+        name: config.name,
+        version: "1.0.0",
+        endpoint: `/api/hosted-agent?agentId=${config.agentId}`,
+        type: "Task",
+        capabilities: config.capabilities as Capability[],
+        walletAddress: config.ownerAddress,
+        agentId: config.agentId,
+        registrationSource: "hosted",
+        onChainPDA: onChainMatch?.pda ?? null,
+        owner: config.ownerAddress,
+      });
+      seenAgentIds.add(config.agentId);
+    }
+
+    // 2. On-chain agents (only those NOT already covered by hosted)
     for (const record of onChainRecords) {
+      if (seenAgentIds.has(record.agentId)) continue;
+
       let capabilities: Capability[] = [];
       try { capabilities = JSON.parse(record.capabilitiesJson); } catch { /* skip */ }
 
-      // Determine registration source: if DID is in our UI tracking → 'ui', else → 'external'
       const source: RegistrationSource = uiRegisteredDids.has(record.did) ? "ui" : "external";
 
       agents.push({
@@ -53,27 +75,7 @@ export async function GET(request: NextRequest) {
         owner: record.owner,
         registeredAt: record.registeredAt,
       });
-      seenDids.add(record.did);
-    }
-
-    // 2. Hosted agents (no-code builder, may or may not be on-chain)
-    for (const config of hostedConfigs) {
-      const hostedDid = `did:aip:hosted:${config.agentId}`;
-      if (seenDids.has(hostedDid)) continue; // already covered by on-chain
-
-      agents.push({
-        did: hostedDid,
-        name: config.name,
-        version: "1.0.0",
-        endpoint: `/api/hosted-agent?agentId=${config.agentId}`,
-        type: "Task",
-        capabilities: config.capabilities as Capability[],
-        walletAddress: config.ownerAddress,
-        agentId: config.agentId,
-        registrationSource: "hosted",
-        onChainPDA: null,
-        owner: config.ownerAddress,
-      });
+      seenAgentIds.add(record.agentId);
     }
 
     return NextResponse.json({ agents });
