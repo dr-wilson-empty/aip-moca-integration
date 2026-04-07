@@ -163,6 +163,34 @@ export async function POST(request: NextRequest) {
       explanation: string;
     };
 
+    // ORCHESTRATOR OVERRIDE: If LLM planned a pipeline but an orchestrator exists, use it instead
+    if (plan.mode === "pipeline" && plan.steps.length >= 2 && orchestrators.length > 0) {
+      const orch = orchestrators[0];
+      const orchCard = capabilityList.find((c) =>
+        c.agentName === orch.name && orch.capabilities.some((oc) => oc.id === c.capabilityId)
+      );
+
+      if (orchCard) {
+        return NextResponse.json({
+          mode: "single",
+          steps: [{
+            agentName: orchCard.agentName,
+            agentEndpoint: orchCard.agentEndpoint,
+            agentDid: orchCard.agentDid,
+            walletAddress: orchCard.walletAddress,
+            capabilityId: orchCard.capabilityId,
+            capabilityDescription: orchCard.description,
+            input: message,
+            inputFromPrev: false,
+            estimatedCost: orchCard.price,
+            label: `${orchCard.agentName}: ${orchCard.description}`,
+          }],
+          explanation: plan.explanation + ` (Delegated to ${orch.name} — will orchestrate sub-tasks autonomously)`,
+          totalCost: orchCard.price,
+        });
+      }
+    }
+
     // Resolve each step to actual agents
     const resolvedSteps = plan.steps.map((step) => {
       const match = capabilityList.find(
