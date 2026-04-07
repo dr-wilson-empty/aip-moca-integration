@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS hosted_agents (
   provider TEXT NOT NULL DEFAULT 'anthropic',
   custom_api_key TEXT,
   capabilities_json TEXT NOT NULL DEFAULT '[]',
+  can_orchestrate BOOLEAN DEFAULT false,
   active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHostedAgent } from "@/lib/hosted-agents";
+import { orchestrateTask } from "@/lib/protocol/agent-orchestrator";
 import Anthropic from "@anthropic-ai/sdk";
 
 /**
@@ -162,12 +163,16 @@ async function processHostedTask(
   try {
     let result: string;
 
-    if (config.provider === "anthropic") {
+    // Orchestration mode: agent autonomously delegates to other agents
+    if (config.canOrchestrate) {
+      const agentDid = `did:aip:${config.ownerAddress.slice(0, 8)}:${config.agentId}`;
+      result = await orchestrateTask(agentDid, config.name, config.systemPrompt, input);
+    } else if (config.provider === "anthropic") {
       result = await callAnthropic(config, input);
     } else if (config.provider === "openai") {
       result = await callOpenAI(config, input);
     } else {
-      result = await callAnthropic(config, input); // fallback
+      result = await callAnthropic(config, input);
     }
 
     hostedTasks.set(taskId, { status: "COMPLETED", artifact: result });

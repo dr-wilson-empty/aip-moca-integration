@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
     provider,
     customApiKey,
     capabilities,
+    canOrchestrate,
   } = body as {
     agentId?: string;
     ownerAddress?: string;
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     provider?: AIProvider;
     customApiKey?: string;
     capabilities?: HostedAgentConfig["capabilities"];
+    canOrchestrate?: boolean;
   };
 
   // Validation
@@ -98,6 +100,7 @@ export async function POST(request: NextRequest) {
     provider: resolvedProvider,
     customApiKey: resolvedTier === "custom" ? customApiKey : undefined,
     capabilities,
+    canOrchestrate: canOrchestrate ?? false,
     createdAt: new Date().toISOString(),
     active: true,
   };

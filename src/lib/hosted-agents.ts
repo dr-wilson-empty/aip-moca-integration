@@ -26,6 +26,8 @@ export interface HostedAgentConfig {
     description: string;
     pricing: { amount: string; token: string; network: string };
   }>;
+  /** When true, agent can autonomously call other agents using its budget */
+  canOrchestrate: boolean;
   createdAt: string;
   active: boolean;
 }
@@ -56,6 +58,7 @@ interface DbHostedAgent {
   provider: string;
   custom_api_key?: string;
   capabilities_json: string;
+  can_orchestrate: boolean;
   active: boolean;
   created_at?: string;
 }
@@ -73,6 +76,7 @@ function toConfig(row: DbHostedAgent): HostedAgentConfig {
     provider: row.provider as AIProvider,
     customApiKey: row.custom_api_key,
     capabilities: caps,
+    canOrchestrate: row.can_orchestrate ?? false,
     createdAt: row.created_at || new Date().toISOString(),
     active: row.active,
   };
@@ -89,6 +93,7 @@ function toRow(config: HostedAgentConfig): DbHostedAgent {
     provider: config.provider,
     custom_api_key: config.customApiKey,
     capabilities_json: JSON.stringify(config.capabilities),
+    can_orchestrate: config.canOrchestrate ?? false,
     active: config.active,
   };
 }
