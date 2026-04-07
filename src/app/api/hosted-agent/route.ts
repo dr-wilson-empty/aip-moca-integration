@@ -14,12 +14,17 @@ import Anthropic from "@anthropic-ai/sdk";
  * Query: ?agentId=xxx
  */
 
-// In-memory task results for hosted agents
+// In-memory task results for hosted agents (auto-cleaned after 1 hour)
+const HOSTED_TASK_TTL_MS = 60 * 60 * 1000;
 const g = globalThis as typeof globalThis & {
   __aip_hosted_tasks?: Map<string, { status: string; artifact?: string; error?: string }>;
 };
 if (!g.__aip_hosted_tasks) g.__aip_hosted_tasks = new Map();
 const hostedTasks = g.__aip_hosted_tasks;
+
+function scheduleHostedTaskCleanup(taskId: string): void {
+  setTimeout(() => { hostedTasks.delete(taskId); }, HOSTED_TASK_TTL_MS);
+}
 
 interface JsonRpcRequest {
   jsonrpc: "2.0";
@@ -185,11 +190,13 @@ async function processHostedTask(
     }
 
     hostedTasks.set(taskId, { status: "COMPLETED", artifact: result });
+    scheduleHostedTaskCleanup(taskId);
   } catch (err) {
     hostedTasks.set(taskId, {
       status: "FAILED",
       error: err instanceof Error ? err.message : String(err),
     });
+    scheduleHostedTaskCleanup(taskId);
   }
 }
 

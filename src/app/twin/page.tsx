@@ -50,9 +50,20 @@ export default function TwinPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreScrollRef = useRef<{ height: number; pending: boolean }>({ height: 0, pending: false });
   const startTimeRef = useRef("");
+  const chainPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { autonomousMode, setAutonomousMode } = useTwinStore();
 
   useTaskSSE(activeTaskId);
+
+  // Cleanup polling intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (chainPollRef.current) {
+        clearInterval(chainPollRef.current);
+        chainPollRef.current = null;
+      }
+    };
+  }, []);
 
   const { setWallet } = useTwinStore();
 
@@ -331,7 +342,8 @@ export default function TwinPage() {
       const { chain } = await res.json();
       updateMessage(msgId, { chainId: chain.id });
 
-      // Poll chain status
+      // Poll chain status (ref-tracked for cleanup on unmount)
+      if (chainPollRef.current) clearInterval(chainPollRef.current);
       const pollInterval = setInterval(async () => {
         try {
           const pollRes = await fetch(`/api/chain?id=${chain.id}`);
@@ -355,6 +367,7 @@ export default function TwinPage() {
 
           if (updated.status === "completed") {
             clearInterval(pollInterval);
+            chainPollRef.current = null;
 
             // Build chain summary
             const stepSummary = (updated.steps as Array<{ agentName: string; capabilityDescription: string; estimatedCost: string; status: string }>)
@@ -395,6 +408,7 @@ export default function TwinPage() {
             if (address) fetchBalance(address);
           } else if (updated.status === "failed") {
             clearInterval(pollInterval);
+            chainPollRef.current = null;
             const failedStep = updated.steps.find((s: { status: string }) => s.status === "failed");
 
             // Add completed steps to task history even on partial failure
@@ -429,9 +443,10 @@ export default function TwinPage() {
           }
         } catch { /* retry on next poll */ }
       }, 1000);
+      chainPollRef.current = pollInterval;
 
       // Safety timeout: stop polling after 5 minutes
-      setTimeout(() => clearInterval(pollInterval), 300000);
+      setTimeout(() => { clearInterval(pollInterval); chainPollRef.current = null; }, 300000);
     } catch (err) {
       updateMessage(msgId, {
         state: "failed",

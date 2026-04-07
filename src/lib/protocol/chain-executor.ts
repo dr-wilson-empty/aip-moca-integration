@@ -41,11 +41,18 @@ const USDC_DECIMALS = 6;
 /*  In-memory chain store                                              */
 /* ------------------------------------------------------------------ */
 
+const CHAIN_TTL_MS = 60 * 60 * 1000; // 1 hour after completion
+
 const g = globalThis as typeof globalThis & {
   __aip_chains?: Map<string, TaskChain>;
 };
 if (!g.__aip_chains) g.__aip_chains = new Map();
 const chains = g.__aip_chains;
+
+/** Schedule chain removal after TTL (for completed/failed chains) */
+function scheduleChainCleanup(chainId: string): void {
+  setTimeout(() => { chains.delete(chainId); }, CHAIN_TTL_MS);
+}
 
 export function getChain(chainId: string): TaskChain | null {
   return chains.get(chainId) ?? null;
@@ -113,13 +120,19 @@ export function createAndExecuteChain(params: {
   });
 
   // Execute in background (non-blocking)
-  runChain(chain, params.budgetAgentDid).catch((err) => {
-    logger.error("chain", "fatal", {
-      chainId: chain.id,
-      error: err instanceof Error ? err.message : String(err),
+  runChain(chain, params.budgetAgentDid)
+    .catch((err) => {
+      logger.error("chain", "fatal", {
+        chainId: chain.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      chain.status = "failed";
+    })
+    .finally(() => {
+      if (chain.status === "failed" || chain.status === "completed") {
+        scheduleChainCleanup(chain.id);
+      }
     });
-    chain.status = "failed";
-  });
 
   return chain;
 }

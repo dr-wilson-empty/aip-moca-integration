@@ -18,14 +18,22 @@ const SCHEDULE_MS: Record<string, number> = {
   "weekly": 604_800_000,
 };
 
-const gs = globalThis as typeof globalThis & { __aip_cron?: boolean };
+const gs = globalThis as typeof globalThis & {
+  __aip_cron?: boolean;
+  __aip_cron_running?: boolean;
+};
 
 export function startScheduler() {
   if (gs.__aip_cron) return;
   gs.__aip_cron = true;
 
-  // Run every minute
+  // Run every minute (with concurrency guard to prevent overlapping runs)
   cron.schedule("* * * * *", async () => {
+    if (gs.__aip_cron_running) {
+      console.log("[cron] Previous run still active — skipping this tick");
+      return;
+    }
+    gs.__aip_cron_running = true;
     try {
       seedDemoAgents();
       const sb = getSupabase();
@@ -64,7 +72,9 @@ export function startScheduler() {
       ).catch((err) => {
         console.error("[onchain] Processing failed:", err instanceof Error ? err.message : "");
       });
-    } catch { /* ignore cron errors */ }
+    } catch { /* ignore cron errors */ } finally {
+      gs.__aip_cron_running = false;
+    }
   });
 
   console.log("[cron] Scheduler started — checking automations every minute");

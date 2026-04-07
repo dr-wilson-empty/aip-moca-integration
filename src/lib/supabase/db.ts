@@ -36,7 +36,7 @@ export async function dbUpsertTask(task: DbTask): Promise<void> {
   try {
     const sb = getSupabase();
     await sb.from("tasks").upsert(task, { onConflict: "id" });
-  } catch { /* non-blocking */ }
+  } catch (err) { console.error("[db] write failed:", err instanceof Error ? err.message : err); }
 }
 
 export async function dbGetTask(id: string): Promise<DbTask | null> {
@@ -75,7 +75,7 @@ export async function dbUpsertEscrow(escrow: DbEscrow): Promise<void> {
   try {
     const sb = getSupabase();
     await sb.from("escrows").upsert(escrow, { onConflict: "task_id" });
-  } catch { /* non-blocking */ }
+  } catch (err) { console.error("[db] write failed:", err instanceof Error ? err.message : err); }
 }
 
 /* ------------------------------------------------------------------ */
@@ -100,7 +100,7 @@ export async function dbUpsertAgent(agent: DbAgent): Promise<void> {
   try {
     const sb = getSupabase();
     await sb.from("agent_cache").upsert(agent, { onConflict: "did" });
-  } catch { /* non-blocking */ }
+  } catch (err) { console.error("[db] write failed:", err instanceof Error ? err.message : err); }
 }
 
 export async function dbListAgents(): Promise<DbAgent[]> {
@@ -119,7 +119,7 @@ export async function dbMarkAgentUIRegistered(did: string, owner: string, agentI
       { did, owner, agent_id: agentId, source: "ui", name: "", endpoint: "", type: "Task" },
       { onConflict: "did" }
     );
-  } catch { /* non-blocking */ }
+  } catch (err) { console.error("[db] write failed:", err instanceof Error ? err.message : err); }
 }
 
 /** Get agents registered via UI for a specific owner */
@@ -155,14 +155,14 @@ export async function dbInsertTwinMessage(msg: DbTwinMessage): Promise<void> {
   try {
     const sb = getSupabase();
     await sb.from("twin_messages").insert(msg);
-  } catch { /* non-blocking */ }
+  } catch (err) { console.error("[db] write failed:", err instanceof Error ? err.message : err); }
 }
 
 export async function dbUpdateTwinMessage(id: string, update: Partial<DbTwinMessage>): Promise<void> {
   try {
     const sb = getSupabase();
     await sb.from("twin_messages").update(update).eq("id", id);
-  } catch { /* non-blocking */ }
+  } catch (err) { console.error("[db] write failed:", err instanceof Error ? err.message : err); }
 }
 
 export async function dbGetTwinMessages(walletAddress: string, limit = 200, before?: string): Promise<DbTwinMessage[]> {

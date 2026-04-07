@@ -34,7 +34,7 @@ export function parseArtifact(raw: string): Artifact {
     }
   } catch {
     // Maybe JSON is embedded in text — try to extract
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    const jsonMatch = cleaned.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);
