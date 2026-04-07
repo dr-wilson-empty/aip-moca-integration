@@ -3,6 +3,23 @@
  * Sends requests to agent services and polls for results.
  */
 
+/* Per-endpoint concurrent task limiter */
+const MAX_CONCURRENT_PER_AGENT = 5;
+const activeTasks = new Map<string, number>();
+
+function acquireSlot(endpoint: string): boolean {
+  const current = activeTasks.get(endpoint) ?? 0;
+  if (current >= MAX_CONCURRENT_PER_AGENT) return false;
+  activeTasks.set(endpoint, current + 1);
+  return true;
+}
+
+function releaseSlot(endpoint: string): void {
+  const current = activeTasks.get(endpoint) ?? 0;
+  if (current <= 1) activeTasks.delete(endpoint);
+  else activeTasks.set(endpoint, current - 1);
+}
+
 let _rpcId = 0;
 
 function nextRpcId(): string {
@@ -29,26 +46,49 @@ export interface TaskStatusResult {
 }
 
 /**
- * Send task/create to an agent endpoint.
+ * Send task/create to an agent endpoint with retry (max 3 attempts, exponential backoff).
+ * Retries only on 429 and 5xx errors. 4xx errors (except 429) fail immediately.
  */
 export async function sendTaskCreate(
   endpoint: string,
   params: { capability: string; input: string; taskId?: string }
 ): Promise<TaskCreateResult> {
-  const rpcId = nextRpcId();
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "task/create",
-      params,
-      id: rpcId,
-    }),
-    signal: AbortSignal.timeout(10000), // 10s timeout for initial request
-  });
+  const MAX_RETRIES = 3;
 
-  if (!res.ok) {
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const rpcId = nextRpcId();
+
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "task/create",
+          params,
+          id: rpcId,
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+    } catch (err) {
+      // Network error — retry if attempts remain
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+      throw new Error("Agent is not reachable. Please check the agent is running and try again.");
+    }
+
+    if (res.ok) {
+      const data = (await res.json()) as JsonRpcResponse<TaskCreateResult>;
+      if (data.error) {
+        throw new Error(`Agent error: ${data.error.message}`);
+      }
+      return data.result!;
+    }
+
+    // Non-retryable errors
     if (res.status === 404) {
       const isHosted = endpoint.includes("/api/hosted-agent");
       throw new Error(
@@ -57,20 +97,24 @@ export async function sendTaskCreate(
           : `Agent service offline or not reachable at ${endpoint}`
       );
     }
+    if (res.status < 500 && res.status !== 429) {
+      throw new Error(`Agent returned an error (${res.status}). Please try again.`);
+    }
+
+    // Retryable: 429 or 5xx
+    if (attempt < MAX_RETRIES - 1) {
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+      continue;
+    }
+
     throw new Error(
       res.status === 429
         ? "Agent is busy. Please try again in a moment."
-        : res.status >= 500
-        ? "Agent is experiencing issues. Please try again later."
-        : `Agent returned an error (${res.status}). Please try again.`
+        : "Agent is experiencing issues. Please try again later."
     );
   }
 
-  const data = (await res.json()) as JsonRpcResponse<TaskCreateResult>;
-  if (data.error) {
-    throw new Error(`Agent error: ${data.error.message}`);
-  }
-  return data.result!;
+  throw new Error("Agent request failed after retries.");
 }
 
 /**
@@ -123,16 +167,24 @@ export async function executeTask(
   pollIntervalMs = 500,
   maxPollAttempts = 60
 ): Promise<TaskStatusResult> {
-  const createResult = await sendTaskCreate(endpoint, { capability, input, taskId });
-  const agentTaskId = createResult.taskId;
-
-  for (let i = 0; i < maxPollAttempts; i++) {
-    await new Promise((r) => setTimeout(r, pollIntervalMs));
-    const status = await pollTaskStatus(endpoint, agentTaskId);
-    if (status.status === "COMPLETED" || status.status === "FAILED") {
-      return status;
-    }
+  if (!acquireSlot(endpoint)) {
+    throw new Error("Agent is at capacity. Too many concurrent requests — please wait and try again.");
   }
 
-  throw new Error("Task timed out. The agent took too long to respond. Please try again.");
+  try {
+    const createResult = await sendTaskCreate(endpoint, { capability, input, taskId });
+    const agentTaskId = createResult.taskId;
+
+    for (let i = 0; i < maxPollAttempts; i++) {
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+      const status = await pollTaskStatus(endpoint, agentTaskId);
+      if (status.status === "COMPLETED" || status.status === "FAILED") {
+        return status;
+      }
+    }
+
+    throw new Error("Task timed out. The agent took too long to respond. Please try again.");
+  } finally {
+    releaseSlot(endpoint);
+  }
 }

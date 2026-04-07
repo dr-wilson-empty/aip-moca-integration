@@ -602,7 +602,7 @@ export default function TwinPage() {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
+      <div ref={scrollRef} role="log" aria-label="Chat messages" aria-live="polite" className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
         {/* Loading skeleton on first load */}
         {!loaded && loading && (
           <div className="flex-1 flex items-center justify-center">
@@ -823,9 +823,10 @@ export default function TwinPage() {
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
           disabled={isProcessing}
           placeholder={fileName ? `Ask about ${fileName}...` : "Tell your Twin what to do..."}
+          aria-label="Message your AI Twin"
           className="flex-1 bg-forest-deep/30 border border-mint/20 rounded-xl px-5 py-3 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none disabled:opacity-50"
         />
-        <BtnPrimary onClick={handleSend} disabled={!input.trim() || isProcessing}>
+        <BtnPrimary onClick={handleSend} disabled={!input.trim() || isProcessing} aria-label={isProcessing ? "Processing" : "Send message"}>
           {isProcessing ? "Working..." : "Send"}
         </BtnPrimary>
       </div>
