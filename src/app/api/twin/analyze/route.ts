@@ -163,31 +163,32 @@ export async function POST(request: NextRequest) {
       explanation: string;
     };
 
-    // ORCHESTRATOR OVERRIDE: If LLM planned a pipeline but an orchestrator exists, use it instead
+    // If pipeline planned and orchestrator exists, build alternative orchestrator option
+    let orchestratorAlternative: {
+      agentName: string;
+      agentEndpoint: string;
+      agentDid: string;
+      walletAddress: string;
+      capabilityId: string;
+      capabilityDescription: string;
+      estimatedCost: string;
+    } | null = null;
+
     if (plan.mode === "pipeline" && plan.steps.length >= 2 && orchestrators.length > 0) {
       const orch = orchestrators[0];
       const orchCard = capabilityList.find((c) =>
         c.agentName === orch.name && orch.capabilities.some((oc) => oc.id === c.capabilityId)
       );
-
       if (orchCard) {
-        return NextResponse.json({
-          mode: "single",
-          steps: [{
-            agentName: orchCard.agentName,
-            agentEndpoint: orchCard.agentEndpoint,
-            agentDid: orchCard.agentDid,
-            walletAddress: orchCard.walletAddress,
-            capabilityId: orchCard.capabilityId,
-            capabilityDescription: orchCard.description,
-            input: message,
-            inputFromPrev: false,
-            estimatedCost: orchCard.price,
-            label: `${orchCard.agentName}: ${orchCard.description}`,
-          }],
-          explanation: plan.explanation + ` (Delegated to ${orch.name} — will orchestrate sub-tasks autonomously)`,
-          totalCost: orchCard.price,
-        });
+        orchestratorAlternative = {
+          agentName: orchCard.agentName,
+          agentEndpoint: orchCard.agentEndpoint,
+          agentDid: orchCard.agentDid,
+          walletAddress: orchCard.walletAddress || "",
+          capabilityId: orchCard.capabilityId,
+          capabilityDescription: orchCard.description,
+          estimatedCost: orchCard.price,
+        };
       }
     }
 
@@ -228,6 +229,7 @@ export async function POST(request: NextRequest) {
       steps: resolvedSteps,
       explanation: plan.explanation,
       totalCost,
+      orchestratorAlternative: orchestratorAlternative || undefined,
     });
   } catch {
     return NextResponse.json({ error: "Failed to parse model response", raw: text.text }, { status: 500 });

@@ -39,6 +39,16 @@ export interface TwinMessage {
   chainId?: string;
   /** Whether this pipeline is running in autonomous mode */
   autonomous?: boolean;
+  /** Alternative orchestrator agent (user can choose) */
+  orchestratorAlt?: {
+    agentName: string;
+    agentEndpoint: string;
+    agentDid: string;
+    walletAddress: string;
+    capabilityId: string;
+    capabilityDescription: string;
+    estimatedCost: string;
+  };
 }
 
 interface TwinState {

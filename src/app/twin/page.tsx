@@ -275,6 +275,7 @@ export default function TwinPage() {
         mode: plan.mode,
         steps,
         totalCost: plan.totalCost,
+        orchestratorAlt: plan.orchestratorAlternative || undefined,
         currentStep: 0,
         // Backward compat for single mode
         plan: steps.length === 1 ? steps[0] : undefined,
@@ -454,6 +455,39 @@ export default function TwinPage() {
     executeStep(msgId, 0);
   };
 
+  /** Switch to orchestrator agent and run */
+  const handleUseOrchestrator = (msgId: string) => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg?.orchestratorAlt) return;
+
+    const orch = msg.orchestratorAlt;
+    const orchStep: PipelineStep = {
+      agentName: orch.agentName,
+      agentEndpoint: orch.agentEndpoint,
+      agentDid: orch.agentDid,
+      walletAddress: orch.walletAddress,
+      capabilityId: orch.capabilityId,
+      capabilityDescription: orch.capabilityDescription,
+      input: input || msg.content || "",
+      inputFromPrev: false,
+      estimatedCost: orch.estimatedCost,
+      label: `${orch.agentName}: ${orch.capabilityDescription}`,
+      status: "pending",
+    };
+
+    updateMessage(msgId, {
+      mode: "single",
+      steps: [orchStep],
+      totalCost: orch.estimatedCost,
+      orchestratorAlt: undefined,
+    });
+
+    // Auto-run in autonomous mode
+    if (autonomousMode) {
+      setTimeout(() => executeAutonomousChain(msgId), 100);
+    }
+  };
+
   const handleCancel = (msgId: string) => {
     updateMessage(msgId, { state: "failed", content: "Cancelled by user." });
     setProcessing(false);
@@ -580,17 +614,26 @@ export default function TwinPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button onClick={() => handleConfirm(msg.id)}
-                      className="flex-1 font-mono text-xs text-bg-base bg-accent px-3 py-2 rounded-lg hover:bg-mint transition-colors">
-                      {autonomousMode
-                        ? "Run Autonomously"
-                        : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
-                    </button>
-                    <button onClick={() => handleCancel(msg.id)}
-                      className="font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:text-red-400 hover:border-red-800/30 transition-colors">
-                      Cancel
-                    </button>
+                  <div className="flex flex-col gap-2">
+                    {/* Orchestrator alternative */}
+                    {msg.orchestratorAlt && autonomousMode && (
+                      <button onClick={() => handleUseOrchestrator(msg.id)}
+                        className="w-full font-mono text-xs text-bg-base bg-purple-500 px-3 py-2 rounded-lg hover:bg-purple-400 transition-colors">
+                        Use {msg.orchestratorAlt.agentName} ({msg.orchestratorAlt.estimatedCost} USDC — auto-delegates)
+                      </button>
+                    )}
+                    <div className="flex gap-2">
+                      <button onClick={() => handleConfirm(msg.id)}
+                        className="flex-1 font-mono text-xs text-bg-base bg-accent px-3 py-2 rounded-lg hover:bg-mint transition-colors">
+                        {autonomousMode
+                          ? (msg.orchestratorAlt ? "Direct Pipeline" : "Run Autonomously")
+                          : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
+                      </button>
+                      <button onClick={() => handleCancel(msg.id)}
+                        className="font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:text-red-400 hover:border-red-800/30 transition-colors">
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
