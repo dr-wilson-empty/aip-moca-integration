@@ -8,6 +8,7 @@ import { getSupabase } from "./supabase/client";
 import { listCards } from "./protocol/agent-card-store";
 import { executeTask } from "./protocol/a2a-client";
 import { seedDemoAgents } from "./protocol/seed-agents";
+import { processOnchainAutomations } from "./trigger/onchain-listener";
 
 const SCHEDULE_MS: Record<string, number> = {
   "1min": 60_000,
@@ -37,7 +38,8 @@ export function startScheduler() {
 
       const now = Date.now();
 
-      for (const auto of automations) {
+      // Process schedule-based automations
+      for (const auto of automations.filter((a: { trigger_type: string }) => a.trigger_type === "schedule")) {
         const intervalMs = SCHEDULE_MS[auto.schedule] || SCHEDULE_MS.daily;
         const lastRun = auto.last_run ? new Date(auto.last_run).getTime() : 0;
 
@@ -51,6 +53,20 @@ export function startScheduler() {
           console.error(`[cron] Failed: ${auto.name}`, err instanceof Error ? err.message : "");
         }
       }
+
+      // Process on-chain automations (balance monitoring)
+      await processOnchainAutomations(
+        automations as import("./supabase/automations").DbAutomation[],
+        async (auto, triggerSource, contextData) => {
+          console.log(`[onchain] Triggered: ${auto.name}`);
+          const enrichedAuto = contextData
+            ? { ...auto, prompt: `${auto.prompt}\n\nContext: ${contextData}` }
+            : auto;
+          await runAutomation(enrichedAuto, sb);
+        }
+      ).catch((err) => {
+        console.error("[onchain] Processing failed:", err instanceof Error ? err.message : "");
+      });
     } catch { /* ignore cron errors */ }
   });
 

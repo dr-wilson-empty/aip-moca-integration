@@ -107,9 +107,10 @@ CREATE TABLE IF NOT EXISTS automations (
   last_run TIMESTAMPTZ,
   total_spent NUMERIC(20, 6) NOT NULL DEFAULT 0,
   run_count INTEGER NOT NULL DEFAULT 0,
-  trigger_type TEXT NOT NULL DEFAULT 'schedule',  -- 'schedule' | 'webhook'
+  trigger_type TEXT NOT NULL DEFAULT 'schedule',  -- 'schedule' | 'webhook' | 'onchain'
   webhook_secret TEXT,                            -- HMAC secret for webhook auth
-  last_trigger_at TIMESTAMPTZ,                    -- rate limiting: last webhook trigger time
+  watch_address TEXT,                             -- Solana address to monitor (onchain trigger)
+  last_trigger_at TIMESTAMPTZ,                    -- rate limiting: last trigger time
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -123,7 +124,7 @@ CREATE TABLE IF NOT EXISTS automation_results (
   artifact TEXT,
   estimated_cost TEXT,
   status TEXT,
-  trigger_source TEXT DEFAULT 'manual',  -- 'manual' | 'schedule' | 'webhook'
+  trigger_source TEXT DEFAULT 'manual',  -- 'manual' | 'schedule' | 'webhook' | 'onchain'
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

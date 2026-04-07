@@ -31,10 +31,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { walletAddress, name, prompt, schedule, budgetLimit, budgetPeriod, triggerType } = body as {
+  const { walletAddress, name, prompt, schedule, budgetLimit, budgetPeriod, triggerType, watchAddress } = body as {
     walletAddress?: string; name?: string; prompt?: string;
     schedule?: string; budgetLimit?: number; budgetPeriod?: string;
-    triggerType?: TriggerType;
+    triggerType?: TriggerType; watchAddress?: string;
   };
 
   if (!walletAddress || !name || !prompt) {
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
     run_count: 0,
     trigger_type: trigger,
     webhook_secret: trigger === "webhook" ? generateWebhookSecret() : undefined,
+    watch_address: trigger === "onchain" ? watchAddress : undefined,
   };
 
   await dbCreateAutomation(auto);

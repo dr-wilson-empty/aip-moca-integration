@@ -3,7 +3,7 @@
  */
 import { getSupabase } from "./client";
 
-export type TriggerType = "schedule" | "webhook";
+export type TriggerType = "schedule" | "webhook" | "onchain";
 
 export interface DbAutomation {
   id: string;
@@ -19,6 +19,7 @@ export interface DbAutomation {
   run_count: number;
   trigger_type: TriggerType;
   webhook_secret?: string;
+  watch_address?: string; // Solana address to monitor (onchain trigger)
   last_trigger_at?: string;
   created_at?: string;
 }
@@ -32,7 +33,7 @@ export interface DbAutomationResult {
   artifact?: string;
   estimated_cost?: string;
   status?: string;
-  trigger_source?: string; // 'manual' | 'schedule' | 'webhook'
+  trigger_source?: string; // 'manual' | 'schedule' | 'webhook' | 'onchain'
   created_at?: string;
 }
 
