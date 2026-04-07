@@ -31,6 +31,7 @@ import {
   dbDepositBudget,
   dbSpendBudget,
   dbRefundBudget,
+  dbWithdrawBudget,
   dbGetBudgetsByOwner,
   dbGetBudgetTxns,
   type DbAgentBudget,
@@ -136,6 +137,56 @@ export async function refundBudget(
 ): Promise<DbAgentBudget> {
   logger.info("budget", "refunding", { agentDid, amount, taskId });
   return dbRefundBudget(agentDid, amount, taskId);
+}
+
+/**
+ * Withdraw USDC from an agent's budget back to the owner wallet.
+ * Sends an on-chain SPL transfer from authority wallet to owner.
+ */
+export async function withdrawBudget(
+  agentDid: string,
+  ownerWallet: string,
+  amount: number
+): Promise<{ txHash: string; budget: DbAgentBudget }> {
+  const budget = await dbGetBudget(agentDid);
+  if (!budget) throw new Error("No budget found for this agent");
+  if (budget.owner_wallet !== ownerWallet) throw new Error("Not the budget owner");
+  if (budget.balance < amount) throw new Error(`Insufficient balance: ${budget.balance.toFixed(6)} USDC`);
+  if (amount <= 0) throw new Error("Amount must be positive");
+
+  // On-chain SPL transfer: authority → owner
+  const connection = getConnection();
+  const authorityKey = process.env.ESCROW_PRIVATE_KEY;
+  if (!authorityKey) throw new Error("ESCROW_PRIVATE_KEY not set");
+  const authority = Keypair.fromSecretKey(
+    (await import("bs58")).default.decode(authorityKey)
+  );
+  const mint = getUsdcMint();
+  const ownerPubkey = new PublicKey(ownerWallet);
+
+  const authorityAta = await getAssociatedTokenAddress(mint, authority.publicKey);
+  const ownerAta = await getAssociatedTokenAddress(mint, ownerPubkey);
+
+  const tx = new Transaction();
+
+  // Ensure owner ATA exists
+  try {
+    await getAccount(connection, ownerAta);
+  } catch {
+    tx.add(createAssociatedTokenAccountInstruction(authority.publicKey, ownerAta, ownerPubkey, mint));
+  }
+
+  const lamports = BigInt(Math.round(amount * Math.pow(10, USDC_DECIMALS)));
+  tx.add(createTransferInstruction(authorityAta, ownerAta, authority.publicKey, lamports));
+
+  const txHash = await sendAndConfirmTransaction(connection, tx, [authority]);
+
+  // Update DB
+  const updated = await dbWithdrawBudget(agentDid, amount, txHash);
+
+  logger.info("budget", "withdrawal", { agentDid, ownerWallet, amount, txHash });
+
+  return { txHash, budget: updated };
 }
 
 /**

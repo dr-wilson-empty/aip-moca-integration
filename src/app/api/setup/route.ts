@@ -95,11 +95,44 @@ CREATE INDEX IF NOT EXISTS idx_agent_memory_pair ON agent_memory(agent_did, user
 
   const sql = missing.map((t) => sqlMap[t]).filter(Boolean).join("\n\n");
 
+  // Recommended indexes and constraints for existing tables
+  const migrationSQL = `
+-- Phase 7 Index & Constraint Migrations (safe to run multiple times)
+
+-- Tasks: index for time-based sorting
+CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at DESC);
+
+-- Escrows: compound index for status lookups
+CREATE INDEX IF NOT EXISTS idx_escrows_task_status ON escrows(task_id, status);
+
+-- Escrows: unique constraint on tx hash
+DO $$ BEGIN
+  ALTER TABLE escrows ADD CONSTRAINT uq_escrows_escrow_tx_hash UNIQUE (escrow_tx_hash);
+EXCEPTION WHEN duplicate_table THEN NULL; WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Agent memory: index for TTL cleanup
+CREATE INDEX IF NOT EXISTS idx_agent_memory_expires ON agent_memory(expires_at) WHERE expires_at IS NOT NULL;
+
+-- Twin messages: index for wallet + time pagination
+CREATE INDEX IF NOT EXISTS idx_twin_messages_wallet_time ON twin_messages(wallet_address, created_at DESC);
+
+-- Automations: index for wallet lookup
+CREATE INDEX IF NOT EXISTS idx_automations_wallet ON automations(wallet_address);
+
+-- Hosted agents: can_orchestrate column (may not exist)
+DO $$ BEGIN
+  ALTER TABLE hosted_agents ADD COLUMN IF NOT EXISTS can_orchestrate BOOLEAN DEFAULT false;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+`.trim();
+
   return NextResponse.json({
     status: "missing_tables",
     missing,
     results,
     sql,
-    instructions: "Run the SQL below in Supabase Dashboard → SQL Editor, then call POST /api/setup again to verify.",
+    migrationSQL,
+    instructions: "Run the SQL below in Supabase Dashboard → SQL Editor, then call POST /api/setup again to verify. Also run migrationSQL for Phase 7 indexes.",
   });
 }

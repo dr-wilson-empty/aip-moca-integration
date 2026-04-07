@@ -93,6 +93,18 @@ export function getEscrowRecord(taskId: string): EscrowRecord | null {
   return escrows.get(taskId) ?? null;
 }
 
+/** Return all LOCKED escrows that have been locked for more than maxAgeMs */
+export function getExpiredEscrows(maxAgeMs: number = 3_600_000): EscrowRecord[] {
+  const now = Date.now();
+  const expired: EscrowRecord[] = [];
+  for (const record of Array.from(escrows.values())) {
+    if (record.status !== "LOCKED") continue;
+    const age = now - new Date(record.createdAt).getTime();
+    if (age > maxAgeMs) expired.push(record);
+  }
+  return expired;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Escrow Operations (on-chain program instructions)                   */
 /* ------------------------------------------------------------------ */

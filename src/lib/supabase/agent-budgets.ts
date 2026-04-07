@@ -25,7 +25,7 @@ export interface DbAgentBudget {
 export interface DbBudgetTxn {
   id: string;
   agent_did: string;
-  type: "deposit" | "spend" | "refund" | "release";
+  type: "deposit" | "spend" | "refund" | "release" | "withdraw";
   amount: number;
   task_id?: string;
   target_agent_did?: string;
@@ -171,6 +171,35 @@ export async function dbRefundBudget(
     type: "refund",
     amount,
     task_id: taskId,
+  });
+
+  return budget;
+}
+
+/**
+ * Withdraw from an agent's budget.
+ * Reduces balance and logs the withdrawal transaction.
+ */
+export async function dbWithdrawBudget(
+  agentDid: string,
+  amount: number,
+  txHash: string
+): Promise<DbAgentBudget> {
+  const budget = await dbGetBudget(agentDid);
+  if (!budget) throw new Error(`No budget found for agent: ${agentDid}`);
+  if (budget.balance < amount) {
+    throw new Error(`Insufficient balance: ${budget.balance.toFixed(6)} USDC available, ${amount.toFixed(6)} USDC requested`);
+  }
+
+  budget.balance -= amount;
+  await dbUpsertBudget(budget);
+
+  await dbInsertBudgetTxn({
+    id: `btxn_withdraw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    agent_did: agentDid,
+    type: "withdraw" as DbBudgetTxn["type"],
+    amount,
+    tx_hash: txHash,
   });
 
   return budget;

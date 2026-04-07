@@ -238,7 +238,12 @@ export const useTwinStore = create<TwinState>()((set, get) => ({
 
   setProcessing: (v) => set({ isProcessing: v }),
 
-  clearMessages: () => set({ messages: [], hasMore: false, totalMessages: 0 }),
+  clearMessages: () => {
+    // Clear orphaned step persist timers
+    stepTimers.forEach((timer) => clearTimeout(timer));
+    stepTimers.clear();
+    set({ messages: [], hasMore: false, totalMessages: 0 });
+  },
 
   /* ---- Load latest messages from Supabase (stale-while-revalidate) ---- */
   loadFromServer: async (walletAddress: string) => {

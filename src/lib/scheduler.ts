@@ -9,6 +9,7 @@ import { listCards } from "./protocol/agent-card-store";
 import { executeTask } from "./protocol/a2a-client";
 import { seedDemoAgents } from "./protocol/seed-agents";
 import { processOnchainAutomations } from "./trigger/onchain-listener";
+import { getExpiredEscrows, refundEscrow } from "./payment/escrow";
 
 const SCHEDULE_MS: Record<string, number> = {
   "1min": 60_000,
@@ -72,6 +73,17 @@ export function startScheduler() {
       ).catch((err) => {
         console.error("[onchain] Processing failed:", err instanceof Error ? err.message : "");
       });
+
+      // Auto-refund expired escrows (locked > 1 hour)
+      const expired = getExpiredEscrows(3_600_000);
+      for (const esc of expired) {
+        try {
+          await refundEscrow(esc.taskId);
+          console.log(`[cron] Auto-refunded expired escrow: ${esc.taskId} (${esc.amount} USDC)`);
+        } catch (err) {
+          console.error(`[cron] Auto-refund failed for ${esc.taskId}:`, err instanceof Error ? err.message : "");
+        }
+      }
     } catch { /* ignore cron errors */ } finally {
       gs.__aip_cron_running = false;
     }

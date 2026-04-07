@@ -81,6 +81,7 @@ export default function MarketplacePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [topAgentDids, setTopAgentDids] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterBadge, setFilterBadge] = useState<string>("all");
@@ -88,6 +89,7 @@ export default function MarketplacePage() {
 
   const loadAgents = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [agentsRes, topRes, catRes] = await Promise.all([
         fetch("/api/agent-card?list=true").then((r) => r.json()),
@@ -109,7 +111,9 @@ export default function MarketplacePage() {
 
       setAgents(enriched);
       setCategories(catRes.categories ?? []);
-    } catch { /* ignore */ }
+    } catch {
+      setLoadError(true);
+    }
     setLoading(false);
   }, []);
 
@@ -217,6 +221,13 @@ export default function MarketplacePage() {
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <span className="font-mono text-sm text-muted animate-pulse">Loading agents from Solana...</span>
+        </div>
+      ) : loadError ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <span className="font-mono text-sm text-red-400">Failed to load agents. Please check your connection.</span>
+          <button onClick={loadAgents} className="font-mono text-xs text-mint border border-mint/30 px-4 py-2 rounded-lg hover:bg-mint/10 transition-colors">
+            Retry
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">

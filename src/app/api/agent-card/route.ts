@@ -40,7 +40,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ agents: Array.from(byEndpoint.values()) });
+    const all = Array.from(byEndpoint.values());
+
+    // Server-side pagination support
+    const page = parseInt(request.nextUrl.searchParams.get("page") || "1") || 1;
+    const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") || "0") || 0, 100);
+
+    if (limit > 0) {
+      const offset = (page - 1) * limit;
+      const paginated = all.slice(offset, offset + limit);
+      return NextResponse.json({
+        agents: paginated,
+        total: all.length,
+        page,
+        limit,
+        totalPages: Math.ceil(all.length / limit),
+      });
+    }
+
+    return NextResponse.json({ agents: all });
   }
 
   if (!did) {

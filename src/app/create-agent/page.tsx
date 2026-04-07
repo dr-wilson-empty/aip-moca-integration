@@ -354,7 +354,12 @@ export default function CreateAgentPage() {
               </div>
             </div>
 
-            <div className="flex justify-end mt-4">
+            <div className="flex items-center justify-end gap-3 mt-4">
+              {!step1Valid && (
+                <span className="font-mono text-[10px] text-red-400">
+                  {!store.name.trim() ? "Agent name is required" : "Select a template to continue"}
+                </span>
+              )}
               <BtnPrimary onClick={() => store.setStep(2)} disabled={!step1Valid}>
                 Next: Behavior
                 <span className="ml-1">→</span>
@@ -418,14 +423,21 @@ export default function CreateAgentPage() {
               </ul>
             </div>
 
-            <div className="flex justify-between mt-4">
+            <div className="flex items-center justify-between mt-4">
               <BtnPrimary variant="ghost" onClick={() => store.setStep(1)}>
                 <span className="mr-1">←</span> Back
               </BtnPrimary>
-              <BtnPrimary onClick={() => store.setStep(3)} disabled={!step2Valid}>
-                Next: Publish
-                <span className="ml-1">→</span>
-              </BtnPrimary>
+              <div className="flex items-center gap-3">
+                {!step2Valid && (
+                  <span className="font-mono text-[10px] text-red-400">
+                    System prompt must be at least 10 characters
+                  </span>
+                )}
+                <BtnPrimary onClick={() => store.setStep(3)} disabled={!step2Valid}>
+                  Next: Publish
+                  <span className="ml-1">→</span>
+                </BtnPrimary>
+              </div>
             </div>
           </div>
         )}

@@ -271,13 +271,18 @@ export default function TwinPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         updateMessage(planMsgId, { content: `Could not find a suitable agent. ${err.error || ""}`, state: "failed" });
         setProcessing(false);
         return;
       }
 
-      const plan = await res.json();
+      const plan = await res.json().catch(() => null);
+      if (!plan || !plan.steps) {
+        updateMessage(planMsgId, { content: "Failed to parse agent response. Please try again.", state: "failed" });
+        setProcessing(false);
+        return;
+      }
       const steps = (plan.steps as PipelineStep[]).map((s) => ({ ...s, status: "pending" as const }));
 
       updateMessage(planMsgId, {
@@ -500,7 +505,12 @@ export default function TwinPage() {
         setProcessing(false);
         return;
       }
-      const plan = await res.json();
+      const plan = await res.json().catch(() => null);
+      if (!plan || !plan.steps) {
+        updateMessage(msgId, { content: "Failed to parse replan response.", state: "failed" });
+        setProcessing(false);
+        return;
+      }
       const steps = (plan.steps as PipelineStep[]).map((s) => ({ ...s, status: "pending" as const }));
       updateMessage(msgId, {
         content: plan.explanation,

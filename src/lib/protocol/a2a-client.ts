@@ -57,12 +57,18 @@ export async function sendTaskCreate(
           : `Agent service offline or not reachable at ${endpoint}`
       );
     }
-    throw new Error(`Agent error ${res.status}: ${res.statusText} (${endpoint})`);
+    throw new Error(
+      res.status === 429
+        ? "Agent is busy. Please try again in a moment."
+        : res.status >= 500
+        ? "Agent is experiencing issues. Please try again later."
+        : `Agent returned an error (${res.status}). Please try again.`
+    );
   }
 
   const data = (await res.json()) as JsonRpcResponse<TaskCreateResult>;
   if (data.error) {
-    throw new Error(`Agent RPC error: ${data.error.message}`);
+    throw new Error(`Agent error: ${data.error.message}`);
   }
   return data.result!;
 }
@@ -89,14 +95,18 @@ export async function pollTaskStatus(
 
   if (!res.ok) {
     if (res.status === 404) {
-      throw new Error(`Agent lost connection during task execution (${endpoint})`);
+      throw new Error("Agent lost connection during task execution. The agent may have restarted.");
     }
-    throw new Error(`Agent status error ${res.status}: ${res.statusText} (${endpoint})`);
+    throw new Error(
+      res.status >= 500
+        ? "Agent is experiencing issues during task execution. Please try again."
+        : `Agent returned an error during execution (${res.status}).`
+    );
   }
 
   const data = (await res.json()) as JsonRpcResponse<TaskStatusResult>;
   if (data.error) {
-    throw new Error(`Agent RPC error: ${data.error.message}`);
+    throw new Error(`Agent error: ${data.error.message}`);
   }
   return data.result!;
 }
@@ -124,5 +134,5 @@ export async function executeTask(
     }
   }
 
-  throw new Error(`Task ${agentTaskId} timed out after ${maxPollAttempts * pollIntervalMs}ms`);
+  throw new Error("Task timed out. The agent took too long to respond. Please try again.");
 }

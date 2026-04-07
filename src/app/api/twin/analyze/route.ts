@@ -6,18 +6,10 @@ import { dbGetPreferences } from "@/lib/supabase/preferences";
 
 seedDemoAgents();
 
-/**
- * POST /api/twin/analyze
- * Analyzes user intent — returns single task or multi-step pipeline.
- *
- * Body: { message: string }
- * Returns: { mode: "single"|"pipeline", steps: [...], explanation, totalCost }
- */
-export async function POST(request: NextRequest) {
-  seedDemoAgents();
-  // Ensure hosted agents are loaded from Supabase (may not be ready yet from seed)
+let _hostedSynced = false;
+async function ensureHostedAgentCards() {
+  if (_hostedSynced) return;
   await loadHostedAgentsFromDb();
-  // Register hosted agent cards (in case async seed didn't finish yet)
   for (const ha of listHostedAgents()) {
     registerCard({
       did: `did:aip:${ha.ownerAddress.slice(0, 8)}:${ha.agentId}`,
@@ -33,6 +25,19 @@ export async function POST(request: NextRequest) {
       })),
     });
   }
+  _hostedSynced = true;
+}
+
+/**
+ * POST /api/twin/analyze
+ * Analyzes user intent — returns single task or multi-step pipeline.
+ *
+ * Body: { message: string }
+ * Returns: { mode: "single"|"pipeline", steps: [...], explanation, totalCost }
+ */
+export async function POST(request: NextRequest) {
+  seedDemoAgents();
+  await ensureHostedAgentCards();
 
   let body: Record<string, unknown>;
   try {
