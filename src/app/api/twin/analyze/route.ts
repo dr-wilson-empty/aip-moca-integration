@@ -122,10 +122,10 @@ export async function POST(request: NextRequest) {
       "- data.retrieve: Fetch structured data from blockchain/APIs (Solana, DeFi protocols).\n" +
       "- code.audit: Analyze smart contract code for security vulnerabilities.\n" +
       "- defi.analyze: Analyze DeFi protocol risks, TVL, yield strategies.\n\n" +
-      "RULES:\n" +
-      "- ORCHESTRATOR PRIORITY: If an orchestrator agent exists that can handle the task, ALWAYS prefer it as a single step over creating a multi-step pipeline. The orchestrator will handle sub-tasks internally.\n" +
-      "- If the task can be done by a single capability, use mode 'single'\n" +
-      "- Only use mode 'pipeline' if NO orchestrator agent can handle the task AND multiple steps are truly needed\n" +
+      "CRITICAL RULES:\n" +
+      "- **ORCHESTRATOR FIRST**: Before creating any pipeline, check if an ORCHESTRATOR AGENT is listed above. If YES, you MUST use it as a SINGLE step. Do NOT create a pipeline when an orchestrator can handle the task. The orchestrator will internally call other agents. This is MANDATORY.\n" +
+      "- If NO orchestrator exists and the task can be done by a single capability, use mode 'single'\n" +
+      "- Only use mode 'pipeline' if NO orchestrator agent is available AND multiple steps are truly needed\n" +
       "- Pipeline steps run sequentially — each step's output feeds into the next step's input\n" +
       "- For pipeline step 2+, set inputFromPrev to true (the previous step's result becomes input)\n" +
       "- Keep pipelines to 2-4 steps maximum\n" +
