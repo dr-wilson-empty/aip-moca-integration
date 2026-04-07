@@ -70,17 +70,23 @@ export async function POST(request: NextRequest) {
   }
 
   const agents = listCards();
-  const capabilityList = agents.flatMap((a) =>
-    a.capabilities.map((c) => ({
-      agentName: a.name,
-      agentEndpoint: a.endpoint,
-      agentDid: a.did,
-      capabilityId: c.id,
-      description: c.description,
-      price: c.pricing.amount,
-      walletAddress: a.walletAddress,
-    }))
-  );
+  // Get orchestrator agent names to exclude from pipeline capability list when needed
+  const allOrchestrators = listHostedAgents().filter((a) => a.canOrchestrate);
+  const orchestratorNames = new Set(allOrchestrators.map((o) => o.name));
+
+  const capabilityList = agents
+    .filter((a) => !skipOrchestrator || !orchestratorNames.has(a.name)) // exclude orchestrators when replanning
+    .flatMap((a) =>
+      a.capabilities.map((c) => ({
+        agentName: a.name,
+        agentEndpoint: a.endpoint,
+        agentDid: a.did,
+        capabilityId: c.id,
+        description: c.description,
+        price: c.pricing.amount,
+        walletAddress: a.walletAddress,
+      }))
+    );
 
   if (capabilityList.length === 0) {
     return NextResponse.json({ error: "No agents available." }, { status: 404 });
@@ -130,6 +136,7 @@ export async function POST(request: NextRequest) {
       "- Pipeline steps run sequentially — each step's output feeds into the next step's input\n" +
       "- For pipeline step 2+, set inputFromPrev to true (the previous step's result becomes input)\n" +
       "- Keep pipelines to 2-4 steps maximum\n" +
+      "- NEVER use orchestrator agents as a step inside a pipeline. They are standalone agents that manage their own sub-tasks.\n" +
       "- ALWAYS prefer text.summarize over text.classify for processing/transforming text content\n" +
       "- text.classify should NEVER be the final step if the user expects readable content\n" +
       "- IMPORTANT: The 'input' field must contain the COMPLETE user message including all instructions (target language, format requests, etc). Never strip context from the input.\n\n" +
