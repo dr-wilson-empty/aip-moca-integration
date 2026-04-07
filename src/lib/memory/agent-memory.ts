@@ -56,16 +56,22 @@ export async function getAllUserMemories(userWallet: string): Promise<AgentMemor
   return data ?? [];
 }
 
-/** Save a memory entry. Enforces FIFO eviction if limit exceeded. */
-export async function saveMemory(entry: Omit<AgentMemoryEntry, "id" | "created_at">): Promise<AgentMemoryEntry> {
+/** Save a memory entry. Deduplicates and enforces FIFO eviction. */
+export async function saveMemory(entry: Omit<AgentMemoryEntry, "id" | "created_at">): Promise<AgentMemoryEntry | null> {
   const sb = getSupabase();
+
+  // Deduplicate: skip if similar content already exists
+  const existing = await getMemories(entry.agent_did, entry.user_wallet);
+  const isDuplicate = existing.some((m) =>
+    m.content.toLowerCase().includes(entry.content.toLowerCase().slice(0, 40)) ||
+    entry.content.toLowerCase().includes(m.content.toLowerCase().slice(0, 40))
+  );
+  if (isDuplicate) return null;
 
   const id = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const record: AgentMemoryEntry = { ...entry, id };
 
   await sb.from("agent_memory").insert(record);
-
-  // FIFO eviction: delete oldest entries if over limit
   await evictOldMemories(entry.agent_did, entry.user_wallet);
 
   return record;

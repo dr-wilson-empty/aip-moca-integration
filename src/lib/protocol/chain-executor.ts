@@ -295,12 +295,15 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
 
     // 2. Execute task via agent HTTP JSON-RPC (with memory injection)
     try {
-      // Inject memory context from previous interactions
+      // Inject memory context (skip for search/data capabilities — memory pollutes queries)
       let enrichedInput = stepInput;
-      try {
-        const memCtx = await buildMemoryContext(step.agentDid, chain.callerAddress);
-        if (memCtx) enrichedInput = stepInput + memCtx;
-      } catch { /* memory is best-effort */ }
+      const skipMemory = ["web.search", "data.retrieve"].includes(step.capabilityId);
+      if (!skipMemory) {
+        try {
+          const memCtx = await buildMemoryContext(step.agentDid, chain.callerAddress);
+          if (memCtx) enrichedInput = stepInput + memCtx;
+        } catch { /* memory is best-effort */ }
+      }
 
       const result = await executeTask(
         step.agentEndpoint,

@@ -60,9 +60,10 @@ export async function dispatchToAgent(
     await sleep(200);
     sendRequest(taskId);
 
-    // Inject agent memory context into input (if available)
+    // Inject agent memory context (skip for search/data — memory pollutes queries)
     let enrichedInput = input;
-    if (memoryCtx) {
+    const skipMemory = ["web.search", "data.retrieve"].includes(capability);
+    if (memoryCtx && !skipMemory) {
       try {
         const memContext = await buildMemoryContext(memoryCtx.agentDid, memoryCtx.callerAddress);
         if (memContext) {

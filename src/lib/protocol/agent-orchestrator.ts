@@ -290,9 +290,10 @@ export async function orchestrateTask(
 
     // Call target agent
     try {
-      // Inject memory context
+      // Inject memory context (skip for search/data — memory pollutes queries)
       let enrichedInput = stepInput;
-      if (callerAddress) {
+      const skipMem = ["web.search", "data.retrieve"].includes(step.capabilityId);
+      if (callerAddress && !skipMem) {
         try {
           const memCtx = await buildMemoryContext(step.agentDid, callerAddress);
           if (memCtx) enrichedInput = stepInput + memCtx;
