@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
 
   const message = body.message as string;
   const walletAddress = body.walletAddress as string | undefined;
+  const skipOrchestrator = body.skipOrchestrator === true;
   if (!message?.trim()) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
   }
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
     .join("\n");
 
   // Identify orchestrator agents (can delegate to other agents autonomously)
-  const orchestrators = listHostedAgents().filter((a) => a.canOrchestrate);
+  const orchestrators = skipOrchestrator ? [] : listHostedAgents().filter((a) => a.canOrchestrate);
   const orchestratorInfo = orchestrators.length > 0
     ? "\n\nORCHESTRATOR AGENTS (these agents can internally call other agents — prefer them for complex multi-step tasks):\n" +
       orchestrators.map((o) => {
@@ -163,7 +164,20 @@ export async function POST(request: NextRequest) {
       explanation: string;
     };
 
-    // If pipeline planned and orchestrator exists, build alternative orchestrator option
+    // Build orchestrator info for alternatives
+    let orchCard: typeof capabilityList[number] | null = null;
+    if (orchestrators.length > 0) {
+      const orch = orchestrators[0];
+      orchCard = capabilityList.find((c) =>
+        c.agentName === orch.name && orch.capabilities.some((oc) => oc.id === c.capabilityId)
+      ) || null;
+    }
+
+    // Detect if LLM chose the orchestrator agent
+    const isOrchPlan = plan.steps.length === 1 && orchCard &&
+      plan.steps[0].agentName === orchCard.agentName;
+
+    // Build alternative: if LLM picked orchestrator → offer pipeline; if pipeline → offer orchestrator
     let orchestratorAlternative: {
       agentName: string;
       agentEndpoint: string;
@@ -174,22 +188,25 @@ export async function POST(request: NextRequest) {
       estimatedCost: string;
     } | null = null;
 
-    if (plan.mode === "pipeline" && plan.steps.length >= 2 && orchestrators.length > 0) {
-      const orch = orchestrators[0];
-      const orchCard = capabilityList.find((c) =>
-        c.agentName === orch.name && orch.capabilities.some((oc) => oc.id === c.capabilityId)
-      );
-      if (orchCard) {
-        orchestratorAlternative = {
-          agentName: orchCard.agentName,
-          agentEndpoint: orchCard.agentEndpoint,
-          agentDid: orchCard.agentDid,
-          walletAddress: orchCard.walletAddress || "",
-          capabilityId: orchCard.capabilityId,
-          capabilityDescription: orchCard.description,
-          estimatedCost: orchCard.price,
-        };
-      }
+    // LLM picked pipeline → offer orchestrator
+    if (plan.mode === "pipeline" && plan.steps.length >= 2 && orchCard) {
+      orchestratorAlternative = {
+        agentName: orchCard.agentName,
+        agentEndpoint: orchCard.agentEndpoint,
+        agentDid: orchCard.agentDid,
+        walletAddress: orchCard.walletAddress || "",
+        capabilityId: orchCard.capabilityId,
+        capabilityDescription: orchCard.description,
+        estimatedCost: orchCard.price,
+      };
+    }
+
+    // LLM picked orchestrator → also run planner without orchestrator to get pipeline alternative
+    let pipelineAlternative: typeof plan | null = null;
+    if (isOrchPlan) {
+      // We already have the pipeline from the LLM's natural inclination — re-plan without orchestrator info
+      // For efficiency, just mark that a pipeline alternative should be offered
+      pipelineAlternative = plan; // placeholder — frontend will re-request if user clicks "Direct Pipeline"
     }
 
     // Resolve each step to actual agents
@@ -230,6 +247,7 @@ export async function POST(request: NextRequest) {
       explanation: plan.explanation,
       totalCost,
       orchestratorAlternative: orchestratorAlternative || undefined,
+      hasPipelineAlternative: !!pipelineAlternative,
     });
   } catch {
     return NextResponse.json({ error: "Failed to parse model response", raw: text.text }, { status: 500 });

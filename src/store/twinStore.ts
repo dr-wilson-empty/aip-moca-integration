@@ -39,6 +39,8 @@ export interface TwinMessage {
   chainId?: string;
   /** Whether this pipeline is running in autonomous mode */
   autonomous?: boolean;
+  /** True if a direct pipeline alternative is available */
+  hasPipelineAlt?: boolean;
   /** Alternative orchestrator agent (user can choose) */
   orchestratorAlt?: {
     agentName: string;

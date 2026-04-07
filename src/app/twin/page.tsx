@@ -276,6 +276,7 @@ export default function TwinPage() {
         steps,
         totalCost: plan.totalCost,
         orchestratorAlt: plan.orchestratorAlternative || undefined,
+        hasPipelineAlt: plan.hasPipelineAlternative || false,
         currentStep: 0,
         // Backward compat for single mode
         plan: steps.length === 1 ? steps[0] : undefined,
@@ -455,6 +456,41 @@ export default function TwinPage() {
     executeStep(msgId, 0);
   };
 
+  /** Switch to direct pipeline (re-plan without orchestrator) */
+  const handleDirectPipeline = async (msgId: string) => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg) return;
+
+    updateMessage(msgId, { content: "Replanning as direct pipeline...", state: "planning" });
+
+    try {
+      const res = await fetch("/api/twin/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg.content, walletAddress: address, skipOrchestrator: true }),
+      });
+      if (!res.ok) {
+        updateMessage(msgId, { content: "Failed to replan.", state: "failed" });
+        setProcessing(false);
+        return;
+      }
+      const plan = await res.json();
+      const steps = (plan.steps as PipelineStep[]).map((s) => ({ ...s, status: "pending" as const }));
+      updateMessage(msgId, {
+        content: plan.explanation,
+        state: "confirming",
+        mode: plan.mode,
+        steps,
+        totalCost: plan.totalCost,
+        hasPipelineAlt: false,
+        orchestratorAlt: plan.orchestratorAlternative || undefined,
+      });
+    } catch {
+      updateMessage(msgId, { content: "Replan failed.", state: "failed" });
+      setProcessing(false);
+    }
+  };
+
   /** Switch to orchestrator agent and run */
   const handleUseOrchestrator = (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
@@ -615,11 +651,18 @@ export default function TwinPage() {
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    {/* Orchestrator alternative */}
+                    {/* Orchestrator alternative (when pipeline is shown) */}
                     {msg.orchestratorAlt && autonomousMode && (
                       <button onClick={() => handleUseOrchestrator(msg.id)}
                         className="w-full font-mono text-xs text-bg-base bg-purple-500 px-3 py-2 rounded-lg hover:bg-purple-400 transition-colors">
                         Use {msg.orchestratorAlt.agentName} ({msg.orchestratorAlt.estimatedCost} USDC — auto-delegates)
+                      </button>
+                    )}
+                    {/* Pipeline alternative (when orchestrator is shown) */}
+                    {msg.hasPipelineAlt && autonomousMode && (
+                      <button onClick={() => handleDirectPipeline(msg.id)}
+                        className="w-full font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:border-mint/20 hover:text-mint transition-colors">
+                        Switch to Direct Pipeline (cheaper, step-by-step)
                       </button>
                     )}
                     <div className="flex gap-2">
