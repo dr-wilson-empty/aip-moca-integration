@@ -177,6 +177,7 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
           (subTaskInfo ? `\n${subTaskInfo}` : "");
         step.status = "completed";
         step.taskId = `orch_${chain.id}_${i}`;
+        step.estimatedCost = orchResult.totalSpent.toFixed(2);
         totalSpent += orchResult.totalSpent;
         logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1, subSpent: orchResult.totalSpent });
         continue; // Skip normal escrow flow
