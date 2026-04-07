@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 
 export interface PipelineStep {
   agentName: string;
@@ -127,7 +128,7 @@ function persistToServer(action: "insert" | "update", walletAddress: string, msg
         },
       };
 
-  fetch("/api/twin/messages", {
+  signedFetch("/api/twin/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -245,7 +246,7 @@ export const useTwinStore = create<TwinState>()((set, get) => ({
     set({ loading: true });
 
     try {
-      const res = await fetch(`/api/twin/messages?wallet=${encodeURIComponent(walletAddress)}&limit=200`);
+      const res = await signedFetch(`/api/twin/messages?wallet=${encodeURIComponent(walletAddress)}&limit=200`);
       if (!res.ok) {
         set({ loading: false, loaded: true });
         return;
@@ -291,7 +292,7 @@ export const useTwinStore = create<TwinState>()((set, get) => ({
         return;
       }
 
-      const res = await fetch(
+      const res = await signedFetch(
         `/api/twin/messages?wallet=${encodeURIComponent(walletAddress)}&limit=50&before=${encodeURIComponent(before)}`,
       );
 

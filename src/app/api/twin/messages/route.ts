@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbGetTwinMessages, dbGetTwinMessageCount, dbInsertTwinMessage, dbUpdateTwinMessage } from "@/lib/supabase/db";
+import { verifyWalletOwnership, isAuthError } from "@/lib/auth/wallet-auth";
 
 /**
  * GET /api/twin/messages?wallet=xxx&limit=200&before=ISO_DATE
@@ -8,6 +9,9 @@ import { dbGetTwinMessages, dbGetTwinMessageCount, dbInsertTwinMessage, dbUpdate
 export async function GET(request: NextRequest) {
   const wallet = request.nextUrl.searchParams.get("wallet");
   if (!wallet) return NextResponse.json({ error: "wallet required" }, { status: 400 });
+
+  const auth = verifyWalletOwnership(request, wallet);
+  if (isAuthError(auth)) return auth;
 
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") || "200") || 200, 500);
   const before = request.nextUrl.searchParams.get("before") || undefined;
@@ -25,6 +29,9 @@ export async function GET(request: NextRequest) {
  * Save or update a twin message.
  */
 export async function POST(request: NextRequest) {
+  const auth = verifyWalletOwnership(request, null);
+  if (isAuthError(auth)) return auth;
+
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });

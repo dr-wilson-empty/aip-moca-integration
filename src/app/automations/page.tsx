@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
 import BtnPrimary from "@/components/ui/BtnPrimary";
 import MonoLabel from "@/components/ui/MonoLabel";
@@ -58,7 +59,7 @@ export default function AutomationsPage() {
   const loadAutomations = useCallback(() => {
     if (!address) return;
     setLoading(true);
-    fetch(`/api/automations?wallet=${address}`)
+    signedFetch(`/api/automations?wallet=${address}`)
       .then((r) => r.json())
       .then((d) => setAutomations(d.automations ?? []))
       .catch(() => {})
@@ -68,14 +69,14 @@ export default function AutomationsPage() {
   useEffect(() => { loadAutomations(); }, [loadAutomations]);
 
   const loadResults = async (autoId: string) => {
-    const res = await fetch(`/api/automations/results?automationId=${autoId}`);
+    const res = await signedFetch(`/api/automations/results?automationId=${autoId}`);
     const data = await res.json();
     setResults((prev) => ({ ...prev, [autoId]: data.results ?? [] }));
   };
 
   const handleCreate = async () => {
     if (!address || !name.trim() || !prompt.trim()) return;
-    await fetch("/api/automations", {
+    await signedFetch("/api/automations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -94,7 +95,7 @@ export default function AutomationsPage() {
   };
 
   const handleToggle = async (id: string, enabled: boolean) => {
-    await fetch("/api/automations", {
+    await signedFetch("/api/automations", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, enabled }),
@@ -103,14 +104,14 @@ export default function AutomationsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/automations?id=${id}`, { method: "DELETE" });
+    await signedFetch(`/api/automations?id=${id}`, { method: "DELETE" });
     loadAutomations();
   };
 
   const handleRun = async (id: string) => {
     setRunningId(id);
     try {
-      const res = await fetch("/api/automations/run", {
+      const res = await signedFetch("/api/automations/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ automationId: id }),

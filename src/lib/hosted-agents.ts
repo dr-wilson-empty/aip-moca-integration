@@ -8,6 +8,7 @@
  * On register/update/delete: writes to Supabase + updates cache.
  */
 import { getSupabase } from "./supabase/client";
+import { encrypt, decrypt, isEncrypted } from "./auth/encrypt";
 
 export type AIProvider = "anthropic" | "openai" | "google";
 export type AITier = "platform" | "custom";
@@ -20,7 +21,7 @@ export interface HostedAgentConfig {
   systemPrompt: string;
   tier: AITier;
   provider: AIProvider;
-  customApiKey?: string; // encrypted, only for tier="custom"
+  customApiKey?: string; // decrypted in-memory, AES-256-GCM encrypted at rest
   capabilities: Array<{
     id: string;
     description: string;
@@ -63,6 +64,15 @@ interface DbHostedAgent {
   created_at?: string;
 }
 
+function decryptApiKey(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    return isEncrypted(raw) ? decrypt(raw) : raw;
+  } catch {
+    return raw; // fallback: return as-is if decryption fails (legacy plaintext)
+  }
+}
+
 function toConfig(row: DbHostedAgent): HostedAgentConfig {
   let caps: HostedAgentConfig["capabilities"] = [];
   try { caps = JSON.parse(row.capabilities_json); } catch { /* ignore */ }
@@ -74,7 +84,7 @@ function toConfig(row: DbHostedAgent): HostedAgentConfig {
     systemPrompt: row.system_prompt,
     tier: row.tier as AITier,
     provider: row.provider as AIProvider,
-    customApiKey: row.custom_api_key,
+    customApiKey: decryptApiKey(row.custom_api_key),
     capabilities: caps,
     canOrchestrate: row.can_orchestrate ?? false,
     createdAt: row.created_at || new Date().toISOString(),
@@ -91,7 +101,7 @@ function toRow(config: HostedAgentConfig): DbHostedAgent {
     system_prompt: config.systemPrompt,
     tier: config.tier,
     provider: config.provider,
-    custom_api_key: config.customApiKey,
+    custom_api_key: config.customApiKey ? encrypt(config.customApiKey) : undefined,
     capabilities_json: JSON.stringify(config.capabilities),
     can_orchestrate: config.canOrchestrate ?? false,
     active: config.active,

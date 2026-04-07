@@ -8,13 +8,26 @@ import { parseFile, isSupported } from "@/lib/files/parser";
  * Accepts multipart/form-data with a single "file" field.
  * Returns: { text, type, pageCount?, rowCount?, fileName }
  */
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+
 export async function POST(request: NextRequest) {
   try {
+    // Early size check via Content-Length header (before buffering)
+    const contentLength = parseInt(request.headers.get("content-length") || "0", 10);
+    if (contentLength > MAX_UPLOAD_SIZE) {
+      return NextResponse.json({ error: "File too large (max 10MB)" }, { status: 413 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
 
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    }
+
+    // Check file.size before reading into buffer
+    if (file.size > MAX_UPLOAD_SIZE) {
+      return NextResponse.json({ error: "File too large (max 10MB)" }, { status: 413 });
     }
 
     if (!isSupported(file.type)) {

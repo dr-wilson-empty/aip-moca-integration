@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbListTasks } from "@/lib/supabase/db";
+import { verifyWalletOwnership, isAuthError } from "@/lib/auth/wallet-auth";
 
 /**
  * GET /api/tasks/history?address=xxx
@@ -7,6 +8,9 @@ import { dbListTasks } from "@/lib/supabase/db";
  */
 export async function GET(request: NextRequest) {
   const address = request.nextUrl.searchParams.get("address");
+
+  const auth = verifyWalletOwnership(request, address);
+  if (isAuthError(auth)) return auth;
 
   const dbTasks = await dbListTasks(address ?? undefined);
 

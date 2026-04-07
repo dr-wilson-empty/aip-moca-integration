@@ -46,8 +46,15 @@ export async function POST(
     return NextResponse.json({ error: "Automation is not webhook-triggered" }, { status: 400 });
   }
 
-  // 2. Read raw body for signature verification
+  // 2. Read raw body with size limit (100KB max to prevent OOM)
+  const contentLength = parseInt(request.headers.get("content-length") || "0", 10);
+  if (contentLength > 102_400) {
+    return NextResponse.json({ error: "Payload too large (max 100KB)" }, { status: 413 });
+  }
   const rawBody = await request.text();
+  if (rawBody.length > 102_400) {
+    return NextResponse.json({ error: "Payload too large (max 100KB)" }, { status: 413 });
+  }
 
   // 3. Verify HMAC signature
   if (auto.webhook_secret) {
