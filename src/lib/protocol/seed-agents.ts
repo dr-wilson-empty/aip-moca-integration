@@ -3,6 +3,7 @@ import bs58 from "bs58";
 import { COUNTERPART_AGENT_CARDS, WEB_SEARCH_AGENT } from "@/lib/mock/agentCards";
 import { registerCard, syncFromChain } from "./agent-card-store";
 import { registerAgentOnChain, isAgentOnChain } from "@/lib/solana/registry-program";
+import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
 
 const gs = globalThis as typeof globalThis & {
   __aip_seeded?: boolean;
@@ -32,6 +33,25 @@ export function seedDemoAgents(): void {
   }
   // Platform-hosted Web Search Agent (uses Tavily API, no external process needed)
   registerCard(WEB_SEARCH_AGENT);
+
+  // Load hosted agents from Supabase and register their cards
+  loadHostedAgentsFromDb().then(() => {
+    for (const ha of listHostedAgents()) {
+      registerCard({
+        did: `did:aip:${ha.ownerAddress.slice(0, 8)}:${ha.agentId}`,
+        name: ha.name,
+        version: "1.0.0",
+        endpoint: `http://localhost:3000/api/hosted-agent?agentId=${ha.agentId}`,
+        type: "Task",
+        walletAddress: ha.ownerAddress,
+        capabilities: ha.capabilities.map((c) => ({
+          id: c.id,
+          description: c.description,
+          pricing: { amount: c.pricing.amount, token: "USDC" as const, network: "solana" as const },
+        })),
+      });
+    }
+  }).catch(() => {});
 
   // On-chain registration + sync (background)
   if (!gs.__aip_chain_registered) {

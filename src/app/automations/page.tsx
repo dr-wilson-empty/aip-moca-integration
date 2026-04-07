@@ -18,8 +18,9 @@ interface Automation {
   last_run?: string;
   total_spent: number;
   run_count: number;
-  trigger_type: "schedule" | "webhook";
+  trigger_type: "schedule" | "webhook" | "onchain";
   webhook_secret?: string;
+  watch_address?: string;
 }
 
 interface AutoResult {
@@ -49,8 +50,10 @@ export default function AutomationsPage() {
   const [schedule, setSchedule] = useState("daily");
   const [budgetLimit, setBudgetLimit] = useState("1.00");
   const [budgetPeriod, setBudgetPeriod] = useState("daily");
-  const [triggerType, setTriggerType] = useState<"schedule" | "webhook">("schedule");
+  const [triggerType, setTriggerType] = useState<"schedule" | "webhook" | "onchain">("schedule");
+  const [watchAddress, setWatchAddress] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [testingWebhook, setTestingWebhook] = useState<string | null>(null);
 
   const loadAutomations = useCallback(() => {
     if (!address) return;
@@ -83,9 +86,10 @@ export default function AutomationsPage() {
         budgetLimit: parseFloat(budgetLimit),
         budgetPeriod,
         triggerType,
+        watchAddress: triggerType === "onchain" ? watchAddress.trim() : undefined,
       }),
     });
-    setName(""); setPrompt(""); setTriggerType("schedule"); setShowForm(false);
+    setName(""); setPrompt(""); setTriggerType("schedule"); setWatchAddress(""); setShowForm(false);
     loadAutomations();
   };
 
@@ -199,6 +203,14 @@ export default function AutomationsPage() {
                   }`}>
                   Webhook (external)
                 </button>
+                <button onClick={() => setTriggerType("onchain")}
+                  className={`flex-1 font-mono text-xs px-3 py-2.5 rounded-lg border transition-colors ${
+                    triggerType === "onchain"
+                      ? "border-purple-400/40 text-purple-400 bg-purple-900/5"
+                      : "border-forest-deep/40 text-muted hover:border-purple-400/20"
+                  }`}>
+                  On-chain (Solana)
+                </button>
               </div>
             </div>
 
@@ -214,6 +226,13 @@ export default function AutomationsPage() {
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                 </select>
+              </div>
+              ) : triggerType === "onchain" ? (
+              <div>
+                <MonoLabel className="mb-1">Watch Address (Solana)</MonoLabel>
+                <input type="text" value={watchAddress} onChange={(e) => setWatchAddress(e.target.value)}
+                  placeholder="33qU3JFk..."
+                  className="w-full bg-forest-deep/30 border border-purple-400/20 rounded-lg px-3 py-2.5 font-mono text-xs text-purple-400 placeholder:text-muted/40 focus:border-purple-400/40 focus:outline-none" />
               </div>
               ) : (
               <div>
@@ -269,6 +288,10 @@ export default function AutomationsPage() {
                       <span className="font-mono text-[10px] text-accent uppercase px-2 py-0.5 border border-accent/30 rounded bg-accent/5">
                         webhook
                       </span>
+                    ) : auto.trigger_type === "onchain" ? (
+                      <span className="font-mono text-[10px] text-purple-400 uppercase px-2 py-0.5 border border-purple-800/30 rounded bg-purple-900/5">
+                        on-chain
+                      </span>
                     ) : (
                       <span className="font-mono text-[10px] text-muted uppercase px-2 py-0.5 border border-forest-deep/40 rounded">
                         {auto.schedule}
@@ -294,6 +317,30 @@ export default function AutomationsPage() {
                         >
                           {copiedId === auto.id + "_url" ? "copied!" : "copy"}
                         </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setTestingWebhook(auto.id);
+                            try {
+                              const crypto = await import("crypto");
+                              const payload = JSON.stringify({ test: true, timestamp: new Date().toISOString() });
+                              const sig = crypto.createHmac("sha256", auto.webhook_secret || "").update(payload).digest("hex");
+                              await fetch(`/api/trigger/${auto.id}`, {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  "X-Webhook-Signature": `sha256=${sig}`,
+                                },
+                                body: payload,
+                              });
+                              loadAutomations();
+                            } catch { /* ignore */ }
+                            setTestingWebhook(null);
+                          }}
+                          className="font-mono text-[9px] text-accent border border-accent/30 px-2 py-0.5 rounded hover:bg-accent/10 transition-colors"
+                        >
+                          {testingWebhook === auto.id ? "testing..." : "Test Webhook"}
+                        </button>
                       </div>
                       {auto.webhook_secret && (
                         <div className="flex items-center gap-2">
@@ -314,6 +361,15 @@ export default function AutomationsPage() {
                           </button>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {auto.trigger_type === "onchain" && auto.watch_address && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className="font-mono text-[10px] text-muted/60">Watching:</span>
+                      <code className="font-mono text-[10px] text-purple-400/80 bg-purple-900/10 px-1.5 py-0.5 rounded">
+                        {auto.watch_address.slice(0, 8)}...{auto.watch_address.slice(-6)}
+                      </code>
+                      <span className="font-mono text-[9px] text-muted/40">USDC transfers</span>
                     </div>
                   )}
                   <div className="flex items-center gap-4 mt-2">

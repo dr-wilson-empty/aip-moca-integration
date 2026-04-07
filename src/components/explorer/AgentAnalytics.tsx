@@ -7,6 +7,7 @@ interface Analytics {
   completedTasks: number;
   failedTasks: number;
   totalRevenue: string;
+  totalSpent: string;
   avgRating: string;
   ratingCount: number;
   dailyActivity: Array<{ date: string; count: number }>;
@@ -40,24 +41,28 @@ export default function AgentAnalytics({ did }: { did: string }) {
           ) : (
             <div className="flex flex-col gap-3">
               {/* Stats row */}
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 <div className="text-center">
                   <span className="font-display text-sm text-mint block">{data.completedTasks}</span>
-                  <span className="font-mono text-xs text-muted">Completed</span>
+                  <span className="font-mono text-[10px] text-muted">Tasks</span>
                 </div>
                 <div className="text-center">
                   <span className="font-display text-sm text-red-400 block">{data.failedTasks}</span>
-                  <span className="font-mono text-xs text-muted">Failed</span>
+                  <span className="font-mono text-[10px] text-muted">Failed</span>
                 </div>
                 <div className="text-center">
                   <span className="font-display text-sm text-accent block">{data.totalRevenue}</span>
-                  <span className="font-mono text-xs text-muted">USDC Earned</span>
+                  <span className="font-mono text-[10px] text-muted">Earned</span>
+                </div>
+                <div className="text-center">
+                  <span className="font-display text-sm text-red-400/80 block">{data.totalSpent}</span>
+                  <span className="font-mono text-[10px] text-muted">Spent</span>
                 </div>
                 <div className="text-center">
                   <span className="font-display text-sm text-yellow-400 block">
                     {parseFloat(data.avgRating) > 0 ? `${data.avgRating}★` : "—"}
                   </span>
-                  <span className="font-mono text-xs text-muted">{data.ratingCount} ratings</span>
+                  <span className="font-mono text-[10px] text-muted">{data.ratingCount} ratings</span>
                 </div>
               </div>
 

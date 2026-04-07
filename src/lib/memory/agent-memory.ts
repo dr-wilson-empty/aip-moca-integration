@@ -56,16 +56,22 @@ export async function getAllUserMemories(userWallet: string): Promise<AgentMemor
   return data ?? [];
 }
 
-/** Save a memory entry. Enforces FIFO eviction if limit exceeded. */
-export async function saveMemory(entry: Omit<AgentMemoryEntry, "id" | "created_at">): Promise<AgentMemoryEntry> {
+/** Save a memory entry. Deduplicates and enforces FIFO eviction. */
+export async function saveMemory(entry: Omit<AgentMemoryEntry, "id" | "created_at">): Promise<AgentMemoryEntry | null> {
   const sb = getSupabase();
+
+  // Deduplicate: skip if similar content already exists
+  const existing = await getMemories(entry.agent_did, entry.user_wallet);
+  const isDuplicate = existing.some((m) =>
+    m.content.toLowerCase().includes(entry.content.toLowerCase().slice(0, 40)) ||
+    entry.content.toLowerCase().includes(m.content.toLowerCase().slice(0, 40))
+  );
+  if (isDuplicate) return null;
 
   const id = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const record: AgentMemoryEntry = { ...entry, id };
 
   await sb.from("agent_memory").insert(record);
-
-  // FIFO eviction: delete oldest entries if over limit
   await evictOldMemories(entry.agent_did, entry.user_wallet);
 
   return record;
@@ -158,14 +164,23 @@ export async function extractMemoryHints(
       model: "claude-haiku-4-5-20251001",
       max_tokens: 256,
       system:
-        "Extract 0-3 brief memory hints from this interaction that would be useful for future interactions with this user. " +
-        "Focus on: user preferences (language, style, format), recurring interests, or important context.\n\n" +
+        "Extract 0-2 brief memory hints from this interaction. ONLY save things useful for FUTURE interactions.\n\n" +
+        "SAVE:\n" +
+        "- Language preference (e.g. 'User prefers Turkish responses')\n" +
+        "- Format preference (e.g. 'User wants concise bullet points')\n" +
+        "- Domain interest (e.g. 'User frequently asks about DeFi')\n" +
+        "- Important personal context (e.g. 'User is a Solana developer')\n\n" +
+        "DO NOT SAVE:\n" +
+        "- Task-specific data (prices, search results, translations)\n" +
+        "- One-time requests that won't repeat\n" +
+        "- Generic/obvious observations\n" +
+        "- Anything already implied by the capability used\n\n" +
         'Respond with ONLY a JSON array: [{"type":"preference","content":"..."}]\n' +
-        "Types: preference (user likes/wants), fact (something true about user), context (relevant background)\n" +
-        "If nothing worth remembering, return empty array: []",
+        "Types: preference | fact | context\n" +
+        "If nothing worth remembering, return: []",
       messages: [{
         role: "user",
-        content: `User asked: "${userInput.slice(0, 200)}"\n\nAgent responded: "${artifact.slice(0, 500)}"`,
+        content: `User asked: "${userInput.slice(0, 300)}"\n\nAgent responded (first 400 chars): "${artifact.slice(0, 400)}"`,
       }],
     });
 

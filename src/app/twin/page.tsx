@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
 import { useAgentStore } from "@/store/agentStore";
@@ -36,7 +36,7 @@ export default function TwinPage() {
   const { address, did, fetchBalance } = useWalletStore();
   const { setCounterpart } = useAgentStore();
   const { addTask } = useLogStore();
-  const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded, clearMessages } = useTwinStore();
+  const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded, loading, loadMore, hasMore, loadingMore, clearMessages } = useTwinStore();
   const { submitTaskWithPayment } = useX402Payment();
   const { startTask, resetTask, taskState, artifact, escrowTxHash, settlementTxHash, log } = useTaskStore();
 
@@ -47,6 +47,8 @@ export default function TwinPage() {
   const [activeStepIdx, setActiveStepIdx] = useState<number>(-1);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const loadMoreScrollRef = useRef<{ height: number; pending: boolean }>({ height: 0, pending: false });
   const startTimeRef = useRef("");
   const { autonomousMode, setAutonomousMode } = useTwinStore();
 
@@ -54,17 +56,34 @@ export default function TwinPage() {
 
   const { setWallet } = useTwinStore();
 
-  // Set wallet + load twin history from Supabase
+  // Set wallet + load twin history from Supabase on every mount (stale-while-revalidate)
   useEffect(() => {
     if (address) {
       setWallet(address);
-      if (!loaded) loadFromServer(address);
+      loadFromServer(address);
     }
-  }, [address, loaded, loadFromServer, setWallet]);
+  }, [address, loadFromServer, setWallet]);
 
   useEffect(() => {
+    // Don't auto-scroll to bottom when loading older messages
+    if (loadMoreScrollRef.current.pending) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Restore scroll position after "Load More" prepends older messages
+  useLayoutEffect(() => {
+    if (loadMoreScrollRef.current.pending && scrollRef.current) {
+      const diff = scrollRef.current.scrollHeight - loadMoreScrollRef.current.height;
+      if (diff > 0) scrollRef.current.scrollTop += diff;
+      loadMoreScrollRef.current = { height: 0, pending: false };
+    }
+  }, [messages]);
+
+  const handleLoadMore = () => {
+    if (!address || !scrollRef.current) return;
+    loadMoreScrollRef.current = { height: scrollRef.current.scrollHeight, pending: true };
+    loadMore(address);
+  };
 
   /* ---- Track step completion ---- */
   const handleStepComplete = useCallback(() => {
@@ -256,6 +275,8 @@ export default function TwinPage() {
         mode: plan.mode,
         steps,
         totalCost: plan.totalCost,
+        orchestratorAlt: plan.orchestratorAlternative || undefined,
+        hasPipelineAlt: plan.hasPipelineAlternative || false,
         currentStep: 0,
         // Backward compat for single mode
         plan: steps.length === 1 ? steps[0] : undefined,
@@ -334,16 +355,71 @@ export default function TwinPage() {
 
           if (updated.status === "completed") {
             clearInterval(pollInterval);
+
+            // Build chain summary
+            const stepSummary = (updated.steps as Array<{ agentName: string; capabilityDescription: string; estimatedCost: string; status: string }>)
+              .map((s, i) => `${i + 1}. ${s.agentName} — ${s.capabilityDescription} (${s.status === "completed" ? s.estimatedCost + " USDC" : "FAILED"})`)
+              .join("\n");
+            const summaryContent = `Autonomous pipeline completed.\n\n${stepSummary}\n\nTotal: ${updated.totalSpent} USDC`;
+
             updateMessage(msgId, {
               state: "completed",
               artifact: updated.finalArtifact,
-              content: `Autonomous pipeline completed. Total spent: ${updated.totalSpent} USDC`,
+              content: summaryContent,
             });
+
+            // Add each chain step to task history (logStore)
+            for (const step of updated.steps as Array<{ taskId?: string; agentName: string; capabilityDescription: string; capabilityId: string; input: string; estimatedCost: string; status: string; artifact?: string; escrowTxHash?: string; settlementTxHash?: string }>) {
+              if (step.taskId) {
+                addTask({
+                  id: step.taskId,
+                  counterpartAgent: step.agentName,
+                  capability: step.capabilityId || step.capabilityDescription,
+                  input: step.input || "",
+                  startedAt: updated.createdAt || new Date().toISOString(),
+                  duration: "—",
+                  state: step.status === "completed" ? "COMPLETED" : "FAILED",
+                  usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00",
+                  artifact: step.artifact,
+                  escrowTxHash: step.escrowTxHash,
+                  settlementTxHash: step.settlementTxHash,
+                  log: [],
+                  isAgentTask: true,
+                  delegatedBy: did || undefined,
+                  chainId: chain.id,
+                });
+              }
+            }
+
             setProcessing(false);
             if (address) fetchBalance(address);
           } else if (updated.status === "failed") {
             clearInterval(pollInterval);
             const failedStep = updated.steps.find((s: { status: string }) => s.status === "failed");
+
+            // Add completed steps to task history even on partial failure
+            for (const step of updated.steps as Array<{ taskId?: string; agentName: string; capabilityDescription: string; capabilityId: string; input: string; estimatedCost: string; status: string; artifact?: string; escrowTxHash?: string; settlementTxHash?: string }>) {
+              if (step.taskId && (step.status === "completed" || step.status === "failed")) {
+                addTask({
+                  id: step.taskId,
+                  counterpartAgent: step.agentName,
+                  capability: step.capabilityId || step.capabilityDescription,
+                  input: step.input || "",
+                  startedAt: updated.createdAt || new Date().toISOString(),
+                  duration: "—",
+                  state: step.status === "completed" ? "COMPLETED" : "FAILED",
+                  usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00",
+                  artifact: step.artifact,
+                  escrowTxHash: step.escrowTxHash,
+                  settlementTxHash: step.settlementTxHash,
+                  log: [],
+                  isAgentTask: true,
+                  delegatedBy: did || undefined,
+                  chainId: chain.id,
+                });
+              }
+            }
+
             updateMessage(msgId, {
               state: "failed",
               content: `Pipeline failed at step ${updated.currentStep + 1}: ${failedStep?.error || "Unknown error"}`,
@@ -365,19 +441,98 @@ export default function TwinPage() {
     }
   };
 
+  /* ---- Check if steps contain an orchestrator agent ---- */
+  const hasOrchestratorStep = (steps: PipelineStep[]) =>
+    steps.some((s) => s.agentEndpoint?.includes("/api/hosted-agent"));
+
   /* ---- Confirm pipeline ---- */
   const handleConfirm = (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg?.steps?.length) return;
 
-    // If autonomous mode, run via chain executor (single or pipeline)
-    if (autonomousMode) {
+    // Autonomous mode: only use chain executor if orchestrator step exists
+    // Non-orchestrator steps always require Phantom wallet payment
+    if (autonomousMode && hasOrchestratorStep(msg.steps)) {
       executeAutonomousChain(msgId);
       return;
     }
 
+    // Manual mode OR auto + non-orchestrator: step-by-step with Phantom
     updateMessage(msgId, { state: "executing" });
     executeStep(msgId, 0);
+  };
+
+  /** Switch to direct pipeline (re-plan without orchestrator) */
+  const handleDirectPipeline = async (msgId: string) => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg) return;
+
+    // Find the original user message (the one right before this plan message)
+    const msgIdx = messages.findIndex((m) => m.id === msgId);
+    const userMsg = messages.slice(0, msgIdx).reverse().find((m) => m.role === "user");
+    const originalInput = userMsg?.content || msg.content;
+
+    updateMessage(msgId, { content: "Replanning as direct pipeline...", state: "planning" });
+
+    try {
+      const res = await fetch("/api/twin/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: originalInput, walletAddress: address, skipOrchestrator: true }),
+      });
+      if (!res.ok) {
+        updateMessage(msgId, { content: "Failed to replan.", state: "failed" });
+        setProcessing(false);
+        return;
+      }
+      const plan = await res.json();
+      const steps = (plan.steps as PipelineStep[]).map((s) => ({ ...s, status: "pending" as const }));
+      updateMessage(msgId, {
+        content: plan.explanation,
+        state: "confirming",
+        mode: plan.mode,
+        steps,
+        totalCost: plan.totalCost,
+        hasPipelineAlt: false,
+        orchestratorAlt: plan.orchestratorAlternative || undefined,
+      });
+    } catch {
+      updateMessage(msgId, { content: "Replan failed.", state: "failed" });
+      setProcessing(false);
+    }
+  };
+
+  /** Switch to orchestrator agent and run */
+  const handleUseOrchestrator = (msgId: string) => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg?.orchestratorAlt) return;
+
+    const orch = msg.orchestratorAlt;
+    const orchStep: PipelineStep = {
+      agentName: orch.agentName,
+      agentEndpoint: orch.agentEndpoint,
+      agentDid: orch.agentDid,
+      walletAddress: orch.walletAddress,
+      capabilityId: orch.capabilityId,
+      capabilityDescription: orch.capabilityDescription,
+      input: input || msg.content || "",
+      inputFromPrev: false,
+      estimatedCost: orch.estimatedCost,
+      label: `${orch.agentName}: ${orch.capabilityDescription}`,
+      status: "pending",
+    };
+
+    updateMessage(msgId, {
+      mode: "single",
+      steps: [orchStep],
+      totalCost: orch.estimatedCost,
+      orchestratorAlt: undefined,
+    });
+
+    // Auto-run in autonomous mode
+    if (autonomousMode) {
+      setTimeout(() => executeAutonomousChain(msgId), 100);
+    }
   };
 
   const handleCancel = (msgId: string) => {
@@ -394,15 +549,25 @@ export default function TwinPage() {
           <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">Digital Twin</h2>
         </div>
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <span className="font-mono text-[10px] text-muted uppercase">Autonomous</span>
-            <button
-              onClick={() => setAutonomousMode(!autonomousMode)}
-              className={`relative w-9 h-5 rounded-full transition-colors ${autonomousMode ? "bg-accent" : "bg-forest-deep/60"}`}
-            >
-              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-off-white transition-transform ${autonomousMode ? "left-[18px]" : "left-0.5"}`} />
-            </button>
-          </label>
+          <div className="relative group">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <span className="font-mono text-[10px] text-muted uppercase">Autonomous</span>
+              <button
+                onClick={() => setAutonomousMode(!autonomousMode)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${autonomousMode ? "bg-accent" : "bg-forest-deep/60"}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-off-white transition-transform ${autonomousMode ? "left-[18px]" : "left-0.5"}`} />
+              </button>
+            </label>
+            {/* Tooltip */}
+            <div className="absolute top-full right-0 mt-2 w-64 px-3 py-2 bg-bg-base border border-mint/20 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+              <span className="font-mono text-[10px] text-off-white block">
+                {autonomousMode
+                  ? "ON: All steps run automatically. Payments are made from your agent budget — no wallet signature needed."
+                  : "OFF: Each step requires your approval. Payments are made from your wallet via Phantom signature."}
+              </span>
+            </div>
+          </div>
         </div>
         {messages.length > 0 && !isProcessing && (
           <button onClick={() => clearMessages()} className="font-mono text-xs text-red-400 hover:text-red-300 transition-colors">
@@ -412,8 +577,26 @@ export default function TwinPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
-        {messages.length === 0 && (
+      <div ref={scrollRef} className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
+        {/* Loading skeleton on first load */}
+        {!loaded && loading && (
+          <div className="flex-1 flex items-center justify-center">
+            <span className="font-mono text-sm text-muted animate-pulse">Loading chat history...</span>
+          </div>
+        )}
+
+        {/* Load More button — older messages */}
+        {hasMore && (
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="self-center font-mono text-[10px] text-muted border border-forest-deep/40 px-4 py-1.5 rounded-lg hover:border-mint/20 hover:text-mint transition-all disabled:opacity-50"
+          >
+            {loadingMore ? "Loading..." : "Load older messages"}
+          </button>
+        )}
+
+        {messages.length === 0 && loaded && (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center py-20">
             <div className="w-16 h-16 border border-mint/20 rounded-full flex items-center justify-center">
               <span className="font-display text-2xl text-mint">T</span>
@@ -449,7 +632,7 @@ export default function TwinPage() {
                 </span>
               )}
 
-              <p className="font-mono text-sm text-off-white leading-relaxed">{msg.content}</p>
+              <p className="font-mono text-sm text-off-white leading-relaxed whitespace-pre-wrap">{msg.content}</p>
 
               {/* Pipeline plan card */}
               {msg.steps && msg.state === "confirming" && (
@@ -478,17 +661,33 @@ export default function TwinPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button onClick={() => handleConfirm(msg.id)}
-                      className="flex-1 font-mono text-xs text-bg-base bg-accent px-3 py-2 rounded-lg hover:bg-mint transition-colors">
-                      {autonomousMode
-                        ? "Run Autonomously"
-                        : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
-                    </button>
-                    <button onClick={() => handleCancel(msg.id)}
-                      className="font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:text-red-400 hover:border-red-800/30 transition-colors">
-                      Cancel
-                    </button>
+                  <div className="flex flex-col gap-2">
+                    {/* Orchestrator alternative (when pipeline is shown) */}
+                    {msg.orchestratorAlt && autonomousMode && (
+                      <button onClick={() => handleUseOrchestrator(msg.id)}
+                        className="w-full font-mono text-xs text-bg-base bg-purple-500 px-3 py-2 rounded-lg hover:bg-purple-400 transition-colors">
+                        Use {msg.orchestratorAlt.agentName} ({msg.orchestratorAlt.estimatedCost} USDC — auto-delegates)
+                      </button>
+                    )}
+                    {/* Pipeline alternative (when orchestrator is shown) */}
+                    {msg.hasPipelineAlt && autonomousMode && (
+                      <button onClick={() => handleDirectPipeline(msg.id)}
+                        className="w-full font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:border-mint/20 hover:text-mint transition-colors">
+                        Switch to Direct Pipeline (cheaper, step-by-step)
+                      </button>
+                    )}
+                    <div className="flex gap-2">
+                      <button onClick={() => handleConfirm(msg.id)}
+                        className="flex-1 font-mono text-xs text-bg-base bg-accent px-3 py-2 rounded-lg hover:bg-mint transition-colors">
+                        {autonomousMode && hasOrchestratorStep(msg.steps || [])
+                          ? (msg.orchestratorAlt ? "Direct Pipeline" : "Run Autonomously")
+                          : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
+                      </button>
+                      <button onClick={() => handleCancel(msg.id)}
+                        className="font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:text-red-400 hover:border-red-800/30 transition-colors">
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

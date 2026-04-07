@@ -1,10 +1,13 @@
 /**
- * Hosted Agent Config Store — server-side in-memory storage
- * for no-code agents created via the platform UI.
+ * Hosted Agent Config Store — Supabase-persisted with in-memory cache.
  *
  * Each hosted agent has a system prompt, model config, and capabilities.
  * The platform runs the AI calls on behalf of the user.
+ *
+ * On startup: loads all active hosted agents from Supabase into memory.
+ * On register/update/delete: writes to Supabase + updates cache.
  */
+import { getSupabase } from "./supabase/client";
 
 export type AIProvider = "anthropic" | "openai" | "google";
 export type AITier = "platform" | "custom";
@@ -23,20 +26,106 @@ export interface HostedAgentConfig {
     description: string;
     pricing: { amount: string; token: string; network: string };
   }>;
+  /** When true, agent can autonomously call other agents using its budget */
+  canOrchestrate: boolean;
   createdAt: string;
   active: boolean;
 }
 
-// In-memory store (globalThis for Next.js hot-reload persistence)
+/* ------------------------------------------------------------------ */
+/*  In-memory cache (globalThis for Next.js hot-reload persistence)    */
+/* ------------------------------------------------------------------ */
+
 const g = globalThis as typeof globalThis & {
   __aip_hosted_agents?: Map<string, HostedAgentConfig>;
+  __aip_hosted_loaded?: boolean;
 };
 if (!g.__aip_hosted_agents) g.__aip_hosted_agents = new Map();
 
 const store = g.__aip_hosted_agents;
 
-export function registerHostedAgent(config: HostedAgentConfig): void {
+/* ------------------------------------------------------------------ */
+/*  Supabase persistence                                               */
+/* ------------------------------------------------------------------ */
+
+interface DbHostedAgent {
+  agent_id: string;
+  owner_address: string;
+  name: string;
+  description: string;
+  system_prompt: string;
+  tier: string;
+  provider: string;
+  custom_api_key?: string;
+  capabilities_json: string;
+  can_orchestrate: boolean;
+  active: boolean;
+  created_at?: string;
+}
+
+function toConfig(row: DbHostedAgent): HostedAgentConfig {
+  let caps: HostedAgentConfig["capabilities"] = [];
+  try { caps = JSON.parse(row.capabilities_json); } catch { /* ignore */ }
+  return {
+    agentId: row.agent_id,
+    ownerAddress: row.owner_address,
+    name: row.name,
+    description: row.description,
+    systemPrompt: row.system_prompt,
+    tier: row.tier as AITier,
+    provider: row.provider as AIProvider,
+    customApiKey: row.custom_api_key,
+    capabilities: caps,
+    canOrchestrate: row.can_orchestrate ?? false,
+    createdAt: row.created_at || new Date().toISOString(),
+    active: row.active,
+  };
+}
+
+function toRow(config: HostedAgentConfig): DbHostedAgent {
+  return {
+    agent_id: config.agentId,
+    owner_address: config.ownerAddress,
+    name: config.name,
+    description: config.description,
+    system_prompt: config.systemPrompt,
+    tier: config.tier,
+    provider: config.provider,
+    custom_api_key: config.customApiKey,
+    capabilities_json: JSON.stringify(config.capabilities),
+    can_orchestrate: config.canOrchestrate ?? false,
+    active: config.active,
+  };
+}
+
+/** Load all hosted agents from Supabase into cache (called once on startup) */
+export async function loadHostedAgentsFromDb(): Promise<void> {
+  if (g.__aip_hosted_loaded) return;
+  try {
+    const sb = getSupabase();
+    const { data } = await sb.from("hosted_agents").select("*").eq("active", true);
+    if (data) {
+      for (const row of data as DbHostedAgent[]) {
+        store.set(row.agent_id, toConfig(row));
+      }
+    }
+    g.__aip_hosted_loaded = true;
+  } catch {
+    // Table might not exist yet — silently continue with empty cache
+    g.__aip_hosted_loaded = true;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Public API (cache + Supabase)                                      */
+/* ------------------------------------------------------------------ */
+
+export async function registerHostedAgent(config: HostedAgentConfig): Promise<void> {
   store.set(config.agentId, config);
+  try {
+    const sb = getSupabase();
+    await sb.from("hosted_agents").upsert(toRow(config), { onConflict: "agent_id" });
+  } catch { /* non-blocking */ }
 }
 
 export function getHostedAgent(agentId: string): HostedAgentConfig | null {
@@ -47,15 +136,28 @@ export function getHostedAgentsByOwner(ownerAddress: string): HostedAgentConfig[
   return Array.from(store.values()).filter((a) => a.ownerAddress === ownerAddress);
 }
 
-export function updateHostedAgent(agentId: string, updates: Partial<HostedAgentConfig>): boolean {
+export async function updateHostedAgent(agentId: string, updates: Partial<HostedAgentConfig>): Promise<boolean> {
   const existing = store.get(agentId);
   if (!existing) return false;
-  store.set(agentId, { ...existing, ...updates });
+  const updated = { ...existing, ...updates };
+  store.set(agentId, updated);
+  try {
+    const sb = getSupabase();
+    await sb.from("hosted_agents").upsert(
+      { ...toRow(updated), updated_at: new Date().toISOString() },
+      { onConflict: "agent_id" }
+    );
+  } catch { /* non-blocking */ }
   return true;
 }
 
-export function deleteHostedAgent(agentId: string): boolean {
-  return store.delete(agentId);
+export async function deleteHostedAgent(agentId: string): Promise<boolean> {
+  const existed = store.delete(agentId);
+  try {
+    const sb = getSupabase();
+    await sb.from("hosted_agents").update({ active: false, updated_at: new Date().toISOString() }).eq("agent_id", agentId);
+  } catch { /* non-blocking */ }
+  return existed;
 }
 
 export function listHostedAgents(): HostedAgentConfig[] {

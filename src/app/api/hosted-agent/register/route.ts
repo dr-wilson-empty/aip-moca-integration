@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
     provider,
     customApiKey,
     capabilities,
+    canOrchestrate,
   } = body as {
     agentId?: string;
     ownerAddress?: string;
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     provider?: AIProvider;
     customApiKey?: string;
     capabilities?: HostedAgentConfig["capabilities"];
+    canOrchestrate?: boolean;
   };
 
   // Validation
@@ -98,11 +100,12 @@ export async function POST(request: NextRequest) {
     provider: resolvedProvider,
     customApiKey: resolvedTier === "custom" ? customApiKey : undefined,
     capabilities,
+    canOrchestrate: canOrchestrate ?? false,
     createdAt: new Date().toISOString(),
     active: true,
   };
 
-  registerHostedAgent(config);
+  await registerHostedAgent(config);
 
   // Also register in agent-card-store for marketplace visibility
   const hostedEndpoint = `${getBaseUrl(request)}/api/hosted-agent?agentId=${agentId}`;
@@ -178,7 +181,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Agent not found or not owned by you" }, { status: 404 });
   }
 
-  updateHostedAgent(agentId, updates as Partial<HostedAgentConfig>);
+  await updateHostedAgent(agentId, updates as Partial<HostedAgentConfig>);
   return NextResponse.json({ ok: true, agentId });
 }
 
@@ -199,7 +202,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Agent not found or not owned by you" }, { status: 404 });
   }
 
-  deleteHostedAgent(agentId);
+  await deleteHostedAgent(agentId);
   return NextResponse.json({ ok: true, agentId });
 }
 

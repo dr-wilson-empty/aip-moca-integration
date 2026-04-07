@@ -87,8 +87,9 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
-  // Rate limiting for API routes
-  if (pathname.startsWith("/api/")) {
+  // Rate limiting for API routes (exclude high-frequency polling endpoints)
+  const isPolling = pathname.startsWith("/api/chain") || pathname.startsWith("/api/task/stream") || pathname.startsWith("/api/budget");
+  if (pathname.startsWith("/api/") && !isPolling) {
     if (!checkRateLimit(ip)) {
       return NextResponse.json(
         { error: "Rate limit exceeded. Try again in a minute." },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listCards } from "@/lib/protocol/agent-card-store";
+import { listCards, registerCard } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
+import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
 import { dbGetPreferences } from "@/lib/supabase/preferences";
 
 seedDemoAgents();
@@ -14,6 +15,24 @@ seedDemoAgents();
  */
 export async function POST(request: NextRequest) {
   seedDemoAgents();
+  // Ensure hosted agents are loaded from Supabase (may not be ready yet from seed)
+  await loadHostedAgentsFromDb();
+  // Register hosted agent cards (in case async seed didn't finish yet)
+  for (const ha of listHostedAgents()) {
+    registerCard({
+      did: `did:aip:${ha.ownerAddress.slice(0, 8)}:${ha.agentId}`,
+      name: ha.name,
+      version: "1.0.0",
+      endpoint: `http://localhost:3000/api/hosted-agent?agentId=${ha.agentId}`,
+      type: "Task",
+      walletAddress: ha.ownerAddress,
+      capabilities: ha.capabilities.map((c) => ({
+        id: c.id,
+        description: c.description,
+        pricing: { amount: c.pricing.amount, token: "USDC" as const, network: "solana" as const },
+      })),
+    });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -24,6 +43,7 @@ export async function POST(request: NextRequest) {
 
   const message = body.message as string;
   const walletAddress = body.walletAddress as string | undefined;
+  const skipOrchestrator = body.skipOrchestrator === true;
   if (!message?.trim()) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
   }
@@ -50,17 +70,23 @@ export async function POST(request: NextRequest) {
   }
 
   const agents = listCards();
-  const capabilityList = agents.flatMap((a) =>
-    a.capabilities.map((c) => ({
-      agentName: a.name,
-      agentEndpoint: a.endpoint,
-      agentDid: a.did,
-      capabilityId: c.id,
-      description: c.description,
-      price: c.pricing.amount,
-      walletAddress: a.walletAddress,
-    }))
-  );
+  // Get orchestrator agent names to exclude from pipeline capability list when needed
+  const allOrchestrators = listHostedAgents().filter((a) => a.canOrchestrate);
+  const orchestratorNames = new Set(allOrchestrators.map((o) => o.name));
+
+  const capabilityList = agents
+    .filter((a) => !skipOrchestrator || !orchestratorNames.has(a.name)) // exclude orchestrators when replanning
+    .flatMap((a) =>
+      a.capabilities.map((c) => ({
+        agentName: a.name,
+        agentEndpoint: a.endpoint,
+        agentDid: a.did,
+        capabilityId: c.id,
+        description: c.description,
+        price: c.pricing.amount,
+        walletAddress: a.walletAddress,
+      }))
+    );
 
   if (capabilityList.length === 0) {
     return NextResponse.json({ error: "No agents available." }, { status: 404 });
@@ -78,19 +104,42 @@ export async function POST(request: NextRequest) {
     .map((c) => `- ${c.agentName} → ${c.capabilityId} (${c.description}) — ${c.price} USDC`)
     .join("\n");
 
+  // Identify orchestrator agents (can delegate to other agents autonomously)
+  const orchestrators = skipOrchestrator ? [] : listHostedAgents().filter((a) => a.canOrchestrate);
+  const orchestratorInfo = orchestrators.length > 0
+    ? "\n\nORCHESTRATOR AGENTS (these agents can internally call other agents — prefer them for complex multi-step tasks):\n" +
+      orchestrators.map((o) => {
+        const caps = o.capabilities.map((c) => c.id).join(", ");
+        return `- ${o.name} [${caps}] — This agent will autonomously plan and delegate sub-tasks to other agents using its own budget. Use as SINGLE mode.`;
+      }).join("\n")
+    : "";
+
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     system:
       "You are a Digital Twin planner for AIP (Agent Internet Protocol). " +
       "The user gives you a natural language instruction. Decide if it needs ONE agent or MULTIPLE agents in sequence.\n\n" +
-      "Available agents and capabilities:\n" + availableCapabilities + "\n\n" +
-      "RULES:\n" +
-      "- If the task can be done by a single capability, use mode 'single'\n" +
-      "- If the task needs multiple steps (e.g. 'fetch data then summarize', 'analyze and compare', 'get info about X and audit it'), use mode 'pipeline'\n" +
+      "Available agents and capabilities:\n" + availableCapabilities + orchestratorInfo + "\n\n" +
+      "CAPABILITY USAGE GUIDE:\n" +
+      "- text.translate: Use for translation tasks. Pass the FULL user message as input (including target language instruction).\n" +
+      "- text.summarize: Use for ANY text processing — summarizing, rewriting, extracting info, creating recipes, formatting, analyzing content, answering questions about text. This is the DEFAULT for text tasks.\n" +
+      "- text.classify: ONLY returns a JSON category tag (GENERAL/DEFI/GOVERNANCE/etc). Do NOT use for content analysis, recipes, formatting, or any task that needs readable text output. Only use when user explicitly wants a category label.\n" +
+      "- web.search: Search the web for current information, prices, news, etc.\n" +
+      "- data.retrieve: Fetch structured data from blockchain/APIs (Solana, DeFi protocols).\n" +
+      "- code.audit: Analyze smart contract code for security vulnerabilities.\n" +
+      "- defi.analyze: Analyze DeFi protocol risks, TVL, yield strategies.\n\n" +
+      "CRITICAL RULES:\n" +
+      "- **ORCHESTRATOR FIRST**: Before creating any pipeline, check if an ORCHESTRATOR AGENT is listed above. If YES, you MUST use it as a SINGLE step. Do NOT create a pipeline when an orchestrator can handle the task. The orchestrator will internally call other agents. This is MANDATORY.\n" +
+      "- If NO orchestrator exists and the task can be done by a single capability, use mode 'single'\n" +
+      "- Only use mode 'pipeline' if NO orchestrator agent is available AND multiple steps are truly needed\n" +
       "- Pipeline steps run sequentially — each step's output feeds into the next step's input\n" +
       "- For pipeline step 2+, set inputFromPrev to true (the previous step's result becomes input)\n" +
-      "- Keep pipelines to 2-4 steps maximum\n\n" +
+      "- Keep pipelines to 2-4 steps maximum\n" +
+      "- NEVER use orchestrator agents as a step inside a pipeline. They are standalone agents that manage their own sub-tasks.\n" +
+      "- ALWAYS prefer text.summarize over text.classify for processing/transforming text content\n" +
+      "- text.classify should NEVER be the final step if the user expects readable content\n" +
+      "- IMPORTANT: The 'input' field must contain the COMPLETE user message including all instructions (target language, format requests, etc). Never strip context from the input.\n\n" +
       "Respond with ONLY valid JSON:\n\n" +
       "Single mode:\n" +
       '{"mode":"single","steps":[{"agentName":"...","capabilityId":"...","input":"...","label":"..."}],"explanation":"..."}\n\n' +
@@ -121,6 +170,51 @@ export async function POST(request: NextRequest) {
       }>;
       explanation: string;
     };
+
+    // Build orchestrator info for alternatives
+    let orchCard: typeof capabilityList[number] | null = null;
+    if (orchestrators.length > 0) {
+      const orch = orchestrators[0];
+      orchCard = capabilityList.find((c) =>
+        c.agentName === orch.name && orch.capabilities.some((oc) => oc.id === c.capabilityId)
+      ) || null;
+    }
+
+    // Detect if LLM chose the orchestrator agent
+    const isOrchPlan = plan.steps.length === 1 && orchCard &&
+      plan.steps[0].agentName === orchCard.agentName;
+
+    // Build alternative: if LLM picked orchestrator → offer pipeline; if pipeline → offer orchestrator
+    let orchestratorAlternative: {
+      agentName: string;
+      agentEndpoint: string;
+      agentDid: string;
+      walletAddress: string;
+      capabilityId: string;
+      capabilityDescription: string;
+      estimatedCost: string;
+    } | null = null;
+
+    // LLM picked pipeline → offer orchestrator
+    if (plan.mode === "pipeline" && plan.steps.length >= 2 && orchCard) {
+      orchestratorAlternative = {
+        agentName: orchCard.agentName,
+        agentEndpoint: orchCard.agentEndpoint,
+        agentDid: orchCard.agentDid,
+        walletAddress: orchCard.walletAddress || "",
+        capabilityId: orchCard.capabilityId,
+        capabilityDescription: orchCard.description,
+        estimatedCost: orchCard.price,
+      };
+    }
+
+    // LLM picked orchestrator → also run planner without orchestrator to get pipeline alternative
+    let pipelineAlternative: typeof plan | null = null;
+    if (isOrchPlan) {
+      // We already have the pipeline from the LLM's natural inclination — re-plan without orchestrator info
+      // For efficiency, just mark that a pipeline alternative should be offered
+      pipelineAlternative = plan; // placeholder — frontend will re-request if user clicks "Direct Pipeline"
+    }
 
     // Resolve each step to actual agents
     const resolvedSteps = plan.steps.map((step) => {
@@ -159,6 +253,8 @@ export async function POST(request: NextRequest) {
       steps: resolvedSteps,
       explanation: plan.explanation,
       totalCost,
+      orchestratorAlternative: orchestratorAlternative || undefined,
+      hasPipelineAlternative: !!pipelineAlternative,
     });
   } catch {
     return NextResponse.json({ error: "Failed to parse model response", raw: text.text }, { status: 500 });

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   fail_reason TEXT,
   delegated_by TEXT,                    -- DID of the agent that delegated this task (null = human)
   is_agent_task BOOLEAN DEFAULT false,  -- true if created by agent-to-agent delegation
+  chain_id TEXT,                        -- Chain ID for grouped autonomous pipeline tasks
   log JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -106,9 +107,10 @@ CREATE TABLE IF NOT EXISTS automations (
   last_run TIMESTAMPTZ,
   total_spent NUMERIC(20, 6) NOT NULL DEFAULT 0,
   run_count INTEGER NOT NULL DEFAULT 0,
-  trigger_type TEXT NOT NULL DEFAULT 'schedule',  -- 'schedule' | 'webhook'
+  trigger_type TEXT NOT NULL DEFAULT 'schedule',  -- 'schedule' | 'webhook' | 'onchain'
   webhook_secret TEXT,                            -- HMAC secret for webhook auth
-  last_trigger_at TIMESTAMPTZ,                    -- rate limiting: last webhook trigger time
+  watch_address TEXT,                             -- Solana address to monitor (onchain trigger)
+  last_trigger_at TIMESTAMPTZ,                    -- rate limiting: last trigger time
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -122,7 +124,7 @@ CREATE TABLE IF NOT EXISTS automation_results (
   artifact TEXT,
   estimated_cost TEXT,
   status TEXT,
-  trigger_source TEXT DEFAULT 'manual',  -- 'manual' | 'schedule' | 'webhook'
+  trigger_source TEXT DEFAULT 'manual',  -- 'manual' | 'schedule' | 'webhook' | 'onchain'
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -137,7 +139,25 @@ CREATE TABLE IF NOT EXISTS agent_memory (
   expires_at TIMESTAMPTZ
 );
 
+-- Hosted agents table (persisted no-code agents)
+CREATE TABLE IF NOT EXISTS hosted_agents (
+  agent_id TEXT PRIMARY KEY,
+  owner_address TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  system_prompt TEXT NOT NULL,
+  tier TEXT NOT NULL DEFAULT 'platform',
+  provider TEXT NOT NULL DEFAULT 'anthropic',
+  custom_api_key TEXT,
+  capabilities_json TEXT NOT NULL DEFAULT '[]',
+  can_orchestrate BOOLEAN DEFAULT false,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_hosted_agents_owner ON hosted_agents(owner_address);
 CREATE INDEX IF NOT EXISTS idx_agent_memory_pair ON agent_memory(agent_did, user_wallet);
 CREATE INDEX IF NOT EXISTS idx_automations_wallet ON automations(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_automations_trigger ON automations(trigger_type);
@@ -146,6 +166,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_budgets_owner ON agent_budgets(owner_wallet
 CREATE INDEX IF NOT EXISTS idx_agent_budget_txns_agent ON agent_budget_txns(agent_did);
 CREATE INDEX IF NOT EXISTS idx_tasks_caller ON tasks(caller_address);
 CREATE INDEX IF NOT EXISTS idx_tasks_state ON tasks(state);
+CREATE INDEX IF NOT EXISTS idx_tasks_chain ON tasks(chain_id);
 CREATE INDEX IF NOT EXISTS idx_escrows_status ON escrows(status);
 CREATE INDEX IF NOT EXISTS idx_agent_cache_endpoint ON agent_cache(endpoint);
 CREATE INDEX IF NOT EXISTS idx_twin_messages_wallet ON twin_messages(wallet_address);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getConnection } from "@/lib/solana/connection";
 import { createAndExecuteChain, getChain, listChains } from "@/lib/protocol/chain-executor";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
+import { dbGetBudgetsByOwner } from "@/lib/supabase/agent-budgets";
 import type { ChainStep } from "@/types/aip";
 
 seedDemoAgents();
@@ -68,8 +69,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify the deposit transaction exists on-chain
-  // In autonomous mode on devnet, the platform authority funds escrows directly
+  // Autonomous mode: only orchestrator steps use budget
+  // Non-orchestrator steps (web.search, text.summarize etc.) are funded by authority wallet
+  // with no budget tracking — the escrow handles payment directly.
+  // Budget is ONLY for orchestrator agents that delegate to sub-agents.
+  let budgetAgentDid: string | undefined;
+  if (depositTxHash === "autonomous-mode") {
+    // Check if any step is an orchestrator — only then do we need budget
+    const hasOrchestratorStep = steps.some((s) =>
+      s.agentEndpoint?.includes("/api/hosted-agent")
+    );
+
+    if (hasOrchestratorStep) {
+      const budgets = await dbGetBudgetsByOwner(callerAddress);
+      // Find the orchestrator agent's own budget
+      const stepAgentDids = new Set(steps.map((s) => s.agentDid));
+      const matchingBudget = budgets.find((b) => stepAgentDids.has(b.agent_did) && b.balance > 0);
+
+      if (matchingBudget) {
+        budgetAgentDid = matchingBudget.agent_did;
+      }
+      // If no budget found for orchestrator, it will handle the error internally
+    }
+    // Non-orchestrator autonomous steps: no budget needed, authority wallet funds escrows
+  }
+
+  // Verify the deposit transaction exists on-chain (non-autonomous mode)
   if (depositTxHash !== "autonomous-mode") {
     try {
       const connection = getConnection();
@@ -106,6 +131,7 @@ export async function POST(request: NextRequest) {
     steps,
     totalCost,
     depositTxHash,
+    budgetAgentDid,
   });
 
   return NextResponse.json({ ok: true, chain }, { status: 201 });

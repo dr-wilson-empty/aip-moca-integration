@@ -6,7 +6,7 @@ import { z } from "zod";
 export const taskBodySchema = z.object({
   agentEndpoint: z.string().min(1).url().or(z.string().startsWith("http://localhost")),
   capability: z.string().min(1).max(64),
-  input: z.string().min(1).max(2000),
+  input: z.string().min(1).max(50000),
   amount: z.string().refine((v) => {
     const n = parseFloat(v);
     return !isNaN(n) && n > 0 && n <= 100;
@@ -64,6 +64,6 @@ export const automationSchema = z.object({
 });
 
 export const twinMessageSchema = z.object({
-  message: z.string().min(1).max(2000),
+  message: z.string().min(1).max(50000),
   walletAddress: z.string().optional(),
 });

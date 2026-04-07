@@ -134,4 +134,10 @@ export interface Task {
   escrowTxHash?: string;
   settlementTxHash?: string;
   log: LogEntry[];
+  /** DID of the entity that delegated this task (undefined = human-initiated) */
+  delegatedBy?: string;
+  /** True if created by agent-to-agent delegation or autonomous chain */
+  isAgentTask?: boolean;
+  /** Chain ID — groups tasks from the same autonomous pipeline */
+  chainId?: string;
 }

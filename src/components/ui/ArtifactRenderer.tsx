@@ -76,12 +76,34 @@ export default function ArtifactRenderer({ artifact, compact }: { artifact: Arti
 /*  Type-specific renderers                                            */
 /* ------------------------------------------------------------------ */
 
+function DownloadButton({ content, filename }: { content: string; filename: string }) {
+  const handleDownload = () => {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <button onClick={handleDownload} className="font-mono text-[9px] text-muted hover:text-accent border border-forest-deep/40 px-2 py-0.5 rounded transition-colors">
+      Download {filename.split(".").pop()?.toUpperCase()}
+    </button>
+  );
+}
+
 function TextArtifact({ content, compact }: { content: string; compact?: boolean }) {
-  // Simple markdown-like rendering: headings, bold, code blocks, lists
   const lines = content.split("\n");
+  const showDownload = content.length > 500;
 
   return (
     <div className={`font-mono text-xs text-off-white leading-relaxed ${compact ? "max-h-32 overflow-hidden" : ""}`}>
+      {showDownload && !compact && (
+        <div className="flex justify-end mb-2">
+          <DownloadButton content={content} filename="output.txt" />
+        </div>
+      )}
       {lines.map((line, i) => {
         // Headings
         if (line.startsWith("### ")) return <h4 key={i} className="font-display text-sm text-mint uppercase tracking-wider mt-3 mb-1">{line.slice(4)}</h4>;
@@ -202,12 +224,15 @@ function JsonArtifact({ data, compact }: { data: unknown; compact?: boolean }) {
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="font-mono text-[10px] text-purple-400 uppercase">JSON Data</span>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="font-mono text-[10px] text-muted hover:text-mint transition-colors"
-        >
-          {expanded ? "Collapse" : "Expand"}
-        </button>
+        <div className="flex gap-2">
+          <DownloadButton content={jsonStr} filename="output.json" />
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="font-mono text-[10px] text-muted hover:text-mint transition-colors"
+          >
+            {expanded ? "Collapse" : "Expand"}
+          </button>
+        </div>
       </div>
       <pre className={`font-mono text-[11px] text-body bg-bg-base/50 border border-mint/10 p-3 rounded-lg overflow-x-auto ${expanded ? "max-h-[400px]" : "max-h-24"} overflow-y-auto transition-all`}>
         {jsonStr}

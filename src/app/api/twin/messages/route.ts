@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbGetTwinMessages, dbInsertTwinMessage, dbUpdateTwinMessage } from "@/lib/supabase/db";
+import { dbGetTwinMessages, dbGetTwinMessageCount, dbInsertTwinMessage, dbUpdateTwinMessage } from "@/lib/supabase/db";
 
 /**
- * GET /api/twin/messages?wallet=xxx
- * Load twin chat history.
+ * GET /api/twin/messages?wallet=xxx&limit=200&before=ISO_DATE
+ * Load twin chat history with pagination.
  */
 export async function GET(request: NextRequest) {
   const wallet = request.nextUrl.searchParams.get("wallet");
   if (!wallet) return NextResponse.json({ error: "wallet required" }, { status: 400 });
 
-  const messages = await dbGetTwinMessages(wallet);
-  return NextResponse.json({ messages });
+  const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") || "200") || 200, 500);
+  const before = request.nextUrl.searchParams.get("before") || undefined;
+
+  const [messages, total] = await Promise.all([
+    dbGetTwinMessages(wallet, limit, before),
+    dbGetTwinMessageCount(wallet),
+  ]);
+
+  return NextResponse.json({ messages, total });
 }
 
 /**

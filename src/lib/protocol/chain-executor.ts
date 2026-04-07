@@ -26,6 +26,10 @@ import bs58 from "bs58";
 import { getConnection } from "@/lib/solana/connection";
 import { buildInitializeEscrowIx } from "@/lib/solana/escrow-program";
 import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/escrow";
+import { reserveBudget, refundBudget } from "@/lib/payment/agent-budget";
+import { getHostedAgent } from "@/lib/hosted-agents";
+import { orchestrateTask } from "./agent-orchestrator";
+import { buildMemoryContext, extractMemoryHints, saveMemories } from "@/lib/memory/agent-memory";
 import { createTask, completeTask, failTask, acceptTask } from "./task-machine";
 import { executeTask } from "./a2a-client";
 import { logger } from "@/lib/logger";
@@ -84,6 +88,8 @@ export function createAndExecuteChain(params: {
   steps: ChainStep[];
   totalCost: string;
   depositTxHash: string;
+  /** Agent DID whose budget funds this chain (autonomous mode) */
+  budgetAgentDid?: string;
 }): TaskChain {
   const chain: TaskChain = {
     id: `ch_${Math.random().toString(36).slice(2, 10)}`,
@@ -107,7 +113,7 @@ export function createAndExecuteChain(params: {
   });
 
   // Execute in background (non-blocking)
-  runChain(chain).catch((err) => {
+  runChain(chain, params.budgetAgentDid).catch((err) => {
     logger.error("chain", "fatal", {
       chainId: chain.id,
       error: err instanceof Error ? err.message : String(err),
@@ -120,9 +126,9 @@ export function createAndExecuteChain(params: {
 
 /**
  * Run chain steps sequentially.
- * Each step: create escrow → dispatch to agent → wait → release/refund → next
+ * Each step: reserve budget → create escrow → dispatch to agent → wait → release/refund → next
  */
-async function runChain(chain: TaskChain): Promise<void> {
+async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void> {
   const authorityKp = getAuthorityKeypair();
   const mint = getUsdcMint();
   const connection = getConnection();
@@ -150,15 +156,60 @@ async function runChain(chain: TaskChain): Promise<void> {
       }
     }
 
+    // Check if this step's agent is an orchestrator — bypass escrow, let it self-manage
+    const hostedMatch = step.agentEndpoint.match(/[?&]agentId=([^&]+)/);
+    const hostedConfig = hostedMatch ? getHostedAgent(hostedMatch[1]) : null;
+    if (hostedConfig?.canOrchestrate) {
+      const agentDid = step.agentDid || `did:aip:${hostedConfig.ownerAddress.slice(0, 8)}:${hostedConfig.agentId}`;
+      logger.info("chain", "orchestrator_step", { chainId: chain.id, step: i + 1, agent: step.agentName });
+
+      try {
+        const orchResult = await orchestrateTask(agentDid, hostedConfig.name, hostedConfig.systemPrompt, stepInput, chain.callerAddress);
+
+        // Build rich artifact with sub-task metadata
+        const subTaskInfo = orchResult.subTasks
+          .filter((s) => s.status === "completed")
+          .map((s) => `${s.agentName} (${s.capabilityId}) — ${s.cost.toFixed(2)} USDC`)
+          .join("\n");
+
+        step.artifact = orchResult.answer +
+          `\n\n---\n**${hostedConfig.name}** orchestrated ${orchResult.stepsCompleted} agent(s), spent ${orchResult.totalSpent.toFixed(2)} USDC from budget` +
+          (subTaskInfo ? `\n${subTaskInfo}` : "");
+        step.status = "completed";
+        step.taskId = `orch_${chain.id}_${i}`;
+        step.estimatedCost = orchResult.totalSpent.toFixed(2);
+        totalSpent += orchResult.totalSpent;
+        logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1, subSpent: orchResult.totalSpent });
+        continue; // Skip normal escrow flow
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        step.status = "failed";
+        step.error = msg;
+        chain.status = "failed";
+        chain.totalSpent = totalSpent.toFixed(2);
+        logger.error("chain", "orchestrator_failed", { chainId: chain.id, step: i + 1, error: msg });
+        return;
+      }
+    }
+
     // Task ID must be ≤64 bytes (Solana PDA seed limit for escrow)
     const shortId = Math.random().toString(36).slice(2, 8);
     const taskId = `cs${i}_${shortId}`;
     step.taskId = taskId;
     const amount = parseFloat(step.estimatedCost);
 
+    // Non-orchestrator steps: no budget reserve needed
+    // Authority wallet funds escrows directly, budget is only for orchestrator internal delegation
+    const budgetReserved = false;
+
     // 1. Create on-chain escrow for this step
     try {
-      const payeeWallet = new PublicKey(step.walletAddress || authorityKp.publicKey.toBase58());
+      // For hosted agents: escrow releases to platform authority (commission split happens after)
+      // For SDK agents: escrow releases directly to agent wallet
+      const isHosted = step.agentEndpoint.includes("/api/hosted-agent");
+      const payeeWallet = isHosted
+        ? authorityKp.publicKey
+        : new PublicKey(step.walletAddress || authorityKp.publicKey.toBase58());
       const payerAta = await getAssociatedTokenAddress(mint, authorityKp.publicKey);
 
       const tx = new Transaction();
@@ -191,7 +242,7 @@ async function runChain(chain: TaskChain): Promise<void> {
         taskId,
         amount: step.estimatedCost,
         from: chain.callerAddress,
-        to: step.walletAddress || authorityKp.publicKey.toBase58(),
+        to: isHosted ? authorityKp.publicKey.toBase58() : (step.walletAddress || authorityKp.publicKey.toBase58()),
         escrowTxHash,
         agentEndpoint: step.agentEndpoint,
       });
@@ -210,12 +261,17 @@ async function runChain(chain: TaskChain): Promise<void> {
         escrowTxHash,
         delegatedBy: chain.callerDid,
         isAgentTask: true,
+        chainId: chain.id,
       });
 
       logger.info("chain", "step_escrow", { chainId: chain.id, step: i + 1, escrowTxHash });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error("chain", "step_escrow_failed", { chainId: chain.id, step: i + 1, error: msg });
+      // Refund budget if reserved
+      if (budgetReserved && budgetAgentDid) {
+        await refundBudget(budgetAgentDid, amount, taskId).catch(() => {});
+      }
       step.status = "failed";
       step.error = `Escrow failed: ${msg}`;
       chain.status = "failed";
@@ -223,18 +279,40 @@ async function runChain(chain: TaskChain): Promise<void> {
       return;
     }
 
-    // 2. Execute task via agent HTTP JSON-RPC
+    // 2. Execute task via agent HTTP JSON-RPC (with memory injection)
     try {
+      // Inject memory context (skip for search/data capabilities — memory pollutes queries)
+      let enrichedInput = stepInput;
+      const skipMemory = ["web.search", "data.retrieve"].includes(step.capabilityId);
+      if (!skipMemory) {
+        try {
+          const memCtx = await buildMemoryContext(step.agentDid, chain.callerAddress);
+          if (memCtx) enrichedInput = stepInput + memCtx;
+        } catch { /* memory is best-effort */ }
+      }
+
       const result = await executeTask(
         step.agentEndpoint,
         step.capabilityId,
-        stepInput,
+        enrichedInput,
         taskId,
         500,
         60
       );
 
       if (result.status === "COMPLETED" && result.artifact) {
+        // Extract and save memory hints (async, non-blocking)
+        extractMemoryHints(result.artifact, stepInput).then((hints) => {
+          if (hints.length > 0) {
+            saveMemories(hints.map((h) => ({
+              agent_did: step.agentDid,
+              user_wallet: chain.callerAddress,
+              memory_type: h.type,
+              content: h.content,
+            }))).catch(() => {});
+          }
+        }).catch(() => {});
+
         // Release escrow
         try { acceptTask(taskId); } catch { /* may already be accepted */ }
         const releaseResult = await releaseEscrow(taskId);
@@ -254,6 +332,9 @@ async function runChain(chain: TaskChain): Promise<void> {
         // Agent failed — refund this step
         try { acceptTask(taskId); } catch { /* state edge case */ }
         await refundEscrow(taskId).catch(() => {});
+        if (budgetReserved && budgetAgentDid) {
+          await refundBudget(budgetAgentDid, amount, taskId).catch(() => {});
+        }
         try { failTask(taskId, result.error || "Agent returned FAILED"); } catch { /* state edge case */ }
 
         step.status = "failed";
@@ -271,8 +352,11 @@ async function runChain(chain: TaskChain): Promise<void> {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
 
-      // Refund escrow on error
+      // Refund escrow + budget on error
       await refundEscrow(taskId).catch(() => {});
+      if (budgetReserved && budgetAgentDid) {
+        await refundBudget(budgetAgentDid, amount, taskId).catch(() => {});
+      }
       try { acceptTask(taskId); } catch { /* state edge case */ }
       try { failTask(taskId, msg); } catch { /* state edge case */ }
 

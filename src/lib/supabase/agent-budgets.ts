@@ -62,10 +62,11 @@ export async function dbGetBudgetsByOwner(ownerWallet: string): Promise<DbAgentB
 /** Create or update a budget record. */
 export async function dbUpsertBudget(budget: DbAgentBudget): Promise<void> {
   const sb = getSupabase();
-  await sb.from("agent_budgets").upsert(
+  const { error } = await sb.from("agent_budgets").upsert(
     { ...budget, updated_at: new Date().toISOString() },
     { onConflict: "agent_did" }
   );
+  if (error) throw new Error(`Budget upsert failed: ${error.message}`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -180,10 +181,9 @@ export async function dbRefundBudget(
 /* ------------------------------------------------------------------ */
 
 async function dbInsertBudgetTxn(txn: DbBudgetTxn): Promise<void> {
-  try {
-    const sb = getSupabase();
-    await sb.from("agent_budget_txns").insert(txn);
-  } catch { /* non-blocking */ }
+  const sb = getSupabase();
+  const { error } = await sb.from("agent_budget_txns").insert(txn);
+  if (error) console.error("[budget-txn] insert failed:", error.message);
 }
 
 /** Get transaction history for an agent's budget */

@@ -24,6 +24,7 @@ interface AgentBuilderState {
 
   // Step 2: Behavior
   systemPrompt: string;
+  canOrchestrate: boolean;
 
   // Step 3: Price & Publish
   tier: AITier;
@@ -43,6 +44,7 @@ interface AgentBuilderState {
   setDescription: (description: string) => void;
   setTemplate: (template: string) => void;
   setSystemPrompt: (prompt: string) => void;
+  setCanOrchestrate: (v: boolean) => void;
   setTier: (tier: AITier) => void;
   setProvider: (provider: AIProvider) => void;
   setCustomApiKey: (key: string) => void;
@@ -62,6 +64,7 @@ const INITIAL_STATE = {
   description: "",
   template: "custom",
   systemPrompt: "",
+  canOrchestrate: false,
   tier: "platform" as AITier,
   provider: "anthropic" as AIProvider,
   customApiKey: "",
@@ -82,6 +85,7 @@ export const useAgentBuilderStore = create<AgentBuilderState>()(
       setDescription: (description) => set({ description }),
       setTemplate: (template) => set({ template }),
       setSystemPrompt: (systemPrompt) => set({ systemPrompt }),
+      setCanOrchestrate: (canOrchestrate) => set({ canOrchestrate }),
       setTier: (tier) => set({ tier }),
       setProvider: (provider) => set({ provider }),
       setCustomApiKey: (customApiKey) => set({ customApiKey }),
@@ -117,6 +121,7 @@ export const useAgentBuilderStore = create<AgentBuilderState>()(
         description: state.description,
         template: state.template,
         systemPrompt: state.systemPrompt,
+        canOrchestrate: state.canOrchestrate,
         tier: state.tier,
         provider: state.provider,
         capabilities: state.capabilities,

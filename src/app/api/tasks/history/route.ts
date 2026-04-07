@@ -26,6 +26,9 @@ export async function GET(request: NextRequest) {
     escrowTxHash: t.escrow_tx_hash ?? undefined,
     settlementTxHash: t.settlement_tx_hash ?? undefined,
     log: (t.log as Array<{ id: string; timestamp: string; eventType: string; message: string }>) ?? [],
+    delegatedBy: t.delegated_by ?? undefined,
+    isAgentTask: t.is_agent_task ?? false,
+    chainId: t.chain_id ?? undefined,
   }));
 
   return NextResponse.json({ tasks });

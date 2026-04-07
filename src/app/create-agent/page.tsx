@@ -263,6 +263,7 @@ export default function CreateAgentPage() {
             description: c.description.trim(),
             pricing: { amount: c.amount, token: "USDC", network: "solana" },
           })),
+          canOrchestrate: store.canOrchestrate,
         }),
       });
 
@@ -381,6 +382,27 @@ export default function CreateAgentPage() {
               <p className="font-mono text-xs text-muted/50 mt-1 text-right">
                 {store.systemPrompt.length}/2000
               </p>
+            </div>
+
+            {/* Orchestration toggle */}
+            <div className="border border-purple-800/30 rounded-lg p-4 bg-purple-900/5">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={store.canOrchestrate}
+                  onChange={(e) => store.setCanOrchestrate(e.target.checked)}
+                  className="mt-1 w-4 h-4 accent-purple-400"
+                />
+                <div>
+                  <span className="font-display text-sm text-purple-400 uppercase tracking-wider block">
+                    Agent-to-Agent Delegation
+                  </span>
+                  <span className="font-mono text-xs text-muted block mt-1">
+                    Enable this agent to autonomously call other agents from the marketplace using its budget.
+                    When a task is too complex, your agent will plan sub-tasks, delegate them, and synthesize the results.
+                  </span>
+                </div>
+              </label>
             </div>
 
             {/* Prompt tips */}

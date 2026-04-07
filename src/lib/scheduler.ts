@@ -8,6 +8,7 @@ import { getSupabase } from "./supabase/client";
 import { listCards } from "./protocol/agent-card-store";
 import { executeTask } from "./protocol/a2a-client";
 import { seedDemoAgents } from "./protocol/seed-agents";
+import { processOnchainAutomations } from "./trigger/onchain-listener";
 
 const SCHEDULE_MS: Record<string, number> = {
   "1min": 60_000,
@@ -37,7 +38,8 @@ export function startScheduler() {
 
       const now = Date.now();
 
-      for (const auto of automations) {
+      // Process schedule-based automations
+      for (const auto of automations.filter((a: { trigger_type: string }) => a.trigger_type === "schedule")) {
         const intervalMs = SCHEDULE_MS[auto.schedule] || SCHEDULE_MS.daily;
         const lastRun = auto.last_run ? new Date(auto.last_run).getTime() : 0;
 
@@ -51,10 +53,74 @@ export function startScheduler() {
           console.error(`[cron] Failed: ${auto.name}`, err instanceof Error ? err.message : "");
         }
       }
+
+      // Process on-chain automations (balance monitoring)
+      await processOnchainAutomations(
+        automations as import("./supabase/automations").DbAutomation[],
+        async (auto, triggerSource, contextData) => {
+          console.log(`[onchain] Triggered: ${auto.name}`);
+          await runOnchainAutomation(auto, sb, contextData || "");
+        }
+      ).catch((err) => {
+        console.error("[onchain] Processing failed:", err instanceof Error ? err.message : "");
+      });
     } catch { /* ignore cron errors */ }
   });
 
   console.log("[cron] Scheduler started — checking automations every minute");
+}
+
+/**
+ * On-chain automation: respond directly with Claude (no web search needed).
+ * The context data already contains the blockchain event info.
+ */
+async function runOnchainAutomation(
+  auto: { id: string; name: string; prompt: string; total_spent: number; budget_limit: number; run_count: number },
+  sb: ReturnType<typeof getSupabase>,
+  contextData: string
+) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return;
+
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
+  const client = new Anthropic({ apiKey });
+
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 512,
+    system:
+      "You are a blockchain notification assistant. " +
+      "The user set up an automation to be notified about on-chain events. " +
+      "Provide a clear, concise notification based on the event data. " +
+      "Respond in the same language as the user's prompt.",
+    messages: [{
+      role: "user",
+      content: `Automation: "${auto.prompt}"\n\nEvent: ${contextData}`,
+    }],
+  });
+
+  const text = response.content[0];
+  const artifact = text.type === "text" ? text.text : "No response";
+
+  const resultId = `ares_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  await sb.from("automation_results").insert({
+    id: resultId,
+    automation_id: auto.id,
+    agent_name: "On-chain Listener",
+    capability: "blockchain.monitor",
+    input: contextData,
+    artifact,
+    estimated_cost: "0.00",
+    status: "completed",
+    trigger_source: "onchain",
+  });
+
+  await sb.from("automations").update({
+    last_run: new Date().toISOString(),
+    run_count: auto.run_count + 1,
+  }).eq("id", auto.id);
+
+  console.log(`[onchain] Completed: ${auto.name}`);
 }
 
 async function runAutomation(
