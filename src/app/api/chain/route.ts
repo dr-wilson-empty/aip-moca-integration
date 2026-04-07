@@ -69,35 +69,37 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Autonomous mode: find the specific agent's budget by matching step agent DIDs
+  // Autonomous mode: find budget to fund this pipeline
+  // Twin pipelines are USER actions — use any budget owned by the user
   let budgetAgentDid: string | undefined;
   if (depositTxHash === "autonomous-mode") {
     const budgets = await dbGetBudgetsByOwner(callerAddress);
     const totalNeeded = parseFloat(totalCost);
 
-    // Match budget to the agent(s) used in this pipeline
+    if (budgets.length === 0) {
+      return NextResponse.json(
+        { error: `No budget found. Deposit USDC into one of your agents in My Agents first.` },
+        { status: 402 }
+      );
+    }
+
+    // Prefer: 1) matching step agent budget, 2) any budget with enough balance
     const stepAgentDids = new Set(steps.map((s) => s.agentDid));
     const matchingBudget = budgets.find((b) => stepAgentDids.has(b.agent_did) && b.balance >= totalNeeded);
 
     if (matchingBudget) {
       budgetAgentDid = matchingBudget.agent_did;
     } else {
-      // Check if any step agent has a budget at all
-      const agentBudgets = budgets.filter((b) => stepAgentDids.has(b.agent_did));
-      if (agentBudgets.length === 0) {
+      // Use any budget with enough balance (user's general funds)
+      const sufficient = budgets.sort((a, b) => b.balance - a.balance).find((b) => b.balance >= totalNeeded);
+      if (!sufficient) {
+        const totalAvailable = budgets.reduce((s, b) => s + b.balance, 0);
         return NextResponse.json(
-          { error: `No budget found for the selected agent(s). Deposit USDC in My Agents first.` },
+          { error: `Insufficient budget: ${totalAvailable.toFixed(2)} USDC available across your agents, ${totalNeeded.toFixed(2)} USDC needed.` },
           { status: 402 }
         );
       }
-      const best = agentBudgets.sort((a, b) => b.balance - a.balance)[0];
-      if (best.balance < totalNeeded) {
-        return NextResponse.json(
-          { error: `Insufficient budget for ${best.agent_did}: ${best.balance.toFixed(2)} USDC available, ${totalNeeded.toFixed(2)} USDC needed.` },
-          { status: 402 }
-        );
-      }
-      budgetAgentDid = best.agent_did;
+      budgetAgentDid = sufficient.agent_did;
     }
   }
 
