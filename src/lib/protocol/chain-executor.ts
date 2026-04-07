@@ -29,6 +29,7 @@ import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/e
 import { reserveBudget, refundBudget } from "@/lib/payment/agent-budget";
 import { getHostedAgent } from "@/lib/hosted-agents";
 import { orchestrateTask } from "./agent-orchestrator";
+import { buildMemoryContext, extractMemoryHints, saveMemories } from "@/lib/memory/agent-memory";
 import { createTask, completeTask, failTask, acceptTask } from "./task-machine";
 import { executeTask } from "./a2a-client";
 import { logger } from "@/lib/logger";
@@ -163,7 +164,7 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
       logger.info("chain", "orchestrator_step", { chainId: chain.id, step: i + 1, agent: step.agentName });
 
       try {
-        const orchResult = await orchestrateTask(agentDid, hostedConfig.name, hostedConfig.systemPrompt, stepInput);
+        const orchResult = await orchestrateTask(agentDid, hostedConfig.name, hostedConfig.systemPrompt, stepInput, chain.callerAddress);
 
         // Build rich artifact with sub-task metadata
         const subTaskInfo = orchResult.subTasks
@@ -291,18 +292,37 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
       return;
     }
 
-    // 2. Execute task via agent HTTP JSON-RPC
+    // 2. Execute task via agent HTTP JSON-RPC (with memory injection)
     try {
+      // Inject memory context from previous interactions
+      let enrichedInput = stepInput;
+      try {
+        const memCtx = await buildMemoryContext(step.agentDid, chain.callerAddress);
+        if (memCtx) enrichedInput = stepInput + memCtx;
+      } catch { /* memory is best-effort */ }
+
       const result = await executeTask(
         step.agentEndpoint,
         step.capabilityId,
-        stepInput,
+        enrichedInput,
         taskId,
         500,
         60
       );
 
       if (result.status === "COMPLETED" && result.artifact) {
+        // Extract and save memory hints (async, non-blocking)
+        extractMemoryHints(result.artifact, stepInput).then((hints) => {
+          if (hints.length > 0) {
+            saveMemories(hints.map((h) => ({
+              agent_did: step.agentDid,
+              user_wallet: chain.callerAddress,
+              memory_type: h.type,
+              content: h.content,
+            }))).catch(() => {});
+          }
+        }).catch(() => {});
+
         // Release escrow
         try { acceptTask(taskId); } catch { /* may already be accepted */ }
         const releaseResult = await releaseEscrow(taskId);

@@ -166,7 +166,7 @@ async function processHostedTask(
     // Orchestration mode: agent autonomously delegates to other agents
     if (config.canOrchestrate) {
       const agentDid = `did:aip:${config.ownerAddress.slice(0, 8)}:${config.agentId}`;
-      const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input);
+      const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input, config.ownerAddress);
 
       const subTaskInfo = orchResult.subTasks
         .filter((s) => s.status === "completed")

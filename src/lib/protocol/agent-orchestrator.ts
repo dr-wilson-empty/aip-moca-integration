@@ -18,6 +18,7 @@ import { getConnection } from "@/lib/solana/connection";
 import { buildInitializeEscrowIx } from "@/lib/solana/escrow-program";
 import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/escrow";
 import { reserveBudget, refundBudget, getAgentBudget } from "@/lib/payment/agent-budget";
+import { buildMemoryContext, extractMemoryHints, saveMemories } from "@/lib/memory/agent-memory";
 import { listCards } from "./agent-card-store";
 import { executeTask } from "./a2a-client";
 import { logger } from "@/lib/logger";
@@ -76,6 +77,7 @@ export async function orchestrateTask(
   callerAgentName: string,
   systemPrompt: string,
   userInput: string,
+  callerAddress?: string,
 ): Promise<OrchestrationResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
@@ -288,11 +290,34 @@ export async function orchestrateTask(
 
     // Call target agent
     try {
-      const result = await executeTask(step.agentEndpoint, step.capabilityId, stepInput, taskId, 500, 60);
+      // Inject memory context
+      let enrichedInput = stepInput;
+      if (callerAddress) {
+        try {
+          const memCtx = await buildMemoryContext(step.agentDid, callerAddress);
+          if (memCtx) enrichedInput = stepInput + memCtx;
+        } catch { /* best-effort */ }
+      }
+
+      const result = await executeTask(step.agentEndpoint, step.capabilityId, enrichedInput, taskId, 500, 60);
 
       if (result.status === "COMPLETED" && result.artifact) {
         await releaseEscrow(taskId);
         results.push({ status: "completed", artifact: result.artifact, cost: step.estimatedCost, agentName: step.agentName, capabilityId: step.capabilityId });
+
+        // Extract memory hints (async, non-blocking)
+        if (callerAddress && result.artifact) {
+          extractMemoryHints(result.artifact, stepInput).then((hints) => {
+            if (hints.length > 0) {
+              saveMemories(hints.map((h) => ({
+                agent_did: step.agentDid,
+                user_wallet: callerAddress,
+                memory_type: h.type,
+                content: h.content,
+              }))).catch(() => {});
+            }
+          }).catch(() => {});
+        }
 
         logger.info("orchestrator", "step_completed", {
           callerAgentDid,
