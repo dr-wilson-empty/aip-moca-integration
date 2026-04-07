@@ -69,38 +69,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Autonomous mode: find budget to fund this pipeline
-  // Twin pipelines are USER actions — use any budget owned by the user
+  // Autonomous mode: only orchestrator steps use budget
+  // Non-orchestrator steps (web.search, text.summarize etc.) are funded by authority wallet
+  // with no budget tracking — the escrow handles payment directly.
+  // Budget is ONLY for orchestrator agents that delegate to sub-agents.
   let budgetAgentDid: string | undefined;
   if (depositTxHash === "autonomous-mode") {
-    const budgets = await dbGetBudgetsByOwner(callerAddress);
-    const totalNeeded = parseFloat(totalCost);
+    // Check if any step is an orchestrator — only then do we need budget
+    const hasOrchestratorStep = steps.some((s) =>
+      s.agentEndpoint?.includes("/api/hosted-agent")
+    );
 
-    if (budgets.length === 0) {
-      return NextResponse.json(
-        { error: `No budget found. Deposit USDC into one of your agents in My Agents first.` },
-        { status: 402 }
-      );
-    }
+    if (hasOrchestratorStep) {
+      const budgets = await dbGetBudgetsByOwner(callerAddress);
+      // Find the orchestrator agent's own budget
+      const stepAgentDids = new Set(steps.map((s) => s.agentDid));
+      const matchingBudget = budgets.find((b) => stepAgentDids.has(b.agent_did) && b.balance > 0);
 
-    // Prefer: 1) matching step agent budget, 2) any budget with enough balance
-    const stepAgentDids = new Set(steps.map((s) => s.agentDid));
-    const matchingBudget = budgets.find((b) => stepAgentDids.has(b.agent_did) && b.balance >= totalNeeded);
-
-    if (matchingBudget) {
-      budgetAgentDid = matchingBudget.agent_did;
-    } else {
-      // Use any budget with enough balance (user's general funds)
-      const sufficient = budgets.sort((a, b) => b.balance - a.balance).find((b) => b.balance >= totalNeeded);
-      if (!sufficient) {
-        const totalAvailable = budgets.reduce((s, b) => s + b.balance, 0);
-        return NextResponse.json(
-          { error: `Insufficient budget: ${totalAvailable.toFixed(2)} USDC available across your agents, ${totalNeeded.toFixed(2)} USDC needed.` },
-          { status: 402 }
-        );
+      if (matchingBudget) {
+        budgetAgentDid = matchingBudget.agent_did;
       }
-      budgetAgentDid = sufficient.agent_did;
+      // If no budget found for orchestrator, it will handle the error internally
     }
+    // Non-orchestrator autonomous steps: no budget needed, authority wallet funds escrows
   }
 
   // Verify the deposit transaction exists on-chain (non-autonomous mode)

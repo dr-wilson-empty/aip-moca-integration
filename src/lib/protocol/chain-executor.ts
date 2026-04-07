@@ -198,23 +198,9 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
     step.taskId = taskId;
     const amount = parseFloat(step.estimatedCost);
 
-    // 0. Reserve from budget (autonomous mode)
-    let budgetReserved = false;
-    if (budgetAgentDid) {
-      try {
-        await reserveBudget(budgetAgentDid, amount, taskId, step.agentDid);
-        budgetReserved = true;
-        logger.info("chain", "budget_reserved", { chainId: chain.id, step: i + 1, amount, budgetAgentDid });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        logger.error("chain", "budget_reserve_failed", { chainId: chain.id, step: i + 1, error: msg });
-        step.status = "failed";
-        step.error = `Budget reserve failed: ${msg}`;
-        chain.status = "failed";
-        chain.totalSpent = totalSpent.toFixed(2);
-        return;
-      }
-    }
+    // Non-orchestrator steps: no budget reserve needed
+    // Authority wallet funds escrows directly, budget is only for orchestrator internal delegation
+    const budgetReserved = false;
 
     // 1. Create on-chain escrow for this step
     try {

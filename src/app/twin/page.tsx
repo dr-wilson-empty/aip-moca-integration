@@ -441,17 +441,23 @@ export default function TwinPage() {
     }
   };
 
+  /* ---- Check if steps contain an orchestrator agent ---- */
+  const hasOrchestratorStep = (steps: PipelineStep[]) =>
+    steps.some((s) => s.agentEndpoint?.includes("/api/hosted-agent"));
+
   /* ---- Confirm pipeline ---- */
   const handleConfirm = (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg?.steps?.length) return;
 
-    // If autonomous mode, run via chain executor (single or pipeline)
-    if (autonomousMode) {
+    // Autonomous mode: only use chain executor if orchestrator step exists
+    // Non-orchestrator steps always require Phantom wallet payment
+    if (autonomousMode && hasOrchestratorStep(msg.steps)) {
       executeAutonomousChain(msgId);
       return;
     }
 
+    // Manual mode OR auto + non-orchestrator: step-by-step with Phantom
     updateMessage(msgId, { state: "executing" });
     executeStep(msgId, 0);
   };
@@ -673,7 +679,7 @@ export default function TwinPage() {
                     <div className="flex gap-2">
                       <button onClick={() => handleConfirm(msg.id)}
                         className="flex-1 font-mono text-xs text-bg-base bg-accent px-3 py-2 rounded-lg hover:bg-mint transition-colors">
-                        {autonomousMode
+                        {autonomousMode && hasOrchestratorStep(msg.steps || [])
                           ? (msg.orchestratorAlt ? "Direct Pipeline" : "Run Autonomously")
                           : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
                       </button>
