@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listCards } from "@/lib/protocol/agent-card-store";
+import { listCards, registerCard } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
-import { listHostedAgents } from "@/lib/hosted-agents";
+import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
 import { dbGetPreferences } from "@/lib/supabase/preferences";
 
 seedDemoAgents();
@@ -15,6 +15,24 @@ seedDemoAgents();
  */
 export async function POST(request: NextRequest) {
   seedDemoAgents();
+  // Ensure hosted agents are loaded from Supabase (may not be ready yet from seed)
+  await loadHostedAgentsFromDb();
+  // Register hosted agent cards (in case async seed didn't finish yet)
+  for (const ha of listHostedAgents()) {
+    registerCard({
+      did: `did:aip:${ha.ownerAddress.slice(0, 8)}:${ha.agentId}`,
+      name: ha.name,
+      version: "1.0.0",
+      endpoint: `http://localhost:3000/api/hosted-agent?agentId=${ha.agentId}`,
+      type: "Task",
+      walletAddress: ha.ownerAddress,
+      capabilities: ha.capabilities.map((c) => ({
+        id: c.id,
+        description: c.description,
+        pricing: { amount: c.pricing.amount, token: "USDC" as const, network: "solana" as const },
+      })),
+    });
+  }
 
   let body: Record<string, unknown>;
   try {
