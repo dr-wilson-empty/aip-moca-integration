@@ -461,13 +461,18 @@ export default function TwinPage() {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg) return;
 
+    // Find the original user message (the one right before this plan message)
+    const msgIdx = messages.findIndex((m) => m.id === msgId);
+    const userMsg = messages.slice(0, msgIdx).reverse().find((m) => m.role === "user");
+    const originalInput = userMsg?.content || msg.content;
+
     updateMessage(msgId, { content: "Replanning as direct pipeline...", state: "planning" });
 
     try {
       const res = await fetch("/api/twin/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg.content, walletAddress: address, skipOrchestrator: true }),
+        body: JSON.stringify({ message: originalInput, walletAddress: address, skipOrchestrator: true }),
       });
       if (!res.ok) {
         updateMessage(msgId, { content: "Failed to replan.", state: "failed" });
