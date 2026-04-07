@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listCards } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
+import { listHostedAgents } from "@/lib/hosted-agents";
 import { dbGetPreferences } from "@/lib/supabase/preferences";
 
 seedDemoAgents();
@@ -78,13 +79,23 @@ export async function POST(request: NextRequest) {
     .map((c) => `- ${c.agentName} → ${c.capabilityId} (${c.description}) — ${c.price} USDC`)
     .join("\n");
 
+  // Identify orchestrator agents (can delegate to other agents autonomously)
+  const orchestrators = listHostedAgents().filter((a) => a.canOrchestrate);
+  const orchestratorInfo = orchestrators.length > 0
+    ? "\n\nORCHESTRATOR AGENTS (these agents can internally call other agents — prefer them for complex multi-step tasks):\n" +
+      orchestrators.map((o) => {
+        const caps = o.capabilities.map((c) => c.id).join(", ");
+        return `- ${o.name} [${caps}] — This agent will autonomously plan and delegate sub-tasks to other agents using its own budget. Use as SINGLE mode.`;
+      }).join("\n")
+    : "";
+
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     system:
       "You are a Digital Twin planner for AIP (Agent Internet Protocol). " +
       "The user gives you a natural language instruction. Decide if it needs ONE agent or MULTIPLE agents in sequence.\n\n" +
-      "Available agents and capabilities:\n" + availableCapabilities + "\n\n" +
+      "Available agents and capabilities:\n" + availableCapabilities + orchestratorInfo + "\n\n" +
       "CAPABILITY USAGE GUIDE:\n" +
       "- text.translate: Use for translation tasks. Pass the FULL user message as input (including target language instruction).\n" +
       "- text.summarize: Use for ANY text processing — summarizing, rewriting, extracting info, creating recipes, formatting, analyzing content, answering questions about text. This is the DEFAULT for text tasks.\n" +
@@ -94,8 +105,9 @@ export async function POST(request: NextRequest) {
       "- code.audit: Analyze smart contract code for security vulnerabilities.\n" +
       "- defi.analyze: Analyze DeFi protocol risks, TVL, yield strategies.\n\n" +
       "RULES:\n" +
+      "- ORCHESTRATOR PRIORITY: If an orchestrator agent exists that can handle the task, ALWAYS prefer it as a single step over creating a multi-step pipeline. The orchestrator will handle sub-tasks internally.\n" +
       "- If the task can be done by a single capability, use mode 'single'\n" +
-      "- If the task needs multiple steps (e.g. 'fetch data then summarize', 'search and analyze'), use mode 'pipeline'\n" +
+      "- Only use mode 'pipeline' if NO orchestrator agent can handle the task AND multiple steps are truly needed\n" +
       "- Pipeline steps run sequentially — each step's output feeds into the next step's input\n" +
       "- For pipeline step 2+, set inputFromPrev to true (the previous step's result becomes input)\n" +
       "- Keep pipelines to 2-4 steps maximum\n" +

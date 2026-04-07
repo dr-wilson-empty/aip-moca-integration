@@ -27,6 +27,8 @@ import { getConnection } from "@/lib/solana/connection";
 import { buildInitializeEscrowIx } from "@/lib/solana/escrow-program";
 import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/escrow";
 import { reserveBudget, refundBudget } from "@/lib/payment/agent-budget";
+import { getHostedAgent } from "@/lib/hosted-agents";
+import { orchestrateTask } from "./agent-orchestrator";
 import { createTask, completeTask, failTask, acceptTask } from "./task-machine";
 import { executeTask } from "./a2a-client";
 import { logger } from "@/lib/logger";
@@ -150,6 +152,32 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
       if (prevArtifact) {
         stepInput = prevArtifact;
         step.input = prevArtifact;
+      }
+    }
+
+    // Check if this step's agent is an orchestrator — bypass escrow, let it self-manage
+    const hostedMatch = step.agentEndpoint.match(/[?&]agentId=([^&]+)/);
+    const hostedConfig = hostedMatch ? getHostedAgent(hostedMatch[1]) : null;
+    if (hostedConfig?.canOrchestrate) {
+      const agentDid = step.agentDid || `did:aip:${hostedConfig.ownerAddress.slice(0, 8)}:${hostedConfig.agentId}`;
+      logger.info("chain", "orchestrator_step", { chainId: chain.id, step: i + 1, agent: step.agentName });
+
+      try {
+        const result = await orchestrateTask(agentDid, hostedConfig.name, hostedConfig.systemPrompt, stepInput);
+        step.artifact = result;
+        step.status = "completed";
+        step.taskId = `orch_${chain.id}_${i}`;
+        // totalSpent not tracked here — orchestrator manages its own budget internally
+        logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1 });
+        continue; // Skip normal escrow flow
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        step.status = "failed";
+        step.error = msg;
+        chain.status = "failed";
+        chain.totalSpent = totalSpent.toFixed(2);
+        logger.error("chain", "orchestrator_failed", { chainId: chain.id, step: i + 1, error: msg });
+        return;
       }
     }
 
