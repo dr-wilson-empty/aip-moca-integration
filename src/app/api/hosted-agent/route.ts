@@ -166,7 +166,16 @@ async function processHostedTask(
     // Orchestration mode: agent autonomously delegates to other agents
     if (config.canOrchestrate) {
       const agentDid = `did:aip:${config.ownerAddress.slice(0, 8)}:${config.agentId}`;
-      result = await orchestrateTask(agentDid, config.name, config.systemPrompt, input);
+      const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input);
+
+      const subTaskInfo = orchResult.subTasks
+        .filter((s) => s.status === "completed")
+        .map((s) => `${s.agentName} (${s.capabilityId}) — ${s.cost.toFixed(2)} USDC`)
+        .join("\n");
+
+      result = orchResult.answer +
+        `\n\n---\n**${config.name}** orchestrated ${orchResult.stepsCompleted} agent(s), spent ${orchResult.totalSpent.toFixed(2)} USDC from budget` +
+        (subTaskInfo ? `\n${subTaskInfo}` : "");
     } else if (config.provider === "anthropic") {
       result = await callAnthropic(config, input);
     } else if (config.provider === "openai") {

@@ -40,6 +40,20 @@ interface StepResult {
   artifact?: string;
   error?: string;
   cost: number;
+  agentName?: string;
+  capabilityId?: string;
+}
+
+export interface OrchestrationResult {
+  answer: string;
+  totalSpent: number;
+  stepsCompleted: number;
+  subTasks: Array<{
+    agentName: string;
+    capabilityId: string;
+    cost: number;
+    status: "completed" | "failed";
+  }>;
 }
 
 function getAuthorityKeypair(): Keypair {
@@ -62,7 +76,7 @@ export async function orchestrateTask(
   callerAgentName: string,
   systemPrompt: string,
   userInput: string,
-): Promise<string> {
+): Promise<OrchestrationResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
@@ -144,7 +158,12 @@ export async function orchestrateTask(
       messages: [{ role: "user", content: userInput }],
     });
     const directText = directResponse.content[0];
-    return directText.type === "text" ? directText.text : "No response";
+    return {
+      answer: directText.type === "text" ? directText.text : "No response",
+      totalSpent: 0,
+      stepsCompleted: 0,
+      subTasks: [],
+    };
   }
 
   // Resolve steps to actual agents
@@ -273,7 +292,7 @@ export async function orchestrateTask(
 
       if (result.status === "COMPLETED" && result.artifact) {
         await releaseEscrow(taskId);
-        results.push({ status: "completed", artifact: result.artifact, cost: step.estimatedCost });
+        results.push({ status: "completed", artifact: result.artifact, cost: step.estimatedCost, agentName: step.agentName, capabilityId: step.capabilityId });
 
         logger.info("orchestrator", "step_completed", {
           callerAgentDid,
@@ -332,5 +351,15 @@ export async function orchestrateTask(
     totalSpent: totalSpent.toFixed(2),
   });
 
-  return `${finalAnswer}\n\n---\n_${callerAgentName} used ${completedResults.length} agent(s), spent ${totalSpent.toFixed(2)} USDC_`;
+  return {
+    answer: finalAnswer,
+    totalSpent,
+    stepsCompleted: completedResults.length,
+    subTasks: results.map((r) => ({
+      agentName: r.agentName || "Unknown",
+      capabilityId: r.capabilityId || "",
+      cost: r.cost,
+      status: r.status,
+    })),
+  };
 }

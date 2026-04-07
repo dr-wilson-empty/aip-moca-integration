@@ -163,12 +163,21 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
       logger.info("chain", "orchestrator_step", { chainId: chain.id, step: i + 1, agent: step.agentName });
 
       try {
-        const result = await orchestrateTask(agentDid, hostedConfig.name, hostedConfig.systemPrompt, stepInput);
-        step.artifact = result;
+        const orchResult = await orchestrateTask(agentDid, hostedConfig.name, hostedConfig.systemPrompt, stepInput);
+
+        // Build rich artifact with sub-task metadata
+        const subTaskInfo = orchResult.subTasks
+          .filter((s) => s.status === "completed")
+          .map((s) => `${s.agentName} (${s.capabilityId}) — ${s.cost.toFixed(2)} USDC`)
+          .join("\n");
+
+        step.artifact = orchResult.answer +
+          `\n\n---\n**${hostedConfig.name}** orchestrated ${orchResult.stepsCompleted} agent(s), spent ${orchResult.totalSpent.toFixed(2)} USDC from budget` +
+          (subTaskInfo ? `\n${subTaskInfo}` : "");
         step.status = "completed";
         step.taskId = `orch_${chain.id}_${i}`;
-        // totalSpent not tracked here — orchestrator manages its own budget internally
-        logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1 });
+        totalSpent += orchResult.totalSpent;
+        logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1, subSpent: orchResult.totalSpent });
         continue; // Skip normal escrow flow
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
