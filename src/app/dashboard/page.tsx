@@ -3,6 +3,7 @@
 import TaskForm from "@/components/dashboard/TaskForm";
 import ProtocolFlow from "@/components/dashboard/ProtocolFlow";
 import LiveLog from "@/components/dashboard/LiveLog";
+import ChainHistory from "@/components/dashboard/ChainHistory";
 
 export default function DashboardPage() {
   return (
@@ -23,6 +24,7 @@ export default function DashboardPage() {
         <TaskForm />
         <ProtocolFlow />
         <LiveLog />
+        <ChainHistory />
       </div>
     </div>
   );

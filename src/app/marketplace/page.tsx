@@ -28,6 +28,33 @@ function TypeBadge({ type }: { type: AgentType }) {
   );
 }
 
+const CAPABILITY_BADGES: Record<string, { label: string; style: string }> = {
+  "web.search": { label: "Web", style: "border-cyan-800/40 text-cyan-400 bg-cyan-900/10" },
+  "document.parse": { label: "PDF", style: "border-orange-800/40 text-orange-400 bg-orange-900/10" },
+  "text.translate": { label: "Translate", style: "border-green-800/40 text-green-400 bg-green-900/10" },
+  "code.audit": { label: "Security", style: "border-red-800/40 text-red-400 bg-red-900/10" },
+  "defi.analyze": { label: "DeFi", style: "border-purple-800/40 text-purple-400 bg-purple-900/10" },
+  "text.summarize": { label: "AI", style: "border-blue-800/40 text-blue-400 bg-blue-900/10" },
+  "data.retrieve": { label: "Data", style: "border-amber-800/40 text-amber-400 bg-amber-900/10" },
+};
+
+function CapabilityBadges({ capabilities }: { capabilities: Array<{ id: string }> }) {
+  const badges = capabilities
+    .map((c) => CAPABILITY_BADGES[c.id])
+    .filter(Boolean);
+
+  if (badges.length === 0) return null;
+  return (
+    <>
+      {badges.map((b, i) => (
+        <span key={i} className={`font-mono text-[9px] uppercase px-1.5 py-0.5 border rounded ${b.style}`}>
+          {b.label}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function Stars({ rating, size = "text-xs" }: { rating: number; size?: string }) {
   return (
     <span className={`${size} text-yellow-400`}>
@@ -56,6 +83,7 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterBadge, setFilterBadge] = useState<string>("all");
   const [sort, setSort] = useState<SortKey>("name");
 
   const loadAgents = useCallback(async () => {
@@ -93,7 +121,8 @@ export default function MarketplacePage() {
       const matchSearch = !q || a.name.toLowerCase().includes(q) ||
         a.capabilities.some((c) => c.id.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
       const matchType = filterType === "all" || a.type === filterType;
-      return matchSearch && matchType;
+      const matchBadge = filterBadge === "all" || a.capabilities.some((c) => c.id === filterBadge);
+      return matchSearch && matchType && matchBadge;
     })
     .sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
@@ -150,6 +179,13 @@ export default function MarketplacePage() {
           <option value="LLM">LLM</option>
           <option value="Task">Task</option>
           <option value="Execution">Execution</option>
+        </select>
+        <select value={filterBadge} onChange={(e) => setFilterBadge(e.target.value)}
+          className="bg-forest-deep/30 border border-mint/15 rounded-lg px-4 py-2.5 font-mono text-sm text-muted focus:border-mint/30 focus:outline-none cursor-pointer">
+          <option value="all">All Capabilities</option>
+          {Object.entries(CAPABILITY_BADGES).map(([id, b]) => (
+            <option key={id} value={id}>{b.label}</option>
+          ))}
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}
           className="bg-forest-deep/30 border border-mint/15 rounded-lg px-4 py-2.5 font-mono text-sm text-muted focus:border-mint/30 focus:outline-none cursor-pointer">
@@ -220,17 +256,18 @@ export default function MarketplacePage() {
               </div>
 
               {/* Badges */}
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                 <TypeBadge type={agent.type} />
                 {agent.did.startsWith("did:aip:hosted:") ? (
-                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-cyan-800/40 text-cyan-400 bg-cyan-900/10">
+                  <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border rounded border-cyan-800/40 text-cyan-400 bg-cyan-900/10">
                     hosted
                   </span>
                 ) : agent.onChain ? (
-                  <span className="font-mono text-xs uppercase px-2 py-0.5 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
+                  <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
                     on-chain
                   </span>
                 ) : null}
+                <CapabilityBadges capabilities={agent.capabilities} />
               </div>
 
               {/* Rating */}

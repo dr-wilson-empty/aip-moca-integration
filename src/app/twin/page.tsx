@@ -468,15 +468,25 @@ export default function TwinPage() {
           <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">Digital Twin</h2>
         </div>
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <span className="font-mono text-[10px] text-muted uppercase">Autonomous</span>
-            <button
-              onClick={() => setAutonomousMode(!autonomousMode)}
-              className={`relative w-9 h-5 rounded-full transition-colors ${autonomousMode ? "bg-accent" : "bg-forest-deep/60"}`}
-            >
-              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-off-white transition-transform ${autonomousMode ? "left-[18px]" : "left-0.5"}`} />
-            </button>
-          </label>
+          <div className="relative group">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <span className="font-mono text-[10px] text-muted uppercase">Autonomous</span>
+              <button
+                onClick={() => setAutonomousMode(!autonomousMode)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${autonomousMode ? "bg-accent" : "bg-forest-deep/60"}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-off-white transition-transform ${autonomousMode ? "left-[18px]" : "left-0.5"}`} />
+              </button>
+            </label>
+            {/* Tooltip */}
+            <div className="absolute top-full right-0 mt-2 w-64 px-3 py-2 bg-bg-base border border-mint/20 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+              <span className="font-mono text-[10px] text-off-white block">
+                {autonomousMode
+                  ? "ON: All steps run automatically. Payments are made from your agent budget — no wallet signature needed."
+                  : "OFF: Each step requires your approval. Payments are made from your wallet via Phantom signature."}
+              </span>
+            </div>
+          </div>
         </div>
         {messages.length > 0 && !isProcessing && (
           <button onClick={() => clearMessages()} className="font-mono text-xs text-red-400 hover:text-red-300 transition-colors">
