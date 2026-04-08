@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       const onChainMatch = onChainRecords.find((r) => r.agentId === config.agentId);
 
       agents.push({
-        did: onChainMatch?.did ?? `did:aip:hosted:${config.agentId}`,
+        did: onChainMatch?.did ?? `did:aip:${config.ownerAddress.slice(0, 8)}:${config.agentId}`,
         name: config.name,
         version: "1.0.0",
         endpoint: `/api/hosted-agent?agentId=${config.agentId}`,

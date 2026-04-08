@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import {
   registerHostedAgent,
   getHostedAgentsByOwner,
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
   // Also register in agent-card-store for marketplace visibility
   const hostedEndpoint = `${getBaseUrl(request)}/api/hosted-agent?agentId=${agentId}`;
   const agentCard: AgentCard = {
-    did: `did:aip:hosted:${agentId}`,
+    did: canonicalAgentDid(ownerAddress, agentId),
     name,
     version: "1.0.0",
     endpoint: hostedEndpoint,

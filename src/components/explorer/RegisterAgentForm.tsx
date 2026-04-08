@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useRouter } from "next/navigation";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import { useAgentRegistry, type AgentParams } from "@/hooks/useRegisterAgent";
 import { useAgentStore } from "@/store/agentStore";
 import type { MyAgentEntry } from "@/types/aip";
@@ -118,7 +119,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
     if (sig) {
       // Track this as a UI registration
       const ownerAddr = publicKey.toBase58();
-      const did = `did:aip:${ownerAddr.slice(0, 8)}:${params.agentId}`;
+      const did = canonicalAgentDid(ownerAddr, params.agentId);
       await trackUIRegistration(did, ownerAddr, params.agentId);
       setTxHash(sig);
       setTxAction("registered");

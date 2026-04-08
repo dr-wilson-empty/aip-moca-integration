@@ -4,6 +4,7 @@ import { COUNTERPART_AGENT_CARDS, WEB_SEARCH_AGENT } from "@/lib/mock/agentCards
 import { registerCard, syncFromChain } from "./agent-card-store";
 import { registerAgentOnChain, isAgentOnChain } from "@/lib/solana/registry-program";
 import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 
 const gs = globalThis as typeof globalThis & {
   __aip_seeded?: boolean;
@@ -38,7 +39,7 @@ export function seedDemoAgents(): void {
   loadHostedAgentsFromDb().then(() => {
     for (const ha of listHostedAgents()) {
       registerCard({
-        did: `did:aip:${ha.ownerAddress.slice(0, 8)}:${ha.agentId}`,
+        did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
         name: ha.name,
         version: "1.0.0",
         endpoint: `http://localhost:3000/api/hosted-agent?agentId=${ha.agentId}`,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHostedAgent } from "@/lib/hosted-agents";
 import { orchestrateTask } from "@/lib/protocol/agent-orchestrator";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import Anthropic from "@anthropic-ai/sdk";
 
 /**
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    did: `did:aip:hosted:${agentId}`,
+    did: canonicalAgentDid(config.ownerAddress, agentId),
     name: config.name,
     version: "1.0.0",
     endpoint: `/api/hosted-agent?agentId=${agentId}`,
@@ -170,7 +171,7 @@ async function processHostedTask(
 
     // Orchestration mode: agent autonomously delegates to other agents
     if (config.canOrchestrate) {
-      const agentDid = `did:aip:${config.ownerAddress.slice(0, 8)}:${config.agentId}`;
+      const agentDid = canonicalAgentDid(config.ownerAddress, config.agentId);
       const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input, config.ownerAddress);
 
       const subTaskInfo = orchResult.subTasks

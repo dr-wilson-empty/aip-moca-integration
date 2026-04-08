@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listCards, registerCard } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import { dbGetPreferences } from "@/lib/supabase/preferences";
 
 seedDemoAgents();
@@ -12,7 +13,7 @@ async function ensureHostedAgentCards() {
   await loadHostedAgentsFromDb();
   for (const ha of listHostedAgents()) {
     registerCard({
-      did: `did:aip:${ha.ownerAddress.slice(0, 8)}:${ha.agentId}`,
+      did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
       name: ha.name,
       version: "1.0.0",
       endpoint: `http://localhost:3000/api/hosted-agent?agentId=${ha.agentId}`,
