@@ -82,6 +82,7 @@ export default function MarketplacePage() {
   const [topAgentDids, setTopAgentDids] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<Map<string, boolean>>(new Map());
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterBadge, setFilterBadge] = useState<string>("all");
@@ -111,6 +112,13 @@ export default function MarketplacePage() {
 
       setAgents(enriched);
       setCategories(catRes.categories ?? []);
+
+      // Fetch agent online/offline status
+      fetch("/api/agent-card/status").then((r) => r.json()).then((d) => {
+        const statusMap = new Map<string, boolean>();
+        for (const a of d.agents ?? []) statusMap.set(a.did, a.online);
+        setAgentStatus(statusMap);
+      }).catch(() => {});
     } catch {
       setLoadError(true);
     }
@@ -258,12 +266,30 @@ export default function MarketplacePage() {
                 )}
               </div>
 
-              {/* Name */}
+              {/* Name + Status */}
               <div className="mb-3">
-                <h3 className="font-display text-lg text-off-white uppercase tracking-wider group-hover:text-mint transition-colors truncate pr-16">
-                  {agent.name}
-                </h3>
-                <p className="font-mono text-sm text-muted/50 mt-0.5 truncate">{agent.did}</p>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    agentStatus.get(agent.did) === true
+                      ? "bg-green-400 animate-pulse"
+                      : agentStatus.get(agent.did) === false
+                      ? "bg-red-400/60"
+                      : "bg-muted/40"
+                  }`} />
+                  <h3 className="font-display text-lg text-off-white uppercase tracking-wider group-hover:text-mint transition-colors truncate pr-16">
+                    {agent.name}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5 pl-4">
+                  <span className={`font-mono text-[9px] uppercase ${
+                    agentStatus.get(agent.did) === true ? "text-green-400" :
+                    agentStatus.get(agent.did) === false ? "text-red-400/60" : "text-muted/30"
+                  }`}>
+                    {agentStatus.get(agent.did) === true ? "online" :
+                     agentStatus.get(agent.did) === false ? "offline" : "..."}
+                  </span>
+                  <p className="font-mono text-[10px] text-muted/40 truncate">{agent.did}</p>
+                </div>
               </div>
 
               {/* Badges */}

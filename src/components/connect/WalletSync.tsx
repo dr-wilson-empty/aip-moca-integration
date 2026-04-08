@@ -45,6 +45,8 @@ export default function WalletSync() {
           })
           .catch((err) => {
             console.warn("[WalletSync] Auth signing declined or failed:", err?.message || err);
+            // Still mark auth as ready so app doesn't freeze — requests will go unsigned
+            setAuth("", 0);
           })
           .finally(() => {
             signingRef.current = false;

@@ -21,6 +21,8 @@ export function getAuthSession(): AuthSession | null {
 
 export function getAuthHeaders(): Record<string, string> {
   if (!currentAuth) return {};
+  // Don't send auth headers if signature is empty (signing was declined)
+  if (!currentAuth.signature) return {};
   return {
     "X-WALLET-ADDRESS": currentAuth.address,
     "X-WALLET-SIGNATURE": currentAuth.signature,

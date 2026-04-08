@@ -33,7 +33,7 @@ function StepIcon({ status }: { status?: string }) {
 
 export default function TwinPage() {
   const router = useRouter();
-  const { address, did, fetchBalance } = useWalletStore();
+  const { address, did, fetchBalance, authReady } = useWalletStore();
   const { setCounterpart } = useAgentStore();
   const { addTask } = useLogStore();
   const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded, loading, loadMore, hasMore, loadingMore, clearMessages } = useTwinStore();
@@ -67,13 +67,13 @@ export default function TwinPage() {
 
   const { setWallet } = useTwinStore();
 
-  // Set wallet + load twin history from Supabase on every mount (stale-while-revalidate)
+  // Set wallet + load twin history from Supabase (wait for auth to be ready)
   useEffect(() => {
-    if (address) {
+    if (address && authReady) {
       setWallet(address);
       loadFromServer(address);
     }
-  }, [address, loadFromServer, setWallet]);
+  }, [address, authReady, loadFromServer, setWallet]);
 
   useEffect(() => {
     // Don't auto-scroll to bottom when loading older messages

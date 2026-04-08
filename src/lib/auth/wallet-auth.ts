@@ -71,11 +71,27 @@ export function isAuthError(result: WalletAuthResult | NextResponse): result is 
 /**
  * Convenience: verify wallet auth AND ensure the authenticated wallet
  * matches a wallet address from the request (query param or body).
+ *
+ * For GET requests: if no auth headers, trusts the wallet param (same-origin only).
+ * For mutation requests (POST/PATCH/DELETE): auth headers required.
  */
 export function verifyWalletOwnership(
   request: NextRequest,
   requestedWallet: string | null,
 ): WalletAuthResult | NextResponse {
+  const hasAuthHeaders = request.headers.has("x-wallet-address");
+
+  // No auth headers — allow GET requests with wallet param (graceful degradation)
+  if (!hasAuthHeaders) {
+    if (request.method === "GET" && requestedWallet) {
+      return { wallet: requestedWallet };
+    }
+    return NextResponse.json(
+      { error: "Authentication required: missing wallet signature headers" },
+      { status: 401 },
+    );
+  }
+
   const auth = verifyWalletAuth(request);
   if (isAuthError(auth)) return auth;
 
