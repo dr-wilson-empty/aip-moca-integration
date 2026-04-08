@@ -329,7 +329,7 @@ function AgentMemories({ wallet }: { wallet: string }) {
               <span className="font-mono text-[10px] text-mint uppercase block mb-2">
                 {agentDid.length > 30 ? agentDid.slice(0, 20) + "..." : agentDid}
               </span>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
                 {entries.map((m) => (
                   <div key={m.id} className="flex items-start justify-between gap-2 group">
                     <div className="flex items-start gap-2 min-w-0">
