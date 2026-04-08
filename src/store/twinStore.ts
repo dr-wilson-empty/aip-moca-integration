@@ -226,6 +226,8 @@ export const useTwinStore = create<TwinState>()((set, get) => ({
     set((s) => ({
       messages: s.messages.map((m) => {
         if (m.id !== msgId || !m.steps) return m;
+        // Prevent ghost steps: don't write beyond existing steps array
+        if (stepIdx >= m.steps.length) return m;
         const steps = [...m.steps];
         steps[stepIdx] = { ...steps[stepIdx], ...update };
         return { ...m, steps };

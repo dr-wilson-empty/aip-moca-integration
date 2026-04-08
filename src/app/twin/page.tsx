@@ -355,9 +355,14 @@ export default function TwinPage() {
           if (!pollRes.ok) return;
           const { chain: updated } = await pollRes.json();
 
-          // Update step statuses in UI
+          // Update UI step statuses from chain (only for existing UI steps)
           if (updated.steps) {
-            for (let i = 0; i < updated.steps.length; i++) {
+            const currentMsg = messages.find((m) => m.id === msgId);
+            const uiStepCount = currentMsg?.steps?.length ?? 0;
+
+            // Only update steps that already exist in UI — don't create ghost steps
+            const limit = Math.min(updated.steps.length, uiStepCount);
+            for (let i = 0; i < limit; i++) {
               const chainStep = updated.steps[i];
               updateStep(msgId, i, {
                 status: chainStep.status,
@@ -367,7 +372,7 @@ export default function TwinPage() {
                 settlementTxHash: chainStep.settlementTxHash,
               });
             }
-            updateMessage(msgId, { currentStep: updated.currentStep });
+            updateMessage(msgId, { currentStep: Math.min(updated.currentStep, uiStepCount - 1) });
           }
 
           if (updated.status === "completed") {
