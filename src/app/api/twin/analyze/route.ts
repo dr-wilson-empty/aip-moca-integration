@@ -3,6 +3,7 @@ import { listCards, registerCard } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+import { getCurrentDateString } from "@/lib/web/realtime-enrichment";
 import { dbGetPreferences } from "@/lib/supabase/preferences";
 
 seedDemoAgents();
@@ -124,6 +125,7 @@ export async function POST(request: NextRequest) {
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     system:
+      `${getCurrentDateString()}\n\n` +
       "You are a Digital Twin planner for AIP (Agent Internet Protocol). " +
       "The user gives you a natural language instruction. Decide if it needs ONE agent or MULTIPLE agents in sequence.\n\n" +
       "Available agents and capabilities:\n" + availableCapabilities + orchestratorInfo + "\n\n" +
@@ -131,7 +133,7 @@ export async function POST(request: NextRequest) {
       "- text.translate: Use for translation tasks. Pass the FULL user message as input (including target language instruction).\n" +
       "- text.summarize: Use for ANY text processing — summarizing, rewriting, extracting info, creating recipes, formatting, analyzing content, answering questions about text. This is the DEFAULT for text tasks.\n" +
       "- text.classify: ONLY returns a JSON category tag (GENERAL/DEFI/GOVERNANCE/etc). Do NOT use for content analysis, recipes, formatting, or any task that needs readable text output. Only use when user explicitly wants a category label.\n" +
-      "- web.search: Search the web for current information, prices, news, etc.\n" +
+      "- web.search: Search the web for current information, prices, news, events, weather, etc. **ALWAYS use this for any question about current facts, prices, news, or time-sensitive information.** Do NOT rely on training data for current facts.\n" +
       "- data.retrieve: Fetch structured data from blockchain/APIs (Solana, DeFi protocols).\n" +
       "- code.audit: Analyze smart contract code for security vulnerabilities.\n" +
       "- defi.analyze: Analyze DeFi protocol risks, TVL, yield strategies.\n\n" +
