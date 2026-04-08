@@ -3,7 +3,30 @@
  * on ports 4001, 4002, 4003 respectively.
  *
  * Usage: npx tsx scripts/run-demo-agents.ts
+ *
+ * Loads .env.local for ANTHROPIC_API_KEY (required for Haiku handler).
  */
+
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// Load .env.local manually (external agents don't have Next.js env loading)
+try {
+  const envPath = resolve(__dirname, "../.env.local");
+  const envContent = readFileSync(envPath, "utf-8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim();
+    if (!process.env[key]) process.env[key] = val;
+  }
+  console.log("[env] Loaded .env.local — ANTHROPIC_API_KEY:", process.env.ANTHROPIC_API_KEY ? "set" : "MISSING");
+} catch {
+  console.warn("[env] Could not load .env.local — agents will fail without ANTHROPIC_API_KEY");
+}
 
 import { createAgent, haiku } from "../packages/agent-sdk/src/index";
 
