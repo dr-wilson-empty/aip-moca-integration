@@ -6,6 +6,7 @@ import {
   clearMemories,
   clearAllUserMemories,
 } from "@/lib/memory/agent-memory";
+import { verifyWalletOwnership, isAuthError } from "@/lib/auth/wallet-auth";
 
 /**
  * GET /api/memory?wallet=xxx                    — all memories for user
@@ -18,6 +19,9 @@ export async function GET(request: NextRequest) {
   if (!wallet) {
     return NextResponse.json({ error: "wallet required" }, { status: 400 });
   }
+
+  const auth = verifyWalletOwnership(request, wallet);
+  if (isAuthError(auth)) return auth;
 
   if (agentDid) {
     const memories = await getMemories(agentDid, wallet);
@@ -34,6 +38,9 @@ export async function GET(request: NextRequest) {
  * DELETE /api/memory?wallet=xxx&all=true      — clear all user memories
  */
 export async function DELETE(request: NextRequest) {
+  const auth = verifyWalletOwnership(request, null);
+  if (isAuthError(auth)) return auth;
+
   const id = request.nextUrl.searchParams.get("id");
   const wallet = request.nextUrl.searchParams.get("wallet");
   const agentDid = request.nextUrl.searchParams.get("agentDid");

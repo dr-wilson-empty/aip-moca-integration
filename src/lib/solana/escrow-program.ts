@@ -39,7 +39,18 @@ const DISCRIMINATORS = {
 /*  PDA Derivation                                                     */
 /* ------------------------------------------------------------------ */
 
+/** Max task ID length in bytes for Solana PDA seed compatibility */
+const MAX_TASK_ID_BYTES = 64;
+
+function validateTaskIdLength(taskId: string): void {
+  const len = Buffer.byteLength(taskId, "utf-8");
+  if (len > MAX_TASK_ID_BYTES) {
+    throw new Error(`Task ID too long: ${len} bytes exceeds ${MAX_TASK_ID_BYTES} byte PDA seed limit`);
+  }
+}
+
 export function deriveEscrowStatePDA(taskId: string): [PublicKey, number] {
+  validateTaskIdLength(taskId);
   return PublicKey.findProgramAddressSync(
     [Buffer.from("escrow"), Buffer.from(taskId)],
     ESCROW_PROGRAM_ID
@@ -47,6 +58,7 @@ export function deriveEscrowStatePDA(taskId: string): [PublicKey, number] {
 }
 
 export function deriveEscrowVaultPDA(taskId: string): [PublicKey, number] {
+  validateTaskIdLength(taskId);
   return PublicKey.findProgramAddressSync(
     [Buffer.from("vault"), Buffer.from(taskId)],
     ESCROW_PROGRAM_ID

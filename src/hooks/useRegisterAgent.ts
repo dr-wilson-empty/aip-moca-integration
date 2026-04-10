@@ -46,8 +46,10 @@ function derivePDA(owner: PublicKey, agentId: string): PublicKey {
   return pda;
 }
 
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+
 function generateDid(ownerPubkey: string, agentId: string): string {
-  return `did:aip:${ownerPubkey.slice(0, 8)}:${agentId}`;
+  return canonicalAgentDid(ownerPubkey, agentId);
 }
 
 /* ------------------------------------------------------------------ */

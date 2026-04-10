@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 import type { Task } from "@/types/aip";
 
 interface LogState {
@@ -21,7 +22,7 @@ export const useLogStore = create<LogState>()(
       clearTasks: () => set({ tasks: [] }),
       loadFromServer: async (address: string) => {
         try {
-          const res = await fetch(`/api/tasks/history?address=${address}`);
+          const res = await signedFetch(`/api/tasks/history?address=${address}`);
           if (!res.ok) return;
           const data = await res.json();
           const serverTasks = (data.tasks ?? []) as Task[];

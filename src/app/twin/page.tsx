@@ -33,7 +33,7 @@ function StepIcon({ status }: { status?: string }) {
 
 export default function TwinPage() {
   const router = useRouter();
-  const { address, did, fetchBalance } = useWalletStore();
+  const { address, did, fetchBalance, authReady } = useWalletStore();
   const { setCounterpart } = useAgentStore();
   const { addTask } = useLogStore();
   const { messages, addMessage, updateMessage, updateStep, isProcessing, setProcessing, loadFromServer, loaded, loading, loadMore, hasMore, loadingMore, clearMessages } = useTwinStore();
@@ -50,19 +50,30 @@ export default function TwinPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreScrollRef = useRef<{ height: number; pending: boolean }>({ height: 0, pending: false });
   const startTimeRef = useRef("");
+  const chainPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { autonomousMode, setAutonomousMode } = useTwinStore();
 
   useTaskSSE(activeTaskId);
 
+  // Cleanup polling intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (chainPollRef.current) {
+        clearInterval(chainPollRef.current);
+        chainPollRef.current = null;
+      }
+    };
+  }, []);
+
   const { setWallet } = useTwinStore();
 
-  // Set wallet + load twin history from Supabase on every mount (stale-while-revalidate)
+  // Set wallet + load twin history from Supabase (wait for auth to be ready)
   useEffect(() => {
-    if (address) {
+    if (address && authReady) {
       setWallet(address);
       loadFromServer(address);
     }
-  }, [address, loadFromServer, setWallet]);
+  }, [address, authReady, loadFromServer, setWallet]);
 
   useEffect(() => {
     // Don't auto-scroll to bottom when loading older messages
@@ -260,13 +271,18 @@ export default function TwinPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         updateMessage(planMsgId, { content: `Could not find a suitable agent. ${err.error || ""}`, state: "failed" });
         setProcessing(false);
         return;
       }
 
-      const plan = await res.json();
+      const plan = await res.json().catch(() => null);
+      if (!plan || !plan.steps) {
+        updateMessage(planMsgId, { content: "Failed to parse agent response. Please try again.", state: "failed" });
+        setProcessing(false);
+        return;
+      }
       const steps = (plan.steps as PipelineStep[]).map((s) => ({ ...s, status: "pending" as const }));
 
       updateMessage(planMsgId, {
@@ -331,16 +347,22 @@ export default function TwinPage() {
       const { chain } = await res.json();
       updateMessage(msgId, { chainId: chain.id });
 
-      // Poll chain status
+      // Poll chain status (ref-tracked for cleanup on unmount)
+      if (chainPollRef.current) clearInterval(chainPollRef.current);
       const pollInterval = setInterval(async () => {
         try {
           const pollRes = await fetch(`/api/chain?id=${chain.id}`);
           if (!pollRes.ok) return;
           const { chain: updated } = await pollRes.json();
 
-          // Update step statuses in UI
+          // Update UI step statuses from chain (only for existing UI steps)
           if (updated.steps) {
-            for (let i = 0; i < updated.steps.length; i++) {
+            const currentMsg = messages.find((m) => m.id === msgId);
+            const uiStepCount = currentMsg?.steps?.length ?? 0;
+
+            // Only update steps that already exist in UI — don't create ghost steps
+            const limit = Math.min(updated.steps.length, uiStepCount);
+            for (let i = 0; i < limit; i++) {
               const chainStep = updated.steps[i];
               updateStep(msgId, i, {
                 status: chainStep.status,
@@ -350,11 +372,12 @@ export default function TwinPage() {
                 settlementTxHash: chainStep.settlementTxHash,
               });
             }
-            updateMessage(msgId, { currentStep: updated.currentStep });
+            updateMessage(msgId, { currentStep: Math.min(updated.currentStep, uiStepCount - 1) });
           }
 
           if (updated.status === "completed") {
             clearInterval(pollInterval);
+            chainPollRef.current = null;
 
             // Build chain summary
             const stepSummary = (updated.steps as Array<{ agentName: string; capabilityDescription: string; estimatedCost: string; status: string }>)
@@ -395,6 +418,7 @@ export default function TwinPage() {
             if (address) fetchBalance(address);
           } else if (updated.status === "failed") {
             clearInterval(pollInterval);
+            chainPollRef.current = null;
             const failedStep = updated.steps.find((s: { status: string }) => s.status === "failed");
 
             // Add completed steps to task history even on partial failure
@@ -429,9 +453,10 @@ export default function TwinPage() {
           }
         } catch { /* retry on next poll */ }
       }, 1000);
+      chainPollRef.current = pollInterval;
 
       // Safety timeout: stop polling after 5 minutes
-      setTimeout(() => clearInterval(pollInterval), 300000);
+      setTimeout(() => { clearInterval(pollInterval); chainPollRef.current = null; }, 300000);
     } catch (err) {
       updateMessage(msgId, {
         state: "failed",
@@ -485,7 +510,12 @@ export default function TwinPage() {
         setProcessing(false);
         return;
       }
-      const plan = await res.json();
+      const plan = await res.json().catch(() => null);
+      if (!plan || !plan.steps) {
+        updateMessage(msgId, { content: "Failed to parse replan response.", state: "failed" });
+        setProcessing(false);
+        return;
+      }
       const steps = (plan.steps as PipelineStep[]).map((s) => ({ ...s, status: "pending" as const }));
       updateMessage(msgId, {
         content: plan.explanation,
@@ -577,7 +607,7 @@ export default function TwinPage() {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
+      <div ref={scrollRef} role="log" aria-label="Chat messages" aria-live="polite" className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
         {/* Loading skeleton on first load */}
         {!loaded && loading && (
           <div className="flex-1 flex items-center justify-center">
@@ -798,9 +828,10 @@ export default function TwinPage() {
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
           disabled={isProcessing}
           placeholder={fileName ? `Ask about ${fileName}...` : "Tell your Twin what to do..."}
+          aria-label="Message your AI Twin"
           className="flex-1 bg-forest-deep/30 border border-mint/20 rounded-xl px-5 py-3 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none disabled:opacity-50"
         />
-        <BtnPrimary onClick={handleSend} disabled={!input.trim() || isProcessing}>
+        <BtnPrimary onClick={handleSend} disabled={!input.trim() || isProcessing} aria-label={isProcessing ? "Processing" : "Send message"}>
           {isProcessing ? "Working..." : "Send"}
         </BtnPrimary>
       </div>

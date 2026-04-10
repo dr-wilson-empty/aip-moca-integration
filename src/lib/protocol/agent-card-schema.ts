@@ -27,6 +27,13 @@ export function validateAgentCard(data: unknown): AgentCard | null {
   if (typeof obj.name !== "string" || !obj.name.trim()) return null;
   if (typeof obj.version !== "string" || !obj.version.trim()) return null;
   if (typeof obj.endpoint !== "string" || !obj.endpoint.trim()) return null;
+  // Only allow http/https endpoints — block javascript:, data:, etc.
+  try {
+    const endpointUrl = new URL(obj.endpoint);
+    if (!["http:", "https:"].includes(endpointUrl.protocol)) return null;
+  } catch {
+    return null; // invalid URL
+  }
   if (typeof obj.type !== "string" || !VALID_TYPES.includes(obj.type as AgentType)) return null;
   if (!Array.isArray(obj.capabilities) || obj.capabilities.length === 0) return null;
   if (!obj.capabilities.every(isCapability)) return null;

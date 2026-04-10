@@ -37,9 +37,11 @@ const AGENT_TYPE_REVERSE: Record<number, string> = { 0: "LLM", 1: "Task", 2: "Ex
 /*  DID + PDA                                                          */
 /* ------------------------------------------------------------------ */
 
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+
 /** Generate a deterministic DID from owner + agent_id */
 export function generateDid(ownerPubkey: string, agentId: string): string {
-  return `did:aip:${ownerPubkey.slice(0, 8)}:${agentId}`;
+  return canonicalAgentDid(ownerPubkey, agentId);
 }
 
 /** Derive PDA: ["agent", owner, agent_id] */

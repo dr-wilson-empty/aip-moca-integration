@@ -81,6 +81,8 @@ export default function MarketplacePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [topAgentDids, setTopAgentDids] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<Map<string, boolean>>(new Map());
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterBadge, setFilterBadge] = useState<string>("all");
@@ -88,6 +90,7 @@ export default function MarketplacePage() {
 
   const loadAgents = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [agentsRes, topRes, catRes] = await Promise.all([
         fetch("/api/agent-card?list=true").then((r) => r.json()),
@@ -109,7 +112,16 @@ export default function MarketplacePage() {
 
       setAgents(enriched);
       setCategories(catRes.categories ?? []);
-    } catch { /* ignore */ }
+
+      // Fetch agent online/offline status
+      fetch("/api/agent-card/status").then((r) => r.json()).then((d) => {
+        const statusMap = new Map<string, boolean>();
+        for (const a of d.agents ?? []) statusMap.set(a.did, a.online);
+        setAgentStatus(statusMap);
+      }).catch(() => {});
+    } catch {
+      setLoadError(true);
+    }
     setLoading(false);
   }, []);
 
@@ -206,7 +218,7 @@ export default function MarketplacePage() {
           <span className="text-accent font-display text-sm">{filtered.filter((a) => a.onChain).length}</span> on-chain
         </span>
         <span className="font-mono text-xs text-muted">
-          <span className="text-cyan-400 font-display text-sm">{filtered.filter((a) => a.did.startsWith("did:aip:hosted:")).length}</span> hosted
+          <span className="text-cyan-400 font-display text-sm">{filtered.filter((a) => a.endpoint.includes("/api/hosted-agent")).length}</span> hosted
         </span>
         <span className="font-mono text-xs text-muted">
           <span className="text-blue-400 font-display text-sm">{filtered.reduce((sum, a) => sum + a.capabilities.length, 0)}</span> capabilities
@@ -217,6 +229,13 @@ export default function MarketplacePage() {
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <span className="font-mono text-sm text-muted animate-pulse">Loading agents from Solana...</span>
+        </div>
+      ) : loadError ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <span className="font-mono text-sm text-red-400">Failed to load agents. Please check your connection.</span>
+          <button onClick={loadAgents} className="font-mono text-xs text-mint border border-mint/30 px-4 py-2 rounded-lg hover:bg-mint/10 transition-colors">
+            Retry
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -247,18 +266,36 @@ export default function MarketplacePage() {
                 )}
               </div>
 
-              {/* Name */}
+              {/* Name + Status */}
               <div className="mb-3">
-                <h3 className="font-display text-lg text-off-white uppercase tracking-wider group-hover:text-mint transition-colors truncate pr-16">
-                  {agent.name}
-                </h3>
-                <p className="font-mono text-sm text-muted/50 mt-0.5 truncate">{agent.did}</p>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    agentStatus.get(agent.did) === true
+                      ? "bg-green-400 animate-pulse"
+                      : agentStatus.get(agent.did) === false
+                      ? "bg-red-400/60"
+                      : "bg-muted/40"
+                  }`} />
+                  <h3 className="font-display text-lg text-off-white uppercase tracking-wider group-hover:text-mint transition-colors truncate pr-16">
+                    {agent.name}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5 pl-4">
+                  <span className={`font-mono text-[9px] uppercase ${
+                    agentStatus.get(agent.did) === true ? "text-green-400" :
+                    agentStatus.get(agent.did) === false ? "text-red-400/60" : "text-muted/30"
+                  }`}>
+                    {agentStatus.get(agent.did) === true ? "online" :
+                     agentStatus.get(agent.did) === false ? "offline" : "..."}
+                  </span>
+                  <p className="font-mono text-[10px] text-muted/40 truncate">{agent.did}</p>
+                </div>
               </div>
 
               {/* Badges */}
               <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                 <TypeBadge type={agent.type} />
-                {agent.did.startsWith("did:aip:hosted:") ? (
+                {agent.endpoint.includes("/api/hosted-agent") ? (
                   <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border rounded border-cyan-800/40 text-cyan-400 bg-cyan-900/10">
                     hosted
                   </span>

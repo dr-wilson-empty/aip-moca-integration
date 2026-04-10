@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHostedAgent } from "@/lib/hosted-agents";
 import { orchestrateTask } from "@/lib/protocol/agent-orchestrator";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+import { autoEnrichWithWebData, getCurrentDateString } from "@/lib/web/realtime-enrichment";
 import Anthropic from "@anthropic-ai/sdk";
 
 /**
@@ -14,12 +16,17 @@ import Anthropic from "@anthropic-ai/sdk";
  * Query: ?agentId=xxx
  */
 
-// In-memory task results for hosted agents
+// In-memory task results for hosted agents (auto-cleaned after 1 hour)
+const HOSTED_TASK_TTL_MS = 60 * 60 * 1000;
 const g = globalThis as typeof globalThis & {
   __aip_hosted_tasks?: Map<string, { status: string; artifact?: string; error?: string }>;
 };
 if (!g.__aip_hosted_tasks) g.__aip_hosted_tasks = new Map();
 const hostedTasks = g.__aip_hosted_tasks;
+
+function scheduleHostedTaskCleanup(taskId: string): void {
+  setTimeout(() => { hostedTasks.delete(taskId); }, HOSTED_TASK_TTL_MS);
+}
 
 interface JsonRpcRequest {
   jsonrpc: "2.0";
@@ -59,7 +66,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    did: `did:aip:hosted:${agentId}`,
+    did: canonicalAgentDid(config.ownerAddress, agentId),
     name: config.name,
     version: "1.0.0",
     endpoint: `/api/hosted-agent?agentId=${agentId}`,
@@ -165,7 +172,7 @@ async function processHostedTask(
 
     // Orchestration mode: agent autonomously delegates to other agents
     if (config.canOrchestrate) {
-      const agentDid = `did:aip:${config.ownerAddress.slice(0, 8)}:${config.agentId}`;
+      const agentDid = canonicalAgentDid(config.ownerAddress, config.agentId);
       const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input, config.ownerAddress);
 
       const subTaskInfo = orchResult.subTasks
@@ -185,11 +192,13 @@ async function processHostedTask(
     }
 
     hostedTasks.set(taskId, { status: "COMPLETED", artifact: result });
+    scheduleHostedTaskCleanup(taskId);
   } catch (err) {
     hostedTasks.set(taskId, {
       status: "FAILED",
       error: err instanceof Error ? err.message : String(err),
     });
+    scheduleHostedTaskCleanup(taskId);
   }
 }
 
@@ -205,13 +214,21 @@ async function callAnthropic(
     throw new Error("No Anthropic API key available");
   }
 
+  // Auto-enrich with web data if query needs current information
+  const enrichment = await autoEnrichWithWebData(input);
+  const enrichedInput = enrichment.enriched
+    ? `${input}\n\n${enrichment.webContext}`
+    : input;
+
+  const systemWithDate = `${getCurrentDateString()}\n\n${config.systemPrompt}`;
+
   const client = new Anthropic({ apiKey });
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    system: config.systemPrompt,
-    messages: [{ role: "user", content: input }],
+    max_tokens: 2048,
+    system: systemWithDate,
+    messages: [{ role: "user", content: enrichedInput }],
   });
 
   const textBlock = response.content.find((b) => b.type === "text");
@@ -227,6 +244,14 @@ async function callOpenAI(
     throw new Error("OpenAI requires your own API key");
   }
 
+  // Auto-enrich with web data if query needs current information
+  const enrichment = await autoEnrichWithWebData(input);
+  const enrichedInput = enrichment.enriched
+    ? `${input}\n\n${enrichment.webContext}`
+    : input;
+
+  const systemWithDate = `${getCurrentDateString()}\n\n${config.systemPrompt}`;
+
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -236,10 +261,10 @@ async function callOpenAI(
     body: JSON.stringify({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: config.systemPrompt },
-        { role: "user", content: input },
+        { role: "system", content: systemWithDate },
+        { role: "user", content: enrichedInput },
       ],
-      max_tokens: 1024,
+      max_tokens: 2048,
     }),
   });
 

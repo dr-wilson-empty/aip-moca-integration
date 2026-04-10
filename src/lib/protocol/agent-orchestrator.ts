@@ -18,6 +18,7 @@ import { getConnection } from "@/lib/solana/connection";
 import { buildInitializeEscrowIx } from "@/lib/solana/escrow-program";
 import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/escrow";
 import { reserveBudget, refundBudget, getAgentBudget } from "@/lib/payment/agent-budget";
+import { getCurrentDateString } from "@/lib/web/realtime-enrichment";
 import { buildMemoryContext, extractMemoryHints, saveMemories } from "@/lib/memory/agent-memory";
 import { listCards } from "./agent-card-store";
 import { executeTask } from "./a2a-client";
@@ -122,6 +123,7 @@ export async function orchestrateTask(
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     system:
+      `${getCurrentDateString()}\n\n` +
       `You are an AI orchestrator for the agent "${callerAgentName}". ` +
       `Your agent's system prompt: "${systemPrompt}"\n\n` +
       `You have a budget of ${budget.balance.toFixed(2)} USDC to spend on other agents.\n\n` +
@@ -129,6 +131,7 @@ export async function orchestrateTask(
       `RULES:\n` +
       `- Analyze the user's request and decide which agents to call\n` +
       `- If the task is simple and can be answered directly, return {"steps":[]}\n` +
+      `- **IMPORTANT**: If the user asks about current prices, news, events, or any time-sensitive information, you MUST include a web.search step FIRST to get up-to-date data. Never rely on training data for current facts.\n` +
       `- For each step, specify the agent, capability, and input\n` +
       `- Total cost must not exceed budget (${budget.balance.toFixed(2)} USDC)\n` +
       `- Step 2+ can use previous step's output: set inputFromPrev=true\n` +
@@ -155,8 +158,8 @@ export async function orchestrateTask(
     logger.info("orchestrator", "direct_answer", { callerAgentDid });
     const directResponse = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      system: systemPrompt,
+      max_tokens: 2048,
+      system: `${getCurrentDateString()}\n\n${systemPrompt}`,
       messages: [{ role: "user", content: userInput }],
     });
     const directText = directResponse.content[0];

@@ -22,6 +22,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "query required" }, { status: 400 });
   }
 
+  if (query.length > 1000) {
+    return NextResponse.json({ error: "Query too long (max 1000 characters)" }, { status: 400 });
+  }
+
   const result = await webSearch(query.trim(), maxResults);
 
   if (result.error) {

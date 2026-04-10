@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 
 export interface PipelineStep {
   agentName: string;
@@ -127,7 +128,7 @@ function persistToServer(action: "insert" | "update", walletAddress: string, msg
         },
       };
 
-  fetch("/api/twin/messages", {
+  signedFetch("/api/twin/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -225,6 +226,8 @@ export const useTwinStore = create<TwinState>()((set, get) => ({
     set((s) => ({
       messages: s.messages.map((m) => {
         if (m.id !== msgId || !m.steps) return m;
+        // Prevent ghost steps: don't write beyond existing steps array
+        if (stepIdx >= m.steps.length) return m;
         const steps = [...m.steps];
         steps[stepIdx] = { ...steps[stepIdx], ...update };
         return { ...m, steps };
@@ -237,7 +240,12 @@ export const useTwinStore = create<TwinState>()((set, get) => ({
 
   setProcessing: (v) => set({ isProcessing: v }),
 
-  clearMessages: () => set({ messages: [], hasMore: false, totalMessages: 0 }),
+  clearMessages: () => {
+    // Clear orphaned step persist timers
+    stepTimers.forEach((timer) => clearTimeout(timer));
+    stepTimers.clear();
+    set({ messages: [], hasMore: false, totalMessages: 0 });
+  },
 
   /* ---- Load latest messages from Supabase (stale-while-revalidate) ---- */
   loadFromServer: async (walletAddress: string) => {
@@ -245,7 +253,7 @@ export const useTwinStore = create<TwinState>()((set, get) => ({
     set({ loading: true });
 
     try {
-      const res = await fetch(`/api/twin/messages?wallet=${encodeURIComponent(walletAddress)}&limit=200`);
+      const res = await signedFetch(`/api/twin/messages?wallet=${encodeURIComponent(walletAddress)}&limit=200`);
       if (!res.ok) {
         set({ loading: false, loaded: true });
         return;
@@ -291,7 +299,7 @@ export const useTwinStore = create<TwinState>()((set, get) => ({
         return;
       }
 
-      const res = await fetch(
+      const res = await signedFetch(
         `/api/twin/messages?wallet=${encodeURIComponent(walletAddress)}&limit=50&before=${encodeURIComponent(before)}`,
       );
 

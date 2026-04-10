@@ -8,6 +8,7 @@ import {
   type TriggerType,
 } from "@/lib/supabase/automations";
 import { generateWebhookSecret } from "@/lib/trigger/webhook";
+import { verifyWalletOwnership, isAuthError } from "@/lib/auth/wallet-auth";
 
 /**
  * GET /api/automations?wallet=xxx
@@ -16,6 +17,9 @@ import { generateWebhookSecret } from "@/lib/trigger/webhook";
 export async function GET(request: NextRequest) {
   const wallet = request.nextUrl.searchParams.get("wallet");
   if (!wallet) return NextResponse.json({ error: "wallet required" }, { status: 400 });
+
+  const auth = verifyWalletOwnership(request, wallet);
+  if (isAuthError(auth)) return auth;
 
   const automations = await dbListAutomations(wallet);
   return NextResponse.json({ automations });
@@ -40,6 +44,9 @@ export async function POST(request: NextRequest) {
   if (!walletAddress || !name || !prompt) {
     return NextResponse.json({ error: "walletAddress, name, prompt required" }, { status: 400 });
   }
+
+  const auth = verifyWalletOwnership(request, walletAddress);
+  if (isAuthError(auth)) return auth;
 
   const trigger = triggerType || "schedule";
   const id = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -68,6 +75,9 @@ export async function POST(request: NextRequest) {
  * Update an automation.
  */
 export async function PATCH(request: NextRequest) {
+  const auth = verifyWalletOwnership(request, null);
+  if (isAuthError(auth)) return auth;
+
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -85,6 +95,9 @@ export async function PATCH(request: NextRequest) {
  * Delete an automation.
  */
 export async function DELETE(request: NextRequest) {
+  const auth = verifyWalletOwnership(request, null);
+  if (isAuthError(auth)) return auth;
+
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 

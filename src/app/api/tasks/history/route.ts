@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbListTasks } from "@/lib/supabase/db";
+import { verifyWalletOwnership, isAuthError } from "@/lib/auth/wallet-auth";
 
 /**
  * GET /api/tasks/history?address=xxx
@@ -7,6 +8,9 @@ import { dbListTasks } from "@/lib/supabase/db";
  */
 export async function GET(request: NextRequest) {
   const address = request.nextUrl.searchParams.get("address");
+
+  const auth = verifyWalletOwnership(request, address);
+  if (isAuthError(auth)) return auth;
 
   const dbTasks = await dbListTasks(address ?? undefined);
 
@@ -30,6 +34,28 @@ export async function GET(request: NextRequest) {
     isAgentTask: t.is_agent_task ?? false,
     chainId: t.chain_id ?? undefined,
   }));
+
+  // CSV export: GET /api/tasks/history?address=xxx&format=csv
+  const format = request.nextUrl.searchParams.get("format");
+  if (format === "csv") {
+    const header = "ID,Agent,Capability,Input,Started At,Duration,State,USDC Spent,Escrow TX,Settlement TX";
+    const rows = tasks.map((t) => {
+      const esc = (v: string) => `"${(v || "").replace(/"/g, '""')}"`;
+      return [
+        esc(t.id), esc(t.counterpartAgent), esc(t.capability),
+        esc(t.input.slice(0, 200)), esc(t.startedAt), esc(t.duration),
+        esc(t.state), esc(t.usdcSpent),
+        esc(t.escrowTxHash || ""), esc(t.settlementTxHash || ""),
+      ].join(",");
+    });
+    const csv = [header, ...rows].join("\n");
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="task-history-${address || "all"}.csv"`,
+      },
+    });
+  }
 
   return NextResponse.json({ tasks });
 }

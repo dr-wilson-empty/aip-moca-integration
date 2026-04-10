@@ -32,7 +32,7 @@ setInterval(() => {
 /* ------------------------------------------------------------------ */
 
 const BLOCKED_HOSTS = [
-  "localhost", "127.0.0.1", "0.0.0.0", "::1",
+  "localhost", "127.0.0.1", "0.0.0.0",
   "169.254.169.254", // AWS metadata
   "metadata.google.internal", // GCP metadata
 ];
@@ -40,16 +40,53 @@ const BLOCKED_HOSTS = [
 function isSSRFBlocked(url: string): boolean {
   try {
     const parsed = new URL(url);
+    // Only allow http/https protocols
+    if (!["http:", "https:"].includes(parsed.protocol)) return true;
+
     const host = parsed.hostname.toLowerCase();
+
+    // Block known internal hostnames
     if (BLOCKED_HOSTS.includes(host)) return true;
-    // Block private IP ranges (except localhost for dev)
-    if (host.startsWith("10.")) return true;
-    if (host.startsWith("172.") && parseInt(host.split(".")[1]) >= 16 && parseInt(host.split(".")[1]) <= 31) return true;
-    if (host.startsWith("192.168.")) return true;
+
+    // Block IPv6 loopback and private (::1, ::, fe80::, fc00::, fd00::, etc.)
+    if (host === "::1" || host === "::") return true;
+    // Brackets stripped by URL parser, but handle bracketed IPv6 too
+    const cleanHost = host.replace(/^\[|\]$/g, "");
+    if (cleanHost === "::1" || cleanHost === "::") return true;
+    if (/^(fe80|fc00|fd|ff0[0-9a-f]):/.test(cleanHost)) return true;
+    // IPv4-mapped IPv6 (::ffff:127.0.0.1, ::ffff:10.x.x.x, etc.)
+    if (cleanHost.startsWith("::ffff:")) {
+      const mapped = cleanHost.slice(7);
+      if (isPrivateIPv4(mapped)) return true;
+    }
+
+    // Block private IPv4 ranges
+    if (isPrivateIPv4(host)) return true;
+
+    // Block .internal, .local, .localhost TLDs (DNS rebinding protection)
+    if (host.endsWith(".internal") || host.endsWith(".local") || host.endsWith(".localhost")) return true;
+
+    // Block numeric IPs in octal/hex notation (bypass attempts)
+    // e.g. 0x7f000001, 017700000001, 2130706433
+    if (/^(0x[0-9a-f]+|0[0-7]+|[0-9]+)$/i.test(host)) return true;
+
     return false;
   } catch {
     return true; // Invalid URL → block
   }
+}
+
+function isPrivateIPv4(host: string): boolean {
+  if (host.startsWith("10.")) return true;
+  if (host.startsWith("127.")) return true;
+  if (host.startsWith("0.")) return true;
+  if (host.startsWith("192.168.")) return true;
+  if (host.startsWith("169.254.")) return true; // link-local
+  if (host.startsWith("172.")) {
+    const second = parseInt(host.split(".")[1]);
+    if (second >= 16 && second <= 31) return true;
+  }
+  return false;
 }
 
 /* ------------------------------------------------------------------ */
@@ -62,6 +99,10 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  response.headers.set(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.solana.com https://*.supabase.co wss://*.solana.com; frame-ancestors 'none';"
+  );
   return response;
 }
 

@@ -5,7 +5,9 @@ import {
   getBudgetHistory,
   verifyAndCreditDeposit,
   updateMaxPerTask,
+  withdrawBudget,
 } from "@/lib/payment/agent-budget";
+import { verifyWalletOwnership, isAuthError } from "@/lib/auth/wallet-auth";
 
 /**
  * GET /api/budget?agentDid=xxx           — get single agent budget
@@ -116,6 +118,49 @@ export async function PATCH(request: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Update failed" },
+      { status: 400 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/budget
+ * Withdraw USDC from an agent's budget back to the owner wallet.
+ *
+ * Body: { agentDid: string, ownerWallet: string, amount: number }
+ */
+export async function DELETE(request: NextRequest) {
+  const auth = verifyWalletOwnership(request, null);
+  if (isAuthError(auth)) return auth;
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const { agentDid, ownerWallet, amount } = body as {
+    agentDid?: string;
+    ownerWallet?: string;
+    amount?: number;
+  };
+
+  if (!agentDid || !ownerWallet || !amount) {
+    return NextResponse.json({ error: "agentDid, ownerWallet, amount required" }, { status: 400 });
+  }
+
+  // Ensure the authenticated wallet matches the owner
+  if (auth.wallet !== ownerWallet) {
+    return NextResponse.json({ error: "Forbidden: wallet mismatch" }, { status: 403 });
+  }
+
+  try {
+    const { txHash, budget } = await withdrawBudget(agentDid, ownerWallet, amount);
+    return NextResponse.json({ ok: true, txHash, budget });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Withdrawal failed" },
       { status: 400 }
     );
   }

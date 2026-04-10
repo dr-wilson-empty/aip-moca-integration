@@ -44,6 +44,16 @@ if (!g.__aip_task_listeners) g.__aip_task_listeners = new Map();
 
 const tasks = g.__aip_tasks;
 
+const TASK_TTL_MS = 60 * 60 * 1000; // 1 hour after terminal state
+
+/** Schedule task + listener removal after TTL */
+function scheduleTaskCleanup(taskId: string): void {
+  setTimeout(() => {
+    tasks.delete(taskId);
+    listeners.delete(taskId);
+  }, TASK_TTL_MS);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Event listener                                                     */
 /* ------------------------------------------------------------------ */
@@ -205,6 +215,7 @@ export function completeTask(taskId: string, artifact: string, settlementTxHash?
   task.state = "COMPLETED";
   addLog(task, "COMPLETE", `${task.amount} USDC released to ${task.agentName}`);
   persistTask(task);
+  scheduleTaskCleanup(taskId);
   return task;
 }
 
@@ -220,6 +231,7 @@ export function failTask(taskId: string, reason: string): TaskRecord {
   task.state = "FAILED";
   addLog(task, "REFUND", `${task.amount} USDC refunded to your wallet`);
   persistTask(task);
+  scheduleTaskCleanup(taskId);
   return task;
 }
 

@@ -179,6 +179,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Payer cross-check: transaction'i imzalayan wallet, body'deki callerAddress ile uyusmali
+  const verifiedPayer = verifyResult.payerAddress;
+  if (!verifiedPayer) {
+    return NextResponse.json(
+      { error: "Could not extract payer address from transaction" },
+      { status: 400 }
+    );
+  }
+  if (verifiedPayer !== callerAddress) {
+    logger.error("x402", "payer_mismatch", {
+      bodyCallerAddress: callerAddress,
+      txPayerAddress: verifiedPayer,
+      taskId,
+    });
+    return NextResponse.json(
+      { error: "Payment payer does not match caller address" },
+      { status: 403 }
+    );
+  }
+
   logger.info("x402", "verify_passed", { callerAddress, amount: verifyResult.amount, taskId });
 
   // ---------------------------------------------------------------

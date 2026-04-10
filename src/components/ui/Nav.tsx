@@ -47,13 +47,13 @@ export default function Nav() {
       : "text-mint";
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-mint/20 bg-bg-base/90 backdrop-blur-sm">
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-mint/20 bg-bg-base/90 backdrop-blur-sm" aria-label="Main navigation">
       <div className="max-w-[1920px] mx-auto px-10 h-14 flex items-center justify-between">
-        <Link href={address ? "/marketplace" : "/connect"} className="font-display text-mint text-sm uppercase tracking-widest hover:text-accent transition-colors">
+        <Link href={address ? "/marketplace" : "/connect"} className="font-display text-mint text-sm uppercase tracking-widest hover:text-accent transition-colors" aria-label="AIP Home">
           AIP
         </Link>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6" role="menubar">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             const isLocked = mounted && !address;
@@ -61,6 +61,9 @@ export default function Nav() {
               <Link
                 key={item.href}
                 href={isLocked ? "/connect" : item.href}
+                role="menuitem"
+                aria-current={isActive ? "page" : undefined}
+                tabIndex={isLocked ? -1 : 0}
                 className={`
                   font-mono text-xs uppercase tracking-wider transition-colors duration-200
                   ${isActive ? "text-mint" : "text-muted hover:text-mint"}

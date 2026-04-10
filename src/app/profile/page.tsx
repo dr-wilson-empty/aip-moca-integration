@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletStore } from "@/store/walletStore";
 import { useLogStore } from "@/store/logStore";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 import MonoLabel from "@/components/ui/MonoLabel";
 
 function CopyButton({ text }: { text: string }) {
@@ -58,7 +59,7 @@ export default function ProfilePage() {
       .then((d) => setMyAgentCount(d.agents?.length ?? 0))
       .catch(() => {});
     // Fetch preferences
-    fetch(`/api/preferences?wallet=${address}`)
+    signedFetch(`/api/preferences?wallet=${address}`)
       .then((r) => r.json())
       .then((d) => {
         setPrefLang(d.language || "auto");
@@ -71,7 +72,7 @@ export default function ProfilePage() {
   const savePrefs = async () => {
     if (!address) return;
     setPrefsSaving(true);
-    await fetch("/api/preferences", {
+    await signedFetch("/api/preferences", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -278,7 +279,7 @@ function AgentMemories({ wallet }: { wallet: string }) {
 
   const loadMemories = useCallback(() => {
     setLoading(true);
-    fetch(`/api/memory?wallet=${wallet}`)
+    signedFetch(`/api/memory?wallet=${wallet}`)
       .then((r) => r.json())
       .then((d) => setMemories(d.memories ?? []))
       .catch(() => {})
@@ -288,12 +289,12 @@ function AgentMemories({ wallet }: { wallet: string }) {
   useEffect(() => { loadMemories(); }, [loadMemories]);
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/memory?id=${id}`, { method: "DELETE" });
+    await signedFetch(`/api/memory?id=${id}`, { method: "DELETE" });
     loadMemories();
   };
 
   const handleClearAll = async () => {
-    await fetch(`/api/memory?wallet=${wallet}&all=true`, { method: "DELETE" });
+    await signedFetch(`/api/memory?wallet=${wallet}&all=true`, { method: "DELETE" });
     loadMemories();
   };
 
@@ -328,7 +329,7 @@ function AgentMemories({ wallet }: { wallet: string }) {
               <span className="font-mono text-[10px] text-mint uppercase block mb-2">
                 {agentDid.length > 30 ? agentDid.slice(0, 20) + "..." : agentDid}
               </span>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
                 {entries.map((m) => (
                   <div key={m.id} className="flex items-start justify-between gap-2 group">
                     <div className="flex items-start gap-2 min-w-0">

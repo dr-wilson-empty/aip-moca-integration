@@ -29,14 +29,15 @@ export async function GET(request: NextRequest) {
   const totalRevenue = completed.reduce((sum, t) => sum + parseFloat(t.amount || "0"), 0);
   const totalBudgetSpent = budgetSpends.reduce((sum, t) => sum + parseFloat(String(t.amount || "0")), 0);
 
-  // Daily activity (last 7 days) — combine tasks + budget activity
+  // Daily activity (last 7 days) — deduplicate by date, don't double-count
   const now = Date.now();
   const days: Record<string, number> = {};
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now - i * 86400000);
     days[d.toISOString().slice(0, 10)] = 0;
   }
-  for (const t of [...allTasks, ...budgetSpends]) {
+  // Count tasks only (budget txns are derived from tasks, avoid double counting)
+  for (const t of allTasks) {
     const day = t.created_at?.slice(0, 10);
     if (day && day in days) days[day]++;
   }
@@ -53,8 +54,8 @@ export async function GET(request: NextRequest) {
     : 0;
 
   return NextResponse.json({
-    totalTasks: allTasks.length + budgetSpends.length,
-    completedTasks: completed.length + budgetSpends.length,
+    totalTasks: allTasks.length,
+    completedTasks: completed.length,
     failedTasks: allTasks.filter((t) => t.state === "FAILED").length,
     totalRevenue: totalRevenue.toFixed(2),
     totalSpent: totalBudgetSpent.toFixed(2),
