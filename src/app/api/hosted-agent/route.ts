@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getHostedAgent } from "@/lib/hosted-agents";
+import { getHostedAgent, loadHostedAgentsFromDb } from "@/lib/hosted-agents";
 import { orchestrateTask } from "@/lib/protocol/agent-orchestrator";
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import { autoEnrichWithWebData, getCurrentDateString } from "@/lib/web/realtime-enrichment";
@@ -55,6 +55,7 @@ function rpcResult(id: string | number, result: unknown) {
  * GET — returns agent card (.well-known/agent.json equivalent)
  */
 export async function GET(request: NextRequest) {
+  await loadHostedAgentsFromDb();
   const agentId = request.nextUrl.searchParams.get("agentId");
   if (!agentId) {
     return NextResponse.json({ error: "agentId required" }, { status: 400 });
@@ -81,6 +82,7 @@ export async function GET(request: NextRequest) {
  * POST — JSON-RPC 2.0 handler for task/create and task/status
  */
 export async function POST(request: NextRequest) {
+  await loadHostedAgentsFromDb();
   const agentId = request.nextUrl.searchParams.get("agentId");
   if (!agentId) {
     return NextResponse.json({ error: "agentId query param required" }, { status: 400 });
