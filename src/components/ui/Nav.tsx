@@ -49,8 +49,8 @@ export default function Nav() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-mint/20 bg-bg-base/90 backdrop-blur-sm" aria-label="Main navigation">
       <div className="max-w-[1920px] mx-auto px-10 h-14 flex items-center justify-between">
-        <Link href={address ? "/marketplace" : "/connect"} className="font-display text-mint text-sm uppercase tracking-widest hover:text-accent transition-colors" aria-label="AIP Home">
-          AIP
+        <Link href={address ? "/marketplace" : "/connect"} aria-label="AIP Home">
+          <img src="/aipLogo.png" alt="AIP" style={{ height: 52, width: "auto", display: "block" }} />
         </Link>
 
         <div className="flex items-center gap-6" role="menubar">
