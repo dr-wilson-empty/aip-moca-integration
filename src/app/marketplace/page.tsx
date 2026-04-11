@@ -653,7 +653,7 @@ export default function MarketplacePage() {
       /* ── Navbar override ── */
       nav[aria-label="Main navigation"] {
         background-color: ${DS.bg} !important;
-        border-bottom: 1px solid ${DS.border} !important;
+        
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
       }
@@ -694,7 +694,7 @@ export default function MarketplacePage() {
         .mp-grid { grid-template-columns: 1fr !important; }
         .mp-content-band { grid-template-columns: 1fr !important; }
         .mp-structural-band { flex-direction: column !important; }
-        .mp-structural-band > div { border-right: none !important; border-bottom: 1px solid ${DS.border} !important; }
+        .mp-structural-band > div { border-right: none !important;  }
         .mp-stats-band { flex-wrap: wrap !important; }
         .mp-stats-band > div { flex: 1 1 45% !important; }
         .mp-module-title { font-size: 2.5rem !important; }

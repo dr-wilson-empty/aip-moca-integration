@@ -34,7 +34,7 @@ export default function DashboardPage() {
 
       nav[aria-label="Main navigation"] {
         background-color: ${DS.bg} !important;
-        border-bottom: 1px solid ${DS.border} !important;
+        
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
       }

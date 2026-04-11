@@ -72,7 +72,7 @@ export default function HowPage() {
     style.textContent = `
       body { background-color: ${DS.bg} !important; color: ${DS.text} !important; }
       main.pt-14 { padding-top: 56px; }
-      nav[aria-label="Main navigation"] { background-color: ${DS.bg} !important; border-bottom: 1px solid ${DS.border} !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+      nav[aria-label="Main navigation"] { background-color: ${DS.bg} !important;  backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
       nav[aria-label="Main navigation"] a, nav[aria-label="Main navigation"] span { color: ${DS.text} !important; font-family: ${DS.fontMono} !important; }
       nav[aria-label="Main navigation"] a:hover { color: ${DS.textMuted} !important; }
       nav[aria-label="Main navigation"] a[aria-current="page"] { color: ${DS.text} !important; font-weight: 700 !important; }

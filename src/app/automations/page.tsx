@@ -86,7 +86,7 @@ export default function AutomationsPage() {
       main.pt-14 { padding-top: 56px; }
       nav[aria-label="Main navigation"] {
         background-color: ${DS.bg} !important;
-        border-bottom: 1px solid ${DS.border} !important;
+        
         backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
       }
       nav[aria-label="Main navigation"] a, nav[aria-label="Main navigation"] span {
