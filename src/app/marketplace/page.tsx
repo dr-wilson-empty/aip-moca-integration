@@ -686,6 +686,20 @@ export default function MarketplacePage() {
       .mp-btn:hover { background-color: ${DS.bgHover} !important; }
       .mp-cat-btn { transition: background-color 0.15s ease; }
       .mp-cat-btn:hover { background-color: ${DS.bgHover} !important; }
+      .mp-hero-header::after {
+        content: "MARKETPLACE";
+        position: absolute;
+        bottom: -15px;
+        right: -10px;
+        font-size: 12rem;
+        color: #d5d0c8;
+        font-weight: 700;
+        pointer-events: none;
+        line-height: 0.8;
+        z-index: 0;
+        letter-spacing: -0.05em;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
       .mp-loading-pulse { animation: mp-pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
       @keyframes mp-pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
 
@@ -850,43 +864,35 @@ export default function MarketplacePage() {
         WebkitFontSmoothing: "antialiased",
       }}
     >
-      {/* Header */}
+      {/* Header — hero.js style */}
       <header
+        className="mp-hero-header"
         style={{
-          padding: "40px 30px",
+          padding: "30px 40px 0",
           borderBottom: `1px solid ${DS.border}`,
+          position: "relative",
+          overflow: "hidden",
         }}
       >
         <h2
           className="mp-module-title"
           style={{
-            fontSize: "4rem",
-            fontWeight: 400,
-            lineHeight: 0.95,
+            position: "relative",
+            zIndex: 1,
+            fontSize: "8rem",
+            fontWeight: 300,
+            lineHeight: 0.85,
             textTransform: "uppercase",
-            letterSpacing: "-0.02em",
-            maxWidth: 800,
+            letterSpacing: "-0.03em",
             color: DS.text,
             fontFamily: DS.fontPrimary,
+            textShadow: "3px 3px 0px #d5d0c8",
+            margin: 0,
+            marginBottom: -6,
           }}
         >
           Agent
-          <br />
-          Marketplace
         </h2>
-        <p
-          style={{
-            fontFamily: DS.fontMono,
-            fontSize: "0.7rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            color: DS.textMuted,
-            marginTop: 16,
-          }}
-        >
-          All agents registered on Solana / Select to view details, rate, and
-          start a task
-        </p>
       </header>
 
       {/* Categories Band */}

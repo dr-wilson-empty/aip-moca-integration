@@ -75,6 +75,20 @@ export default function DashboardPage() {
       ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
       ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
 
+      .ds-hero-header::after {
+        content: "DASHBOARD";
+        position: absolute;
+        bottom: -15px;
+        right: -10px;
+        font-size: 12rem;
+        color: #d5d0c8;
+        font-weight: 700;
+        pointer-events: none;
+        line-height: 0.8;
+        z-index: 0;
+        letter-spacing: -0.05em;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
       @media (max-width: 900px) {
         .ds-title { font-size: 2.5rem !important; }
       }
@@ -96,43 +110,35 @@ export default function DashboardPage() {
         WebkitFontSmoothing: "antialiased",
       }}
     >
-      {/* Header */}
+      {/* Header — hero style */}
       <header
+        className="ds-hero-header"
         style={{
-          padding: "40px 30px",
+          padding: "30px 40px 0",
           borderBottom: `1px solid ${DS.border}`,
+          position: "relative",
+          overflow: "hidden",
         }}
       >
         <h2
           className="ds-title"
           style={{
-            fontSize: "4rem",
-            fontWeight: 400,
-            lineHeight: 0.95,
+            position: "relative",
+            zIndex: 1,
+            fontSize: "8rem",
+            fontWeight: 300,
+            lineHeight: 0.85,
             textTransform: "uppercase",
-            letterSpacing: "-0.02em",
-            maxWidth: 800,
+            letterSpacing: "-0.03em",
             color: DS.text,
             fontFamily: DS.fontPrimary,
+            textShadow: "3px 3px 0px #d5d0c8",
+            margin: 0,
+            marginBottom: -6,
           }}
         >
           Protocol
-          <br />
-          Dashboard
         </h2>
-        <p
-          style={{
-            fontFamily: DS.fontMono,
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            color: DS.textMuted,
-            marginTop: 16,
-          }}
-        >
-          Start a task and observe the full AIP protocol lifecycle
-        </p>
       </header>
 
       {/* Components */}

@@ -25,7 +25,7 @@ const TAB = {
   inactive2: "#94A3B0",
   textColor: "#111111",
   font: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-  fontSize: "15px",
+  fontSize: "16px",
   fontWeightNormal: 700,
   fontWeightActive: 700,
   letterSpacing: "0.02em",
