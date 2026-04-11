@@ -63,8 +63,18 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
   const [agentType, setAgentType] = useState(1);
   const [version, setVersion] = useState("1.0.0");
   const [capabilities, setCapabilities] = useState<CapabilityRow[]>([{ id: "", description: "", amount: "0.10" }]);
+  const [agentStatus, setAgentStatus] = useState<Map<string, boolean>>(new Map());
 
   useEffect(() => { if (publicKey) syncFromChain(publicKey.toBase58()); }, [publicKey, syncFromChain]);
+
+  // Fetch online/offline status
+  useEffect(() => {
+    fetch("/api/agent-card/status").then((r) => r.json()).then((d) => {
+      const statusMap = new Map<string, boolean>();
+      for (const a of d.agents ?? []) statusMap.set(a.did, a.online);
+      setAgentStatus(statusMap);
+    }).catch(() => {});
+  }, [myAgents]);
 
   const handleRefresh = useCallback(() => { if (publicKey) syncFromChain(publicKey.toBase58()); }, [publicKey, syncFromChain]);
 
@@ -168,6 +178,13 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                     <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.3rem", fontWeight: 400, textTransform: "uppercase" }}>{agent.name}</h3>
                     <SourceBadge source={agent.registrationSource} />
+                    {/* Online/Offline */}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: agentStatus.get(agent.did) === true ? DS.green : agentStatus.get(agent.did) === false ? DS.error : "#bbb", display: "inline-block", boxShadow: agentStatus.get(agent.did) === true ? `0 0 4px ${DS.green}` : "none" }} />
+                      <span style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: DS.textMuted }}>
+                        {agentStatus.get(agent.did) === true ? "ONLINE" : agentStatus.get(agent.did) === false ? "OFFLINE" : "..."}
+                      </span>
+                    </span>
                   </div>
                   <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, color: DS.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{agent.endpoint}</p>
                   <p className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", marginTop: 2 }}>ID: {agent.agentId}</p>
