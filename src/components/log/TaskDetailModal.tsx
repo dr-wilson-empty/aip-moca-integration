@@ -1,119 +1,97 @@
 "use client";
 
 import type { Task } from "@/types/aip";
-import MonoLabel from "@/components/ui/MonoLabel";
 import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
 
 const SOLANA_EXPLORER = "https://explorer.solana.com/tx";
 
-interface Props {
-  task: Task;
-  onClose: () => void;
-}
+const DS = {
+  bg: "#e6e5e0",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  green: "#7cb342",
+  error: "#c62828",
+  cyan: "#4dd0e1",
+  purple: "#7c3aed",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
 
-export default function TaskDetailModal({ task, onClose }: Props) {
+export default function TaskDetailModal({ task, onClose }: { task: Task; onClose: () => void }) {
+  const bandLabel: React.CSSProperties = { fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" };
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-base/80 backdrop-blur-sm px-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-2xl border border-forest-mid bg-bg-base p-8 rounded-2xl flex flex-col gap-6 max-h-[80vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)", padding: 16 }} onClick={onClose}>
+      <div style={{ width: "100%", maxWidth: 700, border: `1px solid ${DS.border}`, backgroundColor: DS.bg, display: "flex", flexDirection: "column", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-forest-deep/40 pb-4">
+        <div style={{ padding: "16px 24px", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#d5d0c8" }}>
           <div>
-            <MonoLabel className="mb-1 text-accent">Task Detail</MonoLabel>
-            <h3 className="font-display text-xl text-off-white uppercase">
-              {task.id}
-            </h3>
+            <span style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted, display: "block", marginBottom: 4 }}>TASK DETAIL</span>
+            <span style={{ fontFamily: DS.fontPrimary, fontSize: "1.2rem", fontWeight: 400, textTransform: "uppercase" }}>{task.id}</span>
           </div>
-          <button
-            onClick={onClose}
-            className="font-mono text-muted text-xs hover:text-off-white transition-colors"
-          >
-            ✕ Close
-          </button>
+          <button onClick={onClose} style={{ ...bandLabel, fontSize: "1rem", background: "none", border: "none", cursor: "pointer" }}>X</button>
         </div>
 
-        {/* Meta */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <MonoLabel className="mb-1">Agent</MonoLabel>
-            <p className="font-mono text-xs text-off-white">{task.counterpartAgent}</p>
-          </div>
-          <div>
-            <MonoLabel className="mb-1">Capability</MonoLabel>
-            <p className="font-mono text-xs text-accent">{task.capability}</p>
-          </div>
-          <div>
-            <MonoLabel className="mb-1">Input</MonoLabel>
-            <p className="font-mono text-xs text-body">{task.input}</p>
-          </div>
-          <div>
-            <MonoLabel className="mb-1">USDC Spent</MonoLabel>
-            <p className="font-mono text-xs text-yellow-400">{task.usdcSpent} USDC</p>
-          </div>
-          {task.isAgentTask && (
-            <div>
-              <MonoLabel className="mb-1">Source</MonoLabel>
-              <p className="font-mono text-xs text-purple-400">Agent Task (autonomous)</p>
+        {/* Meta grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: `1px solid ${DS.border}` }}>
+          {[
+            { label: "AGENT", value: task.counterpartAgent },
+            { label: "CAPABILITY", value: task.capability },
+            { label: "INPUT", value: task.input },
+            { label: "USDC SPENT", value: `${task.usdcSpent} USDC` },
+            ...(task.isAgentTask ? [{ label: "SOURCE", value: "AGENT TASK (AUTONOMOUS)" }] : []),
+            ...(task.chainId ? [{ label: "CHAIN", value: task.chainId }] : []),
+          ].map((item, i) => (
+            <div key={i} style={{ padding: "12px 24px", borderBottom: "1px solid #ccc", borderRight: i % 2 === 0 ? `1px solid ${DS.border}` : "none" }}>
+              <span style={{ ...bandLabel, fontSize: "0.65rem", color: DS.textMuted, display: "block", marginBottom: 4 }}>{item.label}</span>
+              <span style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, wordBreak: "break-all" }}>{item.value}</span>
             </div>
-          )}
-          {task.chainId && (
-            <div>
-              <MonoLabel className="mb-1">Chain</MonoLabel>
-              <p className="font-mono text-xs text-cyan-400">{task.chainId}</p>
-            </div>
-          )}
+          ))}
         </div>
 
         {/* Artifact */}
         {task.artifact && (
-          <div className="border border-accent/30 bg-accent/5 p-4 rounded-lg">
-            <MonoLabel className="mb-2 text-accent">Artifact</MonoLabel>
-            <ArtifactRenderer artifact={parseArtifact(task.artifact)} />
+          <div style={{ padding: "16px 24px", borderBottom: `1px solid ${DS.border}`, borderLeft: `4px solid ${DS.green}` }}>
+            <span className="ds-accent-text" style={{ ...bandLabel, fontSize: "0.7rem", display: "block", marginBottom: 8 }}>ARTIFACT</span>
+            <div style={{ fontSize: "0.95rem", lineHeight: 1.6 }}>
+              <ArtifactRenderer artifact={parseArtifact(task.artifact)} />
+            </div>
           </div>
         )}
 
-        {/* Tx hashes */}
-        <div className="flex flex-col gap-2">
-          {task.escrowTxHash && (
-            <a
-              href={`${SOLANA_EXPLORER}/${task.escrowTxHash}?cluster=devnet`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-sm text-muted hover:text-accent transition-colors"
-            >
-              ◎ Escrow Tx: {task.escrowTxHash}
-            </a>
-          )}
-          {task.settlementTxHash && (
-            <a
-              href={`${SOLANA_EXPLORER}/${task.settlementTxHash}?cluster=devnet`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-sm text-muted hover:text-accent transition-colors"
-            >
-              ◎ Settlement Tx: {task.settlementTxHash}
-            </a>
-          )}
-        </div>
-
-        {/* Log */}
-        <div>
-          <MonoLabel className="mb-2">Event Log</MonoLabel>
-          <div className="flex flex-col gap-1">
-            {task.log.map((entry) => (
-              <div key={entry.id} className="flex items-start gap-3 font-mono text-sm">
-                <span className="text-forest-mid shrink-0">{entry.timestamp}</span>
-                <span className="text-accent uppercase shrink-0">[{entry.eventType}]</span>
-                <span className="text-body">{entry.message}</span>
-              </div>
-            ))}
+        {/* Tx links */}
+        {(task.escrowTxHash || task.settlementTxHash) && (
+          <div style={{ padding: "12px 24px", borderBottom: `1px solid ${DS.border}`, display: "flex", flexDirection: "column", gap: 4 }}>
+            {task.escrowTxHash && (
+              <a href={`${SOLANA_EXPLORER}/${task.escrowTxHash}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, color: DS.text, textDecoration: "underline" }}>
+                ESCROW TX: {task.escrowTxHash}
+              </a>
+            )}
+            {task.settlementTxHash && (
+              <a href={`${SOLANA_EXPLORER}/${task.settlementTxHash}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, color: DS.text, textDecoration: "underline" }}>
+                SETTLEMENT TX: {task.settlementTxHash}
+              </a>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Event Log */}
+        {task.log.length > 0 && (
+          <div style={{ padding: "16px 24px" }}>
+            <span style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted, display: "block", marginBottom: 10 }}>EVENT LOG</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {task.log.map((entry) => (
+                <div key={entry.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700 }}>
+                  <span style={{ color: DS.textMuted, flexShrink: 0 }}>{entry.timestamp}</span>
+                  <span className="ds-accent-text" style={{ textTransform: "uppercase", flexShrink: 0 }}>[{entry.eventType}]</span>
+                  <span>{entry.message}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
