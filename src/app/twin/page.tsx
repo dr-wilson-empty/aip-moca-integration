@@ -10,7 +10,6 @@ import { useX402Payment } from "@/hooks/useX402Payment";
 import { useTaskSSE } from "@/hooks/useTaskSSE";
 import { useTaskStore } from "@/store/taskStore";
 import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
-import BtnPrimary from "@/components/ui/BtnPrimary";
 import FileUpload from "@/components/ui/FileUpload";
 import type { Task } from "@/types/aip";
 
@@ -20,15 +19,31 @@ function genId() {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Step status icons                                                  */
-/* ------------------------------------------------------------------ */
+/* ─── Design System ─── */
+const DS = {
+  bg: "#e6e5e0",
+  bgHover: "#d9d8d3",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  dark: "#222222",
+  green: "#7cb342",
+  cyan: "#4dd0e1",
+  yellow: "#ffee58",
+  white: "#ffffff",
+  error: "#c62828",
+  purple: "#7c3aed",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
 
+/* ─── Step Icon ─── */
 function StepIcon({ status }: { status?: string }) {
-  if (status === "completed") return <span className="w-5 h-5 rounded-full bg-accent flex items-center justify-center text-bg-base text-[10px]">✓</span>;
-  if (status === "executing") return <span className="w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin-slow" />;
-  if (status === "failed") return <span className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-bg-base text-[10px]">✗</span>;
-  return <span className="w-5 h-5 rounded-full border border-forest-deep" />;
+  const base: React.CSSProperties = { width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", flexShrink: 0 };
+  if (status === "completed") return <span style={{ ...base, backgroundColor: DS.green, color: "#fff" }}>✓</span>;
+  if (status === "executing") return <span style={{ ...base, border: `2px solid ${DS.text}`, borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />;
+  if (status === "failed") return <span style={{ ...base, backgroundColor: DS.error, color: "#fff" }}>✗</span>;
+  return <span style={{ ...base, border: `1px solid #bbb` }} />;
 }
 
 export default function TwinPage() {
@@ -55,7 +70,6 @@ export default function TwinPage() {
 
   useTaskSSE(activeTaskId);
 
-  // Cleanup polling intervals on unmount
   useEffect(() => {
     return () => {
       if (chainPollRef.current) {
@@ -67,7 +81,6 @@ export default function TwinPage() {
 
   const { setWallet } = useTwinStore();
 
-  // Set wallet + load twin history from Supabase (wait for auth to be ready)
   useEffect(() => {
     if (address && authReady) {
       setWallet(address);
@@ -76,12 +89,10 @@ export default function TwinPage() {
   }, [address, authReady, loadFromServer, setWallet]);
 
   useEffect(() => {
-    // Don't auto-scroll to bottom when loading older messages
     if (loadMoreScrollRef.current.pending) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Restore scroll position after "Load More" prepends older messages
   useLayoutEffect(() => {
     if (loadMoreScrollRef.current.pending && scrollRef.current) {
       const diff = scrollRef.current.scrollHeight - loadMoreScrollRef.current.height;
@@ -96,6 +107,45 @@ export default function TwinPage() {
     loadMore(address);
   };
 
+  /* ---- Theme override ---- */
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.setAttribute("data-twin-theme", "true");
+    style.textContent = `
+      body { background-color: ${DS.bg} !important; color: ${DS.text} !important; }
+      main.pt-14 { padding-top: 56px; }
+      nav[aria-label="Main navigation"] {
+        background-color: ${DS.bg} !important;
+        border-bottom: 1px solid ${DS.border} !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+      nav[aria-label="Main navigation"] a,
+      nav[aria-label="Main navigation"] span {
+        color: ${DS.text} !important;
+        font-family: ${DS.fontMono} !important;
+      }
+      nav[aria-label="Main navigation"] a:hover { color: ${DS.textMuted} !important; }
+      nav[aria-label="Main navigation"] a[aria-current="page"] { color: ${DS.text} !important; font-weight: 700 !important; }
+      nav[aria-label="Main navigation"] .w-2.h-2 { background-color: ${DS.green} !important; }
+      nav[aria-label="Main navigation"] .w-px { background-color: ${DS.border} !important; opacity: 0.2; }
+      main.pt-14 * { color: #000000 !important; }
+      main.pt-14 input::placeholder { color: #555555 !important; }
+      main.pt-14 .mp-white-text { color: #ffffff !important; }
+      main.pt-14 .ds-accent-text { color: ${DS.green} !important; }
+      main.pt-14 .ds-error-text { color: ${DS.error} !important; }
+      main.pt-14 .ds-muted-text { color: ${DS.textMuted} !important; }
+      main.pt-14 .ds-purple-text { color: ${DS.purple} !important; }
+      main.pt-14 select, main.pt-14 option { color: #000 !important; background-color: ${DS.bg} !important; }
+      ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
+      ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      @media (max-width: 900px) { .ds-title { font-size: 2.5rem !important; } }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
   /* ---- Track step completion ---- */
   const handleStepComplete = useCallback(() => {
     if (!activeMsgId || activeStepIdx < 0) return;
@@ -105,7 +155,6 @@ export default function TwinPage() {
     const isCompleted = taskState === "COMPLETED";
     const stepArtifact = artifact ?? undefined;
 
-    // Update step status
     updateStep(activeMsgId, activeStepIdx, {
       status: isCompleted ? "completed" : "failed",
       artifact: stepArtifact,
@@ -113,7 +162,6 @@ export default function TwinPage() {
       settlementTxHash: settlementTxHash ?? undefined,
     });
 
-    // Add to log
     const step = msg.steps[activeStepIdx];
     if (step) {
       const endTime = Date.now();
@@ -138,7 +186,6 @@ export default function TwinPage() {
     setActiveTaskId(null);
 
     if (!isCompleted) {
-      // Step failed — stop pipeline
       updateMessage(activeMsgId, { state: "failed", content: "Pipeline stopped due to error." });
       setActiveMsgId(null);
       setActiveStepIdx(-1);
@@ -147,28 +194,19 @@ export default function TwinPage() {
       return;
     }
 
-    // Check if more steps
     const nextIdx = activeStepIdx + 1;
     if (nextIdx < msg.steps.length) {
-      // Feed output to next step
       const nextStep = msg.steps[nextIdx];
       if (nextStep.inputFromPrev && stepArtifact) {
         updateStep(activeMsgId, nextIdx, { input: stepArtifact });
       }
       updateMessage(activeMsgId, { currentStep: nextIdx });
       setActiveStepIdx(nextIdx);
-
-      // Auto-execute next step with previous output as input
       const nextInput = nextStep.inputFromPrev && stepArtifact ? stepArtifact : nextStep.input;
       setTimeout(() => executeStep(activeMsgId, nextIdx, nextInput), 500);
     } else {
-      // Pipeline complete
       const lastArtifact = stepArtifact;
-      updateMessage(activeMsgId, {
-        state: "completed",
-        artifact: lastArtifact,
-        content: "Pipeline completed successfully.",
-      });
+      updateMessage(activeMsgId, { state: "completed", artifact: lastArtifact, content: "Pipeline completed successfully." });
       setActiveMsgId(null);
       setActiveStepIdx(-1);
       setProcessing(false);
@@ -240,9 +278,13 @@ export default function TwinPage() {
 
   if (!address) {
     return (
-      <div className="max-w-[1920px] mx-auto px-10 py-12 flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <span className="font-mono text-sm text-muted">Connect your wallet to use Digital Twin.</span>
-        <BtnPrimary onClick={() => router.push("/connect")}>Connect Wallet</BtnPrimary>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16, fontFamily: DS.fontPrimary }}>
+        <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: DS.textMuted }}>
+          Connect your wallet to use Digital Twin
+        </p>
+        <button onClick={() => router.push("/connect")} className="mp-white-text" style={{ padding: "12px 30px", fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", backgroundColor: DS.dark, border: "none", cursor: "pointer" }}>
+          Connect Wallet
+        </button>
       </div>
     );
   }
@@ -251,14 +293,12 @@ export default function TwinPage() {
   const handleSend = async () => {
     if (!input.trim() || isProcessing) return;
     const userMsg = input.trim();
-    // Append file context to the message if a file was uploaded
     const fullMsg = fileContext ? `${userMsg}\n\n${fileContext}` : userMsg;
     setInput("");
     setFileContext(null);
     setFileName(null);
 
     addMessage({ id: genId(), role: "user", content: fileContext ? `${userMsg} [+ ${fileName}]` : userMsg, timestamp: new Date().toLocaleTimeString() }, address ?? undefined);
-
     setProcessing(true);
     const planMsgId = genId();
     addMessage({ id: planMsgId, role: "twin", content: "Analyzing your request...", timestamp: new Date().toLocaleTimeString(), state: "planning" }, address ?? undefined);
@@ -294,7 +334,6 @@ export default function TwinPage() {
         orchestratorAlt: plan.orchestratorAlternative || undefined,
         hasPipelineAlt: plan.hasPipelineAlternative || false,
         currentStep: 0,
-        // Backward compat for single mode
         plan: steps.length === 1 ? steps[0] : undefined,
       });
     } catch (err) {
@@ -312,7 +351,6 @@ export default function TwinPage() {
     setProcessing(true);
 
     try {
-      // Submit chain to server — server handles all escrows + execution
       const res = await fetch("/api/chain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -320,20 +358,13 @@ export default function TwinPage() {
           callerAddress: address,
           callerDid: did,
           steps: msg.steps.map((s) => ({
-            agentDid: s.agentDid,
-            agentName: s.agentName,
-            agentEndpoint: s.agentEndpoint,
-            walletAddress: s.walletAddress || "",
-            capabilityId: s.capabilityId,
-            capabilityDescription: s.capabilityDescription,
-            estimatedCost: s.estimatedCost,
-            label: s.label,
-            inputFromPrev: s.inputFromPrev,
-            input: s.input || "",
-            status: "pending",
+            agentDid: s.agentDid, agentName: s.agentName, agentEndpoint: s.agentEndpoint,
+            walletAddress: s.walletAddress || "", capabilityId: s.capabilityId,
+            capabilityDescription: s.capabilityDescription, estimatedCost: s.estimatedCost,
+            label: s.label, inputFromPrev: s.inputFromPrev, input: s.input || "", status: "pending",
           })),
           totalCost: msg.totalCost || "0",
-          depositTxHash: "autonomous-mode", // Server-side budget, no user deposit needed for devnet
+          depositTxHash: "autonomous-mode",
         }),
       });
 
@@ -347,7 +378,6 @@ export default function TwinPage() {
       const { chain } = await res.json();
       updateMessage(msgId, { chainId: chain.id });
 
-      // Poll chain status (ref-tracked for cleanup on unmount)
       if (chainPollRef.current) clearInterval(chainPollRef.current);
       const pollInterval = setInterval(async () => {
         try {
@@ -355,20 +385,15 @@ export default function TwinPage() {
           if (!pollRes.ok) return;
           const { chain: updated } = await pollRes.json();
 
-          // Update UI step statuses from chain (only for existing UI steps)
           if (updated.steps) {
             const currentMsg = messages.find((m) => m.id === msgId);
             const uiStepCount = currentMsg?.steps?.length ?? 0;
-
-            // Only update steps that already exist in UI — don't create ghost steps
             const limit = Math.min(updated.steps.length, uiStepCount);
             for (let i = 0; i < limit; i++) {
               const chainStep = updated.steps[i];
               updateStep(msgId, i, {
-                status: chainStep.status,
-                taskId: chainStep.taskId,
-                artifact: chainStep.artifact,
-                escrowTxHash: chainStep.escrowTxHash,
+                status: chainStep.status, taskId: chainStep.taskId,
+                artifact: chainStep.artifact, escrowTxHash: chainStep.escrowTxHash,
                 settlementTxHash: chainStep.settlementTxHash,
               });
             }
@@ -378,191 +403,79 @@ export default function TwinPage() {
           if (updated.status === "completed") {
             clearInterval(pollInterval);
             chainPollRef.current = null;
-
-            // Build chain summary
             const stepSummary = (updated.steps as Array<{ agentName: string; capabilityDescription: string; estimatedCost: string; status: string }>)
               .map((s, i) => `${i + 1}. ${s.agentName} — ${s.capabilityDescription} (${s.status === "completed" ? s.estimatedCost + " USDC" : "FAILED"})`)
               .join("\n");
-            const summaryContent = `Autonomous pipeline completed.\n\n${stepSummary}\n\nTotal: ${updated.totalSpent} USDC`;
-
-            updateMessage(msgId, {
-              state: "completed",
-              artifact: updated.finalArtifact,
-              content: summaryContent,
-            });
-
-            // Add each chain step to task history (logStore)
+            updateMessage(msgId, { state: "completed", artifact: updated.finalArtifact, content: `Autonomous pipeline completed.\n\n${stepSummary}\n\nTotal: ${updated.totalSpent} USDC` });
             for (const step of updated.steps as Array<{ taskId?: string; agentName: string; capabilityDescription: string; capabilityId: string; input: string; estimatedCost: string; status: string; artifact?: string; escrowTxHash?: string; settlementTxHash?: string }>) {
               if (step.taskId) {
-                addTask({
-                  id: step.taskId,
-                  counterpartAgent: step.agentName,
-                  capability: step.capabilityId || step.capabilityDescription,
-                  input: step.input || "",
-                  startedAt: updated.createdAt || new Date().toISOString(),
-                  duration: "—",
-                  state: step.status === "completed" ? "COMPLETED" : "FAILED",
-                  usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00",
-                  artifact: step.artifact,
-                  escrowTxHash: step.escrowTxHash,
-                  settlementTxHash: step.settlementTxHash,
-                  log: [],
-                  isAgentTask: true,
-                  delegatedBy: did || undefined,
-                  chainId: chain.id,
-                });
+                addTask({ id: step.taskId, counterpartAgent: step.agentName, capability: step.capabilityId || step.capabilityDescription, input: step.input || "", startedAt: updated.createdAt || new Date().toISOString(), duration: "—", state: step.status === "completed" ? "COMPLETED" : "FAILED", usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00", artifact: step.artifact, escrowTxHash: step.escrowTxHash, settlementTxHash: step.settlementTxHash, log: [], isAgentTask: true, delegatedBy: did || undefined, chainId: chain.id });
               }
             }
-
             setProcessing(false);
             if (address) fetchBalance(address);
           } else if (updated.status === "failed") {
             clearInterval(pollInterval);
             chainPollRef.current = null;
             const failedStep = updated.steps.find((s: { status: string }) => s.status === "failed");
-
-            // Add completed steps to task history even on partial failure
             for (const step of updated.steps as Array<{ taskId?: string; agentName: string; capabilityDescription: string; capabilityId: string; input: string; estimatedCost: string; status: string; artifact?: string; escrowTxHash?: string; settlementTxHash?: string }>) {
               if (step.taskId && (step.status === "completed" || step.status === "failed")) {
-                addTask({
-                  id: step.taskId,
-                  counterpartAgent: step.agentName,
-                  capability: step.capabilityId || step.capabilityDescription,
-                  input: step.input || "",
-                  startedAt: updated.createdAt || new Date().toISOString(),
-                  duration: "—",
-                  state: step.status === "completed" ? "COMPLETED" : "FAILED",
-                  usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00",
-                  artifact: step.artifact,
-                  escrowTxHash: step.escrowTxHash,
-                  settlementTxHash: step.settlementTxHash,
-                  log: [],
-                  isAgentTask: true,
-                  delegatedBy: did || undefined,
-                  chainId: chain.id,
-                });
+                addTask({ id: step.taskId, counterpartAgent: step.agentName, capability: step.capabilityId || step.capabilityDescription, input: step.input || "", startedAt: updated.createdAt || new Date().toISOString(), duration: "—", state: step.status === "completed" ? "COMPLETED" : "FAILED", usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00", artifact: step.artifact, escrowTxHash: step.escrowTxHash, settlementTxHash: step.settlementTxHash, log: [], isAgentTask: true, delegatedBy: did || undefined, chainId: chain.id });
               }
             }
-
-            updateMessage(msgId, {
-              state: "failed",
-              content: `Pipeline failed at step ${updated.currentStep + 1}: ${failedStep?.error || "Unknown error"}`,
-            });
+            updateMessage(msgId, { state: "failed", content: `Pipeline failed at step ${updated.currentStep + 1}: ${failedStep?.error || "Unknown error"}` });
             setProcessing(false);
             if (address) fetchBalance(address);
           }
         } catch { /* retry on next poll */ }
       }, 1000);
       chainPollRef.current = pollInterval;
-
-      // Safety timeout: stop polling after 5 minutes
       setTimeout(() => { clearInterval(pollInterval); chainPollRef.current = null; }, 300000);
     } catch (err) {
-      updateMessage(msgId, {
-        state: "failed",
-        content: `Error: ${err instanceof Error ? err.message : String(err)}`,
-      });
+      updateMessage(msgId, { state: "failed", content: `Error: ${err instanceof Error ? err.message : String(err)}` });
       setProcessing(false);
     }
   };
 
-  /* ---- Check if steps contain an orchestrator agent ---- */
   const hasOrchestratorStep = (steps: PipelineStep[]) =>
     steps.some((s) => s.agentEndpoint?.includes("/api/hosted-agent"));
 
-  /* ---- Confirm pipeline ---- */
   const handleConfirm = (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg?.steps?.length) return;
-
-    // Autonomous mode: only use chain executor if orchestrator step exists
-    // Non-orchestrator steps always require Phantom wallet payment
     if (autonomousMode && hasOrchestratorStep(msg.steps)) {
       executeAutonomousChain(msgId);
       return;
     }
-
-    // Manual mode OR auto + non-orchestrator: step-by-step with Phantom
     updateMessage(msgId, { state: "executing" });
     executeStep(msgId, 0);
   };
 
-  /** Switch to direct pipeline (re-plan without orchestrator) */
   const handleDirectPipeline = async (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg) return;
-
-    // Find the original user message (the one right before this plan message)
     const msgIdx = messages.findIndex((m) => m.id === msgId);
     const userMsg = messages.slice(0, msgIdx).reverse().find((m) => m.role === "user");
     const originalInput = userMsg?.content || msg.content;
 
     updateMessage(msgId, { content: "Replanning as direct pipeline...", state: "planning" });
-
     try {
-      const res = await fetch("/api/twin/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: originalInput, walletAddress: address, skipOrchestrator: true }),
-      });
-      if (!res.ok) {
-        updateMessage(msgId, { content: "Failed to replan.", state: "failed" });
-        setProcessing(false);
-        return;
-      }
+      const res = await fetch("/api/twin/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: originalInput, walletAddress: address, skipOrchestrator: true }) });
+      if (!res.ok) { updateMessage(msgId, { content: "Failed to replan.", state: "failed" }); setProcessing(false); return; }
       const plan = await res.json().catch(() => null);
-      if (!plan || !plan.steps) {
-        updateMessage(msgId, { content: "Failed to parse replan response.", state: "failed" });
-        setProcessing(false);
-        return;
-      }
+      if (!plan || !plan.steps) { updateMessage(msgId, { content: "Failed to parse replan response.", state: "failed" }); setProcessing(false); return; }
       const steps = (plan.steps as PipelineStep[]).map((s) => ({ ...s, status: "pending" as const }));
-      updateMessage(msgId, {
-        content: plan.explanation,
-        state: "confirming",
-        mode: plan.mode,
-        steps,
-        totalCost: plan.totalCost,
-        hasPipelineAlt: false,
-        orchestratorAlt: plan.orchestratorAlternative || undefined,
-      });
-    } catch {
-      updateMessage(msgId, { content: "Replan failed.", state: "failed" });
-      setProcessing(false);
-    }
+      updateMessage(msgId, { content: plan.explanation, state: "confirming", mode: plan.mode, steps, totalCost: plan.totalCost, hasPipelineAlt: false, orchestratorAlt: plan.orchestratorAlternative || undefined });
+    } catch { updateMessage(msgId, { content: "Replan failed.", state: "failed" }); setProcessing(false); }
   };
 
-  /** Switch to orchestrator agent and run */
   const handleUseOrchestrator = (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg?.orchestratorAlt) return;
-
     const orch = msg.orchestratorAlt;
-    const orchStep: PipelineStep = {
-      agentName: orch.agentName,
-      agentEndpoint: orch.agentEndpoint,
-      agentDid: orch.agentDid,
-      walletAddress: orch.walletAddress,
-      capabilityId: orch.capabilityId,
-      capabilityDescription: orch.capabilityDescription,
-      input: input || msg.content || "",
-      inputFromPrev: false,
-      estimatedCost: orch.estimatedCost,
-      label: `${orch.agentName}: ${orch.capabilityDescription}`,
-      status: "pending",
-    };
-
-    updateMessage(msgId, {
-      mode: "single",
-      steps: [orchStep],
-      totalCost: orch.estimatedCost,
-      orchestratorAlt: undefined,
-    });
-
-    // Auto-run in autonomous mode
-    if (autonomousMode) {
-      setTimeout(() => executeAutonomousChain(msgId), 100);
-    }
+    const orchStep: PipelineStep = { agentName: orch.agentName, agentEndpoint: orch.agentEndpoint, agentDid: orch.agentDid, walletAddress: orch.walletAddress, capabilityId: orch.capabilityId, capabilityDescription: orch.capabilityDescription, input: input || msg.content || "", inputFromPrev: false, estimatedCost: orch.estimatedCost, label: `${orch.agentName}: ${orch.capabilityDescription}`, status: "pending" };
+    updateMessage(msgId, { mode: "single", steps: [orchStep], totalCost: orch.estimatedCost, orchestratorAlt: undefined });
+    if (autonomousMode) { setTimeout(() => executeAutonomousChain(msgId), 100); }
   };
 
   const handleCancel = (msgId: string) => {
@@ -570,78 +483,66 @@ export default function TwinPage() {
     setProcessing(false);
   };
 
+  /* ─── Shared styles ─── */
+  const bandLabel: React.CSSProperties = { fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" };
+  const btnDark: React.CSSProperties = { padding: "10px 24px", fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", backgroundColor: DS.dark, color: DS.bg, border: "none", cursor: "pointer" };
+  const btnOutline: React.CSSProperties = { ...btnDark, backgroundColor: "transparent", border: `1px solid ${DS.border}`, color: DS.text };
+
   return (
-    <div className="max-w-[1920px] mx-auto px-10 py-12 flex flex-col h-[calc(100vh-56px)]">
-      {/* Header */}
-      <div className="mb-6 flex items-end justify-between">
+    <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", display: "flex", flexDirection: "column", height: "calc(100vh - 56px)", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
+
+      {/* ═══ Header ═══ */}
+      <header style={{ padding: "30px 30px 20px", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <span className="font-mono text-xs text-muted uppercase tracking-wider">Your AI Assistant</span>
-          <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">Digital Twin</h2>
+          <h2 className="ds-title" style={{ fontSize: "3rem", fontWeight: 400, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: "-0.02em", color: DS.text, fontFamily: DS.fontPrimary }}>
+            Digital Twin
+          </h2>
+          <p style={{ ...bandLabel, color: DS.textMuted, marginTop: 8, fontWeight: 400 }}>
+            Your AI assistant / Tell me what you need
+          </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative group">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <span className="font-mono text-[10px] text-muted uppercase">Autonomous</span>
-              <button
-                onClick={() => setAutonomousMode(!autonomousMode)}
-                className={`relative w-9 h-5 rounded-full transition-colors ${autonomousMode ? "bg-accent" : "bg-forest-deep/60"}`}
-              >
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-off-white transition-transform ${autonomousMode ? "left-[18px]" : "left-0.5"}`} />
-              </button>
-            </label>
-            {/* Tooltip */}
-            <div className="absolute top-full right-0 mt-2 w-64 px-3 py-2 bg-bg-base border border-mint/20 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-              <span className="font-mono text-[10px] text-off-white block">
-                {autonomousMode
-                  ? "ON: All steps run automatically. Payments are made from your agent budget — no wallet signature needed."
-                  : "OFF: Each step requires your approval. Payments are made from your wallet via Phantom signature."}
-              </span>
-            </div>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {/* Autonomous toggle */}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, fontSize: "0.65rem" }}>AUTONOMOUS</span>
+            <button onClick={() => setAutonomousMode(!autonomousMode)} style={{ position: "relative", width: 36, height: 20, borderRadius: 10, backgroundColor: autonomousMode ? DS.green : "#bbb", border: "none", cursor: "pointer", transition: "background-color 0.2s" }}>
+              <span style={{ position: "absolute", top: 2, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#fff", transition: "left 0.2s", left: autonomousMode ? 18 : 2 }} />
+            </button>
+          </label>
+          {messages.length > 0 && !isProcessing && (
+            <button onClick={() => clearMessages()} style={{ ...bandLabel, color: DS.error, fontSize: "0.65rem", background: "none", border: "none", cursor: "pointer" }} className="ds-error-text">
+              CLEAR
+            </button>
+          )}
         </div>
-        {messages.length > 0 && !isProcessing && (
-          <button onClick={() => clearMessages()} className="font-mono text-xs text-red-400 hover:text-red-300 transition-colors">
-            Clear Chat
-          </button>
-        )}
-      </div>
+      </header>
 
-      {/* Messages */}
-      <div ref={scrollRef} role="log" aria-label="Chat messages" aria-live="polite" className="flex-1 overflow-y-auto border border-mint/10 rounded-xl p-6 mb-4 flex flex-col gap-4">
-        {/* Loading skeleton on first load */}
+      {/* ═══ Messages ═══ */}
+      <div ref={scrollRef} role="log" aria-label="Chat messages" aria-live="polite" style={{ flex: 1, overflowY: "auto", padding: "20px 30px", display: "flex", flexDirection: "column", gap: 16 }}>
+
         {!loaded && loading && (
-          <div className="flex-1 flex items-center justify-center">
-            <span className="font-mono text-sm text-muted animate-pulse">Loading chat history...</span>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ ...bandLabel, color: DS.textMuted }}>LOADING CHAT HISTORY...</span>
           </div>
         )}
 
-        {/* Load More button — older messages */}
         {hasMore && (
-          <button
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-            className="self-center font-mono text-[10px] text-muted border border-forest-deep/40 px-4 py-1.5 rounded-lg hover:border-mint/20 hover:text-mint transition-all disabled:opacity-50"
-          >
-            {loadingMore ? "Loading..." : "Load older messages"}
+          <button onClick={handleLoadMore} disabled={loadingMore} style={{ alignSelf: "center", ...bandLabel, color: DS.textMuted, fontSize: "0.6rem", border: `1px solid #ccc`, padding: "6px 16px", backgroundColor: "transparent", cursor: "pointer", opacity: loadingMore ? 0.5 : 1 }}>
+            {loadingMore ? "LOADING..." : "LOAD OLDER MESSAGES"}
           </button>
         )}
 
         {messages.length === 0 && loaded && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center py-20">
-            <div className="w-16 h-16 border border-mint/20 rounded-full flex items-center justify-center">
-              <span className="font-display text-2xl text-mint">T</span>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "60px 0" }}>
+            <div style={{ width: 64, height: 64, border: `1px solid ${DS.border}`, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontFamily: DS.fontPrimary, fontSize: "1.8rem", fontWeight: 400 }}>T</span>
             </div>
-            <p className="font-mono text-sm text-muted max-w-md">
-              I am your Digital Twin. Tell me what you need — I can use single agents or chain multiple agents together for complex tasks.
+            <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, color: DS.textMuted, maxWidth: 400, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Tell me what you need — I can use single agents or chain multiple agents together
             </p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {[
-                "Summarize the AIP protocol",
-                "Fetch Solana staking data and summarize it",
-                "Audit the Jupiter swap contract and analyze DeFi risks",
-              ].map((s) => (
-                <button key={s} onClick={() => setInput(s)}
-                  className="font-mono text-[11px] text-muted border border-forest-deep/40 px-3 py-1.5 rounded-lg hover:border-mint/20 hover:text-mint transition-all">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, justifyContent: "center" }}>
+              {["Summarize the AIP protocol", "Fetch Solana staking data and summarize it", "Audit the Jupiter swap contract"].map((s) => (
+                <button key={s} onClick={() => setInput(s)} style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, color: DS.textMuted, border: `1px solid #ccc`, padding: "8px 14px", backgroundColor: "transparent", cursor: "pointer", textTransform: "none" }}>
                   {s}
                 </button>
               ))}
@@ -650,119 +551,101 @@ export default function TwinPage() {
         )}
 
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] ${
-              msg.role === "user"
-                ? "bg-mint/10 border border-mint/20 rounded-2xl rounded-br-md px-5 py-3"
-                : "bg-forest-deep/30 border border-forest-deep/40 rounded-2xl rounded-bl-md px-5 py-3"
-            }`}>
+          <div key={msg.id} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{ maxWidth: "80%", padding: "16px 20px", borderTop: `1px solid ${DS.border}`, borderRight: `1px solid ${DS.border}`, borderBottom: `1px solid ${DS.border}`, borderLeft: msg.role === "twin" ? `4px solid ${msg.state === "failed" ? DS.error : msg.state === "completed" ? DS.green : DS.text}` : `1px solid ${DS.border}`, backgroundColor: msg.role === "user" ? "#d5d0c8" : DS.bg }}>
+
               {msg.role === "twin" && (
-                <span className="font-mono text-[9px] text-purple-400 uppercase block mb-1">
-                  {msg.state === "planning" ? "Thinking..." : msg.state === "executing" ? "Executing..." : "Twin"}
+                <span className={msg.state === "failed" ? "ds-error-text" : msg.state === "completed" ? "ds-accent-text" : "ds-purple-text"} style={{ ...bandLabel, fontSize: "0.6rem", display: "block", marginBottom: 6 }}>
+                  {msg.state === "planning" ? "THINKING..." : msg.state === "executing" ? "EXECUTING..." : msg.state === "failed" ? "FAILED" : msg.state === "completed" ? "COMPLETED" : "TWIN"}
                 </span>
               )}
 
-              <p className="font-mono text-sm text-off-white leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, lineHeight: 1.5, whiteSpace: "pre-wrap", color: DS.text }}>{msg.content}</p>
 
-              {/* Pipeline plan card */}
+              {/* Pipeline confirming */}
               {msg.steps && msg.state === "confirming" && (
-                <div className="mt-3 border border-accent/20 rounded-lg p-4 bg-accent/5">
+                <div style={{ marginTop: 12, border: `1px solid ${DS.border}`, padding: 16 }}>
                   {msg.mode === "pipeline" && (
-                    <span className="font-mono text-[9px] text-purple-400 uppercase block mb-3">
-                      Pipeline — {msg.steps.length} steps
+                    <span className="ds-purple-text" style={{ ...bandLabel, fontSize: "0.6rem", display: "block", marginBottom: 10 }}>
+                      PIPELINE — {msg.steps.length} STEPS
                     </span>
                   )}
-
-                  {/* Steps */}
-                  <div className="flex flex-col gap-2 mb-3">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
                     {msg.steps.map((step, i) => (
-                      <div key={i} className="flex items-center gap-3 py-1.5">
-                        <span className="font-mono text-[10px] text-muted w-4">{i + 1}.</span>
-                        <div className="flex-1">
-                          <span className="font-mono text-[11px] text-off-white">{step.label}</span>
-                          <span className="font-mono text-[9px] text-muted ml-2">{step.agentName}</span>
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: i < msg.steps!.length - 1 ? "1px solid #ccc" : "none" }}>
+                        <span style={{ ...bandLabel, fontSize: "0.6rem", color: DS.textMuted, width: 16 }}>{i + 1}.</span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700 }}>{step.label}</span>
+                          <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.6rem", marginLeft: 8 }}>{step.agentName}</span>
                         </div>
-                        <span className="font-mono text-[10px] text-accent">{step.estimatedCost} USDC</span>
+                        <span style={{ fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700 }}>{step.estimatedCost} USDC</span>
                       </div>
                     ))}
-                    <div className="flex justify-between pt-2 border-t border-forest-deep/40">
-                      <span className="font-mono text-[10px] text-muted">Total</span>
-                      <span className="font-mono text-[11px] text-accent font-bold">{msg.totalCost} USDC</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${DS.border}` }}>
+                      <span style={{ ...bandLabel, fontSize: "0.6rem", color: DS.textMuted }}>TOTAL</span>
+                      <span style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700 }}>{msg.totalCost} USDC</span>
                     </div>
                   </div>
-
-                  <div className="flex flex-col gap-2">
-                    {/* Orchestrator alternative (when pipeline is shown) */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {msg.orchestratorAlt && autonomousMode && (
-                      <button onClick={() => handleUseOrchestrator(msg.id)}
-                        className="w-full font-mono text-xs text-bg-base bg-purple-500 px-3 py-2 rounded-lg hover:bg-purple-400 transition-colors">
-                        Use {msg.orchestratorAlt.agentName} ({msg.orchestratorAlt.estimatedCost} USDC — auto-delegates)
+                      <button onClick={() => handleUseOrchestrator(msg.id)} className="mp-white-text" style={{ ...btnDark, backgroundColor: "#7DB342", width: "100%", textAlign: "center" }}>
+                        Use {msg.orchestratorAlt.agentName} ({msg.orchestratorAlt.estimatedCost} USDC)
                       </button>
                     )}
-                    {/* Pipeline alternative (when orchestrator is shown) */}
                     {msg.hasPipelineAlt && autonomousMode && (
-                      <button onClick={() => handleDirectPipeline(msg.id)}
-                        className="w-full font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:border-mint/20 hover:text-mint transition-colors">
-                        Switch to Direct Pipeline (cheaper, step-by-step)
+                      <button onClick={() => handleDirectPipeline(msg.id)} style={{ ...btnOutline, width: "100%", textAlign: "center" }}>
+                        Switch to Direct Pipeline
                       </button>
                     )}
-                    <div className="flex gap-2">
-                      <button onClick={() => handleConfirm(msg.id)}
-                        className="flex-1 font-mono text-xs text-bg-base bg-accent px-3 py-2 rounded-lg hover:bg-mint transition-colors">
-                        {autonomousMode && hasOrchestratorStep(msg.steps || [])
-                          ? (msg.orchestratorAlt ? "Direct Pipeline" : "Run Autonomously")
-                          : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => handleConfirm(msg.id)} className="mp-white-text" style={{ ...btnDark, flex: 1, textAlign: "center" }}>
+                        {autonomousMode && hasOrchestratorStep(msg.steps || []) ? (msg.orchestratorAlt ? "Direct Pipeline" : "Run Autonomously") : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
                       </button>
-                      <button onClick={() => handleCancel(msg.id)}
-                        className="font-mono text-xs text-muted border border-forest-deep/40 px-3 py-2 rounded-lg hover:text-red-400 hover:border-red-800/30 transition-colors">
-                        Cancel
-                      </button>
+                      <button onClick={() => handleCancel(msg.id)} className="ds-error-text" style={{ ...btnOutline, color: DS.error }}>Cancel</button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Executing pipeline progress */}
+              {/* Executing progress */}
               {msg.steps && msg.state === "executing" && (
-                <div className="mt-3 border border-mint/10 rounded-lg p-4">
-                  <div className="flex flex-col gap-3">
-                    {msg.steps.map((step, i) => (
-                      <div key={i} className="flex items-start gap-3">
-                        <StepIcon status={step.status} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className={`font-mono text-[11px] ${step.status === "completed" ? "text-accent" : step.status === "executing" ? "text-mint" : "text-muted"}`}>
-                              {step.label}
-                            </span>
-                            <span className="font-mono text-[9px] text-muted">{step.estimatedCost} USDC</span>
-                          </div>
-                          {step.status === "completed" && step.artifact && (
-                            <p className="font-mono text-[10px] text-body mt-1 truncate">{step.artifact.slice(0, 100)}...</p>
-                          )}
+                <div style={{ marginTop: 12, border: `1px solid ${DS.border}`, padding: 16 }}>
+                  {msg.steps.map((step, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "start", gap: 10, padding: "8px 0" }}>
+                      <StepIcon status={step.status} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span className={step.status === "completed" ? "ds-accent-text" : ""} style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700 }}>{step.label}</span>
+                          <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.6rem" }}>{step.estimatedCost} USDC</span>
                         </div>
+                        {step.status === "completed" && step.artifact && (
+                          <p className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{step.artifact.slice(0, 100)}...</p>
+                        )}
                       </div>
-                    ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Completed artifact */}
+              {msg.state === "completed" && msg.artifact && (
+                <div style={{ marginTop: 12, border: `1px solid ${DS.border}`, borderLeft: `4px solid ${DS.green}`, padding: 16 }}>
+                  <span className="ds-accent-text" style={{ ...bandLabel, fontSize: "0.6rem", display: "block", marginBottom: 2 }}>FINAL RESULT</span>
+                  <div style={{ fontSize: "1rem", lineHeight: 1.6 }}>
+                    <ArtifactRenderer artifact={parseArtifact(msg.artifact)} />
                   </div>
                 </div>
               )}
 
-              {/* Completed — show final artifact */}
-              {msg.state === "completed" && msg.artifact && (
-                <div className="mt-3 border border-accent/20 rounded-lg p-4 bg-accent/5">
-                  <span className="font-mono text-[9px] text-accent uppercase block mb-2">Final Result</span>
-                  <ArtifactRenderer artifact={parseArtifact(msg.artifact)} />
-                </div>
-              )}
-
-              {/* Completed pipeline — show all step results */}
+              {/* Completed pipeline steps */}
               {msg.state === "completed" && msg.steps && msg.mode === "pipeline" && (
-                <div className="mt-3 flex flex-col gap-2">
+                <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
                   {msg.steps.filter((s) => s.artifact).map((step, i) => (
-                    <details key={i} className="border border-forest-deep/30 rounded-lg">
-                      <summary className="px-3 py-2 font-mono text-[10px] text-muted cursor-pointer hover:text-mint">
+                    <details key={i} style={{ border: `1px solid #ccc` }}>
+                      <summary style={{ padding: "8px 12px", fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer", textTransform: "uppercase" }}>
                         Step {i + 1}: {step.label} — {step.agentName}
                       </summary>
-                      <div className="px-3 pb-3">
+                      <div style={{ padding: "8px 12px", borderTop: "1px solid #ccc", fontSize: "0.9rem", lineHeight: 1.5 }}>
                         <ArtifactRenderer artifact={parseArtifact(step.artifact!)} />
                       </div>
                     </details>
@@ -770,56 +653,41 @@ export default function TwinPage() {
                 </div>
               )}
 
-              {/* Tx links from steps */}
+              {/* Tx links */}
               {msg.steps?.some((s) => s.escrowTxHash || s.settlementTxHash) && (
-                <div className="mt-2 flex flex-col gap-1">
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                   {msg.steps.filter((s) => s.escrowTxHash).map((s, i) => (
-                    <a key={`e${i}`} href={`${SOLANA_EXPLORER}/${s.escrowTxHash}?cluster=devnet`} target="_blank" rel="noopener noreferrer"
-                      className="font-mono text-[9px] text-muted hover:text-accent transition-colors">
-                      ◎ Step {i + 1} Escrow: {s.escrowTxHash!.slice(0, 16)}...
+                    <a key={`e${i}`} href={`${SOLANA_EXPLORER}/${s.escrowTxHash}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.6rem", textDecoration: "none" }}>
+                      STEP {i + 1} ESCROW: {s.escrowTxHash!.slice(0, 16)}...
                     </a>
                   ))}
                   {msg.steps.filter((s) => s.settlementTxHash).map((s, i) => (
-                    <a key={`s${i}`} href={`${SOLANA_EXPLORER}/${s.settlementTxHash}?cluster=devnet`} target="_blank" rel="noopener noreferrer"
-                      className="font-mono text-[9px] text-muted hover:text-accent transition-colors">
-                      ◎ Step {i + 1} Settlement: {s.settlementTxHash!.slice(0, 16)}...
+                    <a key={`s${i}`} href={`${SOLANA_EXPLORER}/${s.settlementTxHash}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.6rem", textDecoration: "none" }}>
+                      STEP {i + 1} SETTLEMENT: {s.settlementTxHash!.slice(0, 16)}...
                     </a>
                   ))}
                 </div>
               )}
 
-              {msg.state === "failed" && msg.role === "twin" && (
-                <span className="font-mono text-[9px] text-red-400 uppercase block mt-1">Failed</span>
-              )}
-
-              <span className="font-mono text-[9px] text-muted/40 block mt-1">{msg.timestamp}</span>
+              <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.55rem", display: "block", marginTop: 8 }}>{msg.timestamp}</span>
             </div>
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* File upload indicator */}
+      {/* ═══ File indicator ═══ */}
       {fileName && (
-        <div className="flex items-center gap-2 mb-2 px-2">
-          <span className="font-mono text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded">
-            {fileName}
-          </span>
-          <button onClick={() => { setFileContext(null); setFileName(null); }}
-            className="font-mono text-[9px] text-red-400 hover:text-red-300">remove</button>
+        <div style={{ padding: "6px 30px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, backgroundColor: "#d5d0c8", padding: "2px 8px" }}>{fileName}</span>
+          <button onClick={() => { setFileContext(null); setFileName(null); }} className="ds-error-text" style={{ fontFamily: DS.fontMono, fontSize: "0.6rem", background: "none", border: "none", cursor: "pointer" }}>REMOVE</button>
         </div>
       )}
 
-      {/* Input */}
-      <div className="flex gap-3 items-end">
-        <div className="shrink-0">
-          <FileUpload
-            disabled={isProcessing}
-            onFileContent={(content, name) => {
-              setFileContext(content);
-              setFileName(name);
-            }}
-          />
+      {/* ═══ Input Bar ═══ */}
+      <div style={{ borderTop: `1px solid ${DS.border}`, padding: "16px 30px", display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ flexShrink: 0 }}>
+          <FileUpload disabled={isProcessing} onFileContent={(content, name) => { setFileContext(content); setFileName(name); }} />
         </div>
         <input
           type="text"
@@ -829,11 +697,11 @@ export default function TwinPage() {
           disabled={isProcessing}
           placeholder={fileName ? `Ask about ${fileName}...` : "Tell your Twin what to do..."}
           aria-label="Message your AI Twin"
-          className="flex-1 bg-forest-deep/30 border border-mint/20 rounded-xl px-5 py-3 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none disabled:opacity-50"
+          style={{ flex: 1, padding: "12px 16px", fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, border: `1px solid ${DS.border}`, backgroundColor: "transparent", outline: "none", color: DS.text, opacity: isProcessing ? 0.5 : 1 }}
         />
-        <BtnPrimary onClick={handleSend} disabled={!input.trim() || isProcessing} aria-label={isProcessing ? "Processing" : "Send message"}>
-          {isProcessing ? "Working..." : "Send"}
-        </BtnPrimary>
+        <button onClick={handleSend} disabled={!input.trim() || isProcessing} className="mp-white-text" style={{ ...btnDark, opacity: !input.trim() || isProcessing ? 0.4 : 1, cursor: !input.trim() || isProcessing ? "not-allowed" : "pointer" }} aria-label={isProcessing ? "Processing" : "Send message"}>
+          {isProcessing ? "WORKING..." : "SEND"}
+        </button>
       </div>
     </div>
   );
