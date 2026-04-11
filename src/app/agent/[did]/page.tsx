@@ -5,8 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useAgentStore } from "@/store/agentStore";
 import { useWalletStore } from "@/store/walletStore";
 import type { AgentType, Capability } from "@/types/aip";
-import BtnPrimary from "@/components/ui/BtnPrimary";
 
+/* ─── Types ─── */
 interface AgentDetail {
   did: string;
   name: string;
@@ -21,40 +21,59 @@ interface AgentDetail {
   source?: string;
 }
 
-function TypeBadge({ type }: { type: AgentType }) {
-  const styles: Record<AgentType, string> = {
-    LLM: "border-blue-800/40 text-blue-400 bg-blue-900/10",
-    Task: "border-accent/40 text-accent bg-accent/10",
-    Execution: "border-yellow-800/40 text-yellow-400 bg-yellow-900/10",
-  };
-  return (
-    <span className={`font-mono text-xs uppercase px-3 py-1 border rounded ${styles[type]}`}>
-      {type}
-    </span>
-  );
-}
+/* ─── Design System ─── */
+const DS = {
+  bg: "#e6e5e0",
+  bgHover: "#d9d8d3",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  dark: "#222222",
+  green: "#7cb342",
+  cyan: "#4dd0e1",
+  yellow: "#ffee58",
+  error: "#c62828",
+  purple: "#7c3aed",
+  white: "#ffffff",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <button onClick={copy} className="font-mono text-[10px] text-muted hover:text-mint transition-colors ml-2">
-      {copied ? "Copied!" : "Copy"}
-    </button>
-  );
-}
+const TYPE_COLORS: Record<AgentType, { bg: string; label: string }> = {
+  LLM: { bg: DS.cyan, label: "LLM" },
+  Task: { bg: DS.green, label: "TASK" },
+  Execution: { bg: DS.yellow, label: "EXECUTION" },
+};
 
+const CAP_COLORS: Record<string, string> = {
+  "web.search": "#3b6fa0",
+  "text.summarize": "#8b5c9e",
+  "text.classify": "#7b6b8a",
+  "text.translate": "#4a8c7f",
+  "text.write": "#6b8e6b",
+  "code.audit": "#a65d5d",
+  "code.review": "#7a7a7a",
+  "data.retrieve": "#c08c4a",
+  "data.analyze": "#b8913a",
+  "defi.analyze": "#4a7a5e",
+  "trade.execute": "#2e6e7a",
+  "document.parse": "#c27a3a",
+};
+
+/* ─── Sub-components ─── */
 function InfoRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   return (
-    <div className="flex flex-col gap-1 py-3 border-b border-forest-deep/30">
-      <span className="font-mono text-[10px] text-muted uppercase tracking-wider">{label}</span>
-      <div className="flex items-center">
-        <span className="font-mono text-sm text-mint break-all">{value}</span>
-        {copyable && <CopyButton text={value} />}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "12px 0", borderBottom: `1px solid #ccc` }}>
+      <span style={{ fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: DS.textMuted, flexShrink: 0, width: 140 }}>{label}</span>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <span style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, color: DS.text, wordBreak: "break-all" }}>{value}</span>
+        {copyable && (
+          <button onClick={copy} style={{ fontFamily: DS.fontMono, fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: DS.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", flexShrink: 0 }}>
+            {copied ? "COPIED" : "COPY"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -75,12 +94,35 @@ export default function AgentDetailPage() {
 
   const did = decodeURIComponent(params.did as string);
 
+  /* Theme override */
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.setAttribute("data-agent-theme", "true");
+    style.textContent = `
+      body { background-color: ${DS.bg} !important; color: ${DS.text} !important; }
+      main.pt-14 { padding-top: 56px; }
+      nav[aria-label="Main navigation"] { background-color: ${DS.bg} !important; border-bottom: 1px solid ${DS.border} !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+      nav[aria-label="Main navigation"] a, nav[aria-label="Main navigation"] span { color: ${DS.text} !important; font-family: ${DS.fontMono} !important; }
+      nav[aria-label="Main navigation"] a:hover { color: ${DS.textMuted} !important; }
+      nav[aria-label="Main navigation"] a[aria-current="page"] { color: ${DS.text} !important; font-weight: 700 !important; }
+      nav[aria-label="Main navigation"] .w-2.h-2 { background-color: ${DS.green} !important; }
+      nav[aria-label="Main navigation"] .w-px { background-color: ${DS.border} !important; opacity: 0.2; }
+      main.pt-14 * { color: #000000 !important; }
+      main.pt-14 input::placeholder { color: #555555 !important; }
+      main.pt-14 .mp-white-text { color: #ffffff !important; }
+      main.pt-14 .ds-accent-text { color: ${DS.green} !important; }
+      main.pt-14 .ds-muted-text { color: ${DS.textMuted} !important; }
+      main.pt-14 .ds-star { color: #b8913a !important; }
+      ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
+      ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
   useEffect(() => {
     fetch(`/api/agent-card/detail?did=${encodeURIComponent(did)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("Agent not found");
-        return r.json();
-      })
+      .then((r) => { if (!r.ok) throw new Error("Agent not found"); return r.json(); })
       .then((data) => setAgent(data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -93,238 +135,196 @@ export default function AgentDetailPage() {
 
   const submitRating = async () => {
     if (!address || myRating < 1) return;
-    await fetch("/api/ratings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agentDid: did, walletAddress: address, rating: myRating, comment: myComment }),
-    });
+    await fetch("/api/ratings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentDid: did, walletAddress: address, rating: myRating, comment: myComment }) });
     setRatingSubmitted(true);
-    // Refresh ratings
     const res = await fetch(`/api/ratings?agentDid=${encodeURIComponent(did)}`);
     setRatings(await res.json());
   };
 
   const handleStartTask = () => {
     if (!agent) return;
-    setCounterpart({
-      did: agent.did,
-      name: agent.name,
-      version: agent.version,
-      endpoint: agent.endpoint,
-      type: agent.type,
-      capabilities: agent.capabilities,
-      walletAddress: agent.walletAddress,
-    });
+    setCounterpart({ did: agent.did, name: agent.name, version: agent.version, endpoint: agent.endpoint, type: agent.type, capabilities: agent.capabilities, walletAddress: agent.walletAddress });
     router.push("/dashboard");
   };
 
+  const bandLabel: React.CSSProperties = { fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" };
+  const btnDark: React.CSSProperties = { padding: "12px 28px", fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", backgroundColor: DS.dark, color: DS.bg, border: "none", cursor: "pointer" };
+
   if (loading) {
     return (
-      <div className="max-w-[1920px] mx-auto px-10 py-12 flex items-center justify-center min-h-[60vh]">
-        <span className="font-mono text-sm text-muted animate-pulse">Loading agent...</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <span style={{ ...bandLabel, color: DS.textMuted }}>LOADING AGENT...</span>
       </div>
     );
   }
 
   if (error || !agent) {
     return (
-      <div className="max-w-[1920px] mx-auto px-10 py-12 flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <span className="font-mono text-sm text-red-400">{error || "Agent not found"}</span>
-        <button onClick={() => router.push("/marketplace")} className="font-mono text-xs text-muted hover:text-mint">
-          Back to Marketplace
-        </button>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
+        <span style={{ ...bandLabel, color: DS.error }}>{error || "AGENT NOT FOUND"}</span>
+        <button onClick={() => router.push("/marketplace")} style={{ ...bandLabel, color: DS.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>BACK TO MARKETPLACE</button>
       </div>
     );
   }
 
+  const typeConfig = TYPE_COLORS[agent.type] || TYPE_COLORS.Task;
+
   return (
-    <div className="max-w-[1920px] mx-auto px-10 py-12">
-      {/* Breadcrumb */}
-      <div className="mb-8">
-        <button onClick={() => router.push("/marketplace")} className="font-mono text-xs text-muted hover:text-mint transition-colors">
-          ← Marketplace
+    <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", padding: "0 0 40px", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
+
+      {/* ═══ Breadcrumb ═══ */}
+      <div style={{ padding: "12px 30px", borderBottom: `1px solid ${DS.border}` }}>
+        <button onClick={() => router.push("/marketplace")} style={{ ...bandLabel, fontSize: "0.65rem", color: DS.textMuted, background: "none", border: "none", cursor: "pointer" }}>
+          MARKETPLACE / {agent.name.toUpperCase()}
         </button>
       </div>
 
-      {/* Hero */}
-      <div className="border border-mint/20 rounded-2xl p-10 mb-8 bg-gradient-to-br from-forest-deep/20 to-transparent">
-        <div className="flex items-start justify-between gap-6">
-          <div className="flex-1">
-            <div className="flex items-center gap-4 mb-3">
-              <h1 className="font-display text-4xl text-mint uppercase tracking-tight">
-                {agent.name}
-              </h1>
-              <TypeBadge type={agent.type} />
-              {agent.onChain && (
-                <span className="font-mono text-[10px] uppercase px-2.5 py-1 border rounded border-purple-800/40 text-purple-400 bg-purple-900/10">
-                  On-chain Verified
-                </span>
-              )}
-            </div>
-            <p className="font-mono text-sm text-muted mb-1">
-              {agent.capabilities.length} capabilities — v{agent.version}
-            </p>
-            {agent.agentId && (
-              <p className="font-mono text-xs text-muted/50">
-                ID: {agent.agentId}
-              </p>
-            )}
+      {/* ═══ Hero Header ═══ */}
+      <header style={{ padding: "40px 30px", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <h1 style={{ fontSize: "3.5rem", fontWeight: 400, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: "-0.02em", color: DS.text, fontFamily: DS.fontPrimary }}>{agent.name}</h1>
+            <span className="mp-white-text" style={{ fontSize: "0.7rem", padding: "4px 12px", backgroundColor: typeConfig.bg, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase" }}>{typeConfig.label}</span>
+            {agent.onChain && <span className="mp-white-text" style={{ fontSize: "0.7rem", padding: "4px 12px", backgroundColor: DS.purple, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase" }}>ON-CHAIN</span>}
           </div>
-          <BtnPrimary onClick={handleStartTask}>
-            Start Task
-            <span>→</span>
-          </BtnPrimary>
+          <p style={{ ...bandLabel, color: DS.textMuted, fontWeight: 400 }}>
+            {agent.capabilities.length} {agent.capabilities.length > 1 ? "CAPABILITIES" : "CAPABILITY"} / V{agent.version}
+            {agent.agentId && <span> / ID: {agent.agentId}</span>}
+          </p>
+          {ratings.count > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+              <span className="ds-star" style={{ fontSize: "1.2rem" }}>{"★".repeat(Math.round(ratings.avg))}{"☆".repeat(5 - Math.round(ratings.avg))}</span>
+              <span style={{ fontFamily: DS.fontPrimary, fontSize: "1.2rem", fontWeight: 400 }}>{ratings.avg.toFixed(1)}</span>
+              <span className="ds-muted-text" style={{ ...bandLabel, fontSize: "0.65rem" }}>({ratings.count} REVIEWS)</span>
+            </div>
+          )}
         </div>
-      </div>
+        <button onClick={handleStartTask} className="mp-white-text" style={btnDark}>START TASK</button>
+      </header>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Left: Info */}
-        <div className="col-span-2 border border-mint/10 rounded-xl p-6">
-          <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-2">Agent Information</span>
+      {/* ═══ Info + Sidebar Grid ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", borderBottom: `1px solid ${DS.border}` }}>
 
+        {/* Left: Agent Info */}
+        <div style={{ borderRight: `1px solid ${DS.border}`, padding: "24px 30px" }}>
+          <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>AGENT INFORMATION</span>
           <InfoRow label="DID" value={agent.did} copyable />
           <InfoRow label="Endpoint" value={agent.endpoint} copyable />
           {agent.walletAddress && <InfoRow label="Payment Wallet" value={agent.walletAddress} copyable />}
           {agent.owner && <InfoRow label="Owner" value={agent.owner} copyable />}
 
           {/* Capabilities */}
-          <div className="mt-8">
-            <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-4">Capabilities</span>
-            <div className="grid grid-cols-1 gap-3">
-              {agent.capabilities.map((cap) => (
-                <div key={cap.id} className="border border-mint/10 rounded-lg p-4 flex items-center justify-between hover:border-mint/20 transition-colors">
-                  <div>
-                    <span className="font-display text-sm text-off-white uppercase tracking-wider">
-                      {cap.description}
-                    </span>
-                    <p className="font-mono text-[10px] text-muted/60 mt-0.5">{cap.id}</p>
+          <div style={{ marginTop: 32 }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>CAPABILITIES</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {agent.capabilities.map((cap) => {
+                const capColor = CAP_COLORS[cap.id] || DS.textMuted;
+                return (
+                  <div key={cap.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: "1px solid #ccc" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ width: 4, height: 28, backgroundColor: capColor, display: "inline-block", flexShrink: 0 }} />
+                      <div>
+                        <span style={{ fontFamily: DS.fontPrimary, fontSize: "1rem", fontWeight: 400, textTransform: "uppercase" }}>{cap.description}</span>
+                        <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.6rem", display: "block", marginTop: 2 }}>{cap.id}</span>
+                      </div>
+                    </div>
+                    <span style={{ fontFamily: DS.fontPrimary, fontSize: "1.2rem", fontWeight: 400 }}>{cap.pricing.amount} <span style={{ fontSize: "0.7rem", fontWeight: 700 }}>USDC</span></span>
                   </div>
-                  <span className="font-mono text-sm text-accent whitespace-nowrap">
-                    {cap.pricing.amount} USDC
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* Right: Quick Actions + On-chain Info */}
-        <div className="flex flex-col gap-4">
-          {/* Quick task */}
-          <div className="border border-mint/10 rounded-xl p-6">
-            <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-4">Quick Task</span>
-            <p className="font-mono text-xs text-muted mb-4">
-              Select a capability and start a task with this agent.
-            </p>
+        {/* Right: Sidebar */}
+        <div>
+          {/* Quick Task */}
+          <div style={{ padding: "24px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>QUICK TASK</span>
             {agent.capabilities.map((cap) => (
-              <button
-                key={cap.id}
-                onClick={handleStartTask}
-                className="w-full text-left p-3 border border-forest-deep/40 rounded-lg mb-2 hover:border-mint/20 hover:bg-forest-deep/20 transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-off-white group-hover:text-mint transition-colors">
-                    {cap.description}
-                  </span>
-                  <span className="font-mono text-[10px] text-accent">{cap.pricing.amount} USDC</span>
-                </div>
+              <button key={cap.id} onClick={handleStartTask} style={{ width: "100%", textAlign: "left", padding: "12px 16px", border: `1px solid ${DS.border}`, marginBottom: 6, backgroundColor: "transparent", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, transition: "background-color 0.15s" }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = DS.bgHover} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
+                <span>{cap.description}</span>
+                <span style={{ fontSize: "0.7rem" }}>{cap.pricing.amount} USDC</span>
               </button>
             ))}
           </div>
 
           {/* On-chain info */}
           {agent.onChain && (
-            <div className="border border-purple-800/20 rounded-xl p-6 bg-purple-900/5">
-              <span className="font-mono text-xs text-purple-400 uppercase tracking-wider block mb-3">On-chain Record</span>
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between">
-                  <span className="font-mono text-[10px] text-muted">Status</span>
-                  <span className="font-mono text-[10px] text-purple-400">Verified</span>
+            <div style={{ padding: "24px 30px", borderBottom: `1px solid ${DS.border}` }}>
+              <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>ON-CHAIN RECORD</span>
+              {[
+                ["STATUS", "VERIFIED"],
+                ["NETWORK", "SOLANA DEVNET"],
+                ["PROGRAM", "CgchXu...p1Vbc"],
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700 }}>
+                  <span className="ds-muted-text">{k}</span>
+                  <span>{v}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-mono text-[10px] text-muted">Network</span>
-                  <span className="font-mono text-[10px] text-muted">Solana Devnet</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-mono text-[10px] text-muted">Program</span>
-                  <span className="font-mono text-[10px] text-muted">CgchXu...p1Vbc</span>
-                </div>
-              </div>
+              ))}
             </div>
           )}
 
           {/* Agent Card JSON */}
-          <div className="border border-mint/10 rounded-xl p-6">
-            <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-3">Agent Card (JSON)</span>
-            <pre className="font-mono text-[10px] text-body bg-bg-base/50 border border-mint/10 p-3 rounded-lg overflow-x-auto max-h-[200px] overflow-y-auto">
-              {JSON.stringify({
-                did: agent.did,
-                name: agent.name,
-                version: agent.version,
-                endpoint: agent.endpoint,
-                type: agent.type,
-                capabilities: agent.capabilities,
-                walletAddress: agent.walletAddress,
-              }, null, 2)}
+          <div style={{ padding: "24px 30px" }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>AGENT CARD (JSON)</span>
+            <pre style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, backgroundColor: DS.bg, border: `1px solid ${DS.border}`, borderRadius: 6, padding: 12, overflowX: "auto", maxHeight: 220, overflowY: "auto", lineHeight: 1.5 }}>
+              {JSON.stringify({ did: agent.did, name: agent.name, version: agent.version, endpoint: agent.endpoint, type: agent.type, capabilities: agent.capabilities, walletAddress: agent.walletAddress }, null, 2)}
             </pre>
           </div>
         </div>
       </div>
 
-      {/* Ratings Section */}
-      <div className="mt-8 border border-mint/10 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <span className="font-mono text-xs text-muted uppercase tracking-wider">Ratings & Reviews</span>
+      {/* ═══ Ratings ═══ */}
+      <div style={{ padding: "24px 30px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ ...bandLabel, color: DS.textMuted }}>RATINGS & REVIEWS</span>
           {ratings.count > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-yellow-400 text-lg">{"★".repeat(Math.round(ratings.avg))}{"☆".repeat(5 - Math.round(ratings.avg))}</span>
-              <span className="font-mono text-sm text-mint">{ratings.avg.toFixed(1)}</span>
-              <span className="font-mono text-xs text-muted">({ratings.count} reviews)</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="ds-star" style={{ fontSize: "1rem" }}>{"★".repeat(Math.round(ratings.avg))}{"☆".repeat(5 - Math.round(ratings.avg))}</span>
+              <span style={{ fontFamily: DS.fontPrimary, fontSize: "1rem", fontWeight: 400 }}>{ratings.avg.toFixed(1)}</span>
+              <span className="ds-muted-text" style={{ ...bandLabel, fontSize: "0.6rem" }}>({ratings.count})</span>
             </div>
           )}
         </div>
 
         {/* Submit rating */}
         {address && !ratingSubmitted ? (
-          <div className="border border-forest-deep/40 rounded-lg p-4 mb-4">
-            <span className="font-mono text-xs text-muted block mb-2">Rate this agent</span>
-            <div className="flex items-center gap-1 mb-3">
+          <div style={{ border: `1px solid ${DS.border}`, padding: 20, marginBottom: 16 }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 10 }}>RATE THIS AGENT</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} onClick={() => setMyRating(n)}
-                  className={`text-2xl transition-colors ${n <= myRating ? "text-yellow-400" : "text-forest-deep hover:text-yellow-400/50"}`}>
+                <button key={n} onClick={() => setMyRating(n)} className="ds-star" style={{ fontSize: "1.8rem", background: "none", border: "none", cursor: "pointer", opacity: n <= myRating ? 1 : 0.2, transition: "opacity 0.15s" }}>
                   ★
                 </button>
               ))}
-              {myRating > 0 && <span className="font-mono text-xs text-muted ml-2">{myRating}/5</span>}
+              {myRating > 0 && <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.7rem", marginLeft: 8 }}>{myRating}/5</span>}
             </div>
-            <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)}
-              placeholder="Optional comment..."
-              rows={2}
-              className="w-full bg-forest-deep/30 border border-mint/10 rounded px-3 py-2 font-mono text-xs text-mint placeholder:text-muted/40 focus:border-mint/30 focus:outline-none resize-none mb-2" />
-            <button onClick={submitRating} disabled={myRating < 1}
-              className="font-mono text-xs text-bg-base bg-mint px-4 py-1.5 rounded hover:bg-accent transition-colors disabled:opacity-40">
-              Submit Rating
+            <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)} placeholder="Optional comment..." rows={2} style={{ width: "100%", fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, padding: "10px 14px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", outline: "none", resize: "none", marginBottom: 12 }} />
+            <button onClick={submitRating} disabled={myRating < 1} className="mp-white-text" style={{ ...btnDark, opacity: myRating < 1 ? 0.4 : 1, cursor: myRating < 1 ? "not-allowed" : "pointer" }}>
+              SUBMIT RATING
             </button>
           </div>
         ) : ratingSubmitted ? (
-          <p className="font-mono text-xs text-accent mb-4">Thanks for your rating!</p>
+          <p className="ds-accent-text" style={{ ...bandLabel, marginBottom: 16 }}>THANKS FOR YOUR RATING</p>
         ) : null}
 
-        {/* Reviews list */}
+        {/* Reviews */}
         {ratings.ratings.length > 0 ? (
-          <div className="flex flex-col gap-3">
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {ratings.ratings.map((r, i) => (
-              <div key={i} className="border-b border-forest-deep/20 pb-3 last:border-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-yellow-400 text-sm">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
-                  <span className="font-mono text-[10px] text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
+              <div key={i} style={{ padding: "12px 0", borderBottom: i < ratings.ratings.length - 1 ? "1px solid #ccc" : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span className="ds-star" style={{ fontSize: "0.9rem" }}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                  <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.65rem" }}>{new Date(r.created_at).toLocaleDateString()}</span>
                 </div>
-                {r.comment && <p className="font-mono text-xs text-body">{r.comment}</p>}
+                {r.comment && <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, lineHeight: 1.4 }}>{r.comment}</p>}
               </div>
             ))}
           </div>
         ) : (
-          <p className="font-mono text-xs text-muted">No reviews yet. Be the first to rate this agent.</p>
+          <p style={{ ...bandLabel, color: DS.textMuted, fontWeight: 400 }}>NO REVIEWS YET. BE THE FIRST TO RATE THIS AGENT.</p>
         )}
       </div>
     </div>
