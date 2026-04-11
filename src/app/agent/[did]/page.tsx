@@ -42,7 +42,7 @@ const DS = {
 const TYPE_COLORS: Record<AgentType, { bg: string; label: string }> = {
   LLM: { bg: DS.cyan, label: "LLM" },
   Task: { bg: DS.green, label: "TASK" },
-  Execution: { bg: DS.yellow, label: "EXECUTION" },
+  Execution: { bg: "#a65d5d", label: "EXECUTION" },
 };
 
 const CAP_COLORS: Record<string, string> = {

@@ -5,152 +5,68 @@ import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
 import { useAgentBuilderStore, type BuilderStep } from "@/store/agentBuilderStore";
 import { useAgentRegistry } from "@/hooks/useRegisterAgent";
-import BtnPrimary from "@/components/ui/BtnPrimary";
-import MonoLabel from "@/components/ui/MonoLabel";
 
-/* ------------------------------------------------------------------ */
-/*  Templates                                                          */
-/* ------------------------------------------------------------------ */
+/* ─── Design System ─── */
+const DS = {
+  bg: "#e6e5e0",
+  bgHover: "#d9d8d3",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  dark: "#222222",
+  green: "#7cb342",
+  cyan: "#4dd0e1",
+  purple: "#7c3aed",
+  error: "#c62828",
+  white: "#ffffff",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
 
+/* ─── Templates ─── */
 const TEMPLATES = [
-  {
-    key: "translator",
-    label: "Translator",
-    icon: "🌍",
-    prompt: "You are a professional translator. Translate the given text accurately while preserving tone and meaning. If no target language is specified, translate to English.",
-    capId: "text.translate",
-    capDesc: "Translate Text",
-    price: "0.05",
-  },
-  {
-    key: "summarizer",
-    label: "Summarizer",
-    icon: "📝",
-    prompt: "You are a summarization expert. Provide clear, concise summaries that capture the key points. Keep summaries to 2-3 paragraphs unless asked otherwise.",
-    capId: "text.summarize",
-    capDesc: "Summarize Text",
-    price: "0.05",
-  },
-  {
-    key: "code-reviewer",
-    label: "Code Reviewer",
-    icon: "🔍",
-    prompt: "You are a senior software engineer. Review the given code for bugs, performance issues, security vulnerabilities, and best practice violations. Provide actionable feedback.",
-    capId: "code.review",
-    capDesc: "Code Review",
-    price: "0.15",
-  },
-  {
-    key: "data-analyst",
-    label: "Data Analyst",
-    icon: "📊",
-    prompt: "You are a data analyst. Analyze the given data or question, provide insights, identify patterns, and present findings clearly with actionable recommendations.",
-    capId: "data.analyze",
-    capDesc: "Analyze Data",
-    price: "0.10",
-  },
-  {
-    key: "writer",
-    label: "Content Writer",
-    icon: "✍️",
-    prompt: "You are a skilled content writer. Create engaging, well-structured content based on the given topic or brief. Adapt your tone to match the requested style.",
-    capId: "text.write",
-    capDesc: "Write Content",
-    price: "0.10",
-  },
-  {
-    key: "custom",
-    label: "Custom Agent",
-    icon: "⚡",
-    prompt: "",
-    capId: "",
-    capDesc: "",
-    price: "0.10",
-  },
+  { key: "translator", label: "Translator", prompt: "You are a professional translator. Translate the given text accurately while preserving tone and meaning. If no target language is specified, translate to English.", capId: "text.translate", capDesc: "Translate Text", price: "0.05" },
+  { key: "summarizer", label: "Summarizer", prompt: "You are a summarization expert. Provide clear, concise summaries that capture the key points. Keep summaries to 2-3 paragraphs unless asked otherwise.", capId: "text.summarize", capDesc: "Summarize Text", price: "0.05" },
+  { key: "code-reviewer", label: "Code Reviewer", prompt: "You are a senior software engineer. Review the given code for bugs, performance issues, security vulnerabilities, and best practice violations. Provide actionable feedback.", capId: "code.review", capDesc: "Code Review", price: "0.15" },
+  { key: "data-analyst", label: "Data Analyst", prompt: "You are a data analyst. Analyze the given data or question, provide insights, identify patterns, and present findings clearly with actionable recommendations.", capId: "data.analyze", capDesc: "Analyze Data", price: "0.10" },
+  { key: "writer", label: "Content Writer", prompt: "You are a skilled content writer. Create engaging, well-structured content based on the given topic or brief. Adapt your tone to match the requested style.", capId: "text.write", capDesc: "Write Content", price: "0.10" },
+  { key: "custom", label: "Custom Agent", prompt: "", capId: "", capDesc: "", price: "0.10" },
 ];
 
-/* ------------------------------------------------------------------ */
-/*  Step indicators                                                    */
-/* ------------------------------------------------------------------ */
+/* ─── Shared styles ─── */
+const bandLabel: React.CSSProperties = { fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" };
+const inputStyle: React.CSSProperties = { width: "100%", fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, padding: "14px 16px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", outline: "none", color: DS.text };
+const btnDark: React.CSSProperties = { padding: "14px 30px", fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", backgroundColor: DS.dark, color: DS.bg, border: "none", cursor: "pointer" };
+const btnOutline: React.CSSProperties = { ...btnDark, backgroundColor: "transparent", border: `1px solid ${DS.border}`, color: DS.text };
 
+/* ─── Step Indicator ─── */
 function StepIndicator({ current }: { current: BuilderStep }) {
-  const steps = [
-    { num: 1, label: "Define" },
-    { num: 2, label: "Behavior" },
-    { num: 3, label: "Publish" },
-  ];
-
+  const steps = [{ num: 1, label: "DEFINE" }, { num: 2, label: "BEHAVIOR" }, { num: 3, label: "PUBLISH" }];
   return (
-    <div className="flex items-center gap-0 mb-10 justify-center">
-      {steps.map((s, i) => (
-        <div key={s.num} className="flex items-center">
-          <div
-            className={`flex items-center gap-2 px-5 py-2.5 border transition-colors ${
-              s.num === current
-                ? "border-mint/30 text-mint bg-mint/5"
-                : s.num < current
-                ? "border-accent/30 text-accent bg-accent/5"
-                : "border-forest-deep/60 text-muted"
-            } ${i === 0 ? "rounded-l-lg" : ""} ${i === steps.length - 1 ? "rounded-r-lg" : ""} ${i > 0 ? "border-l-0" : ""}`}
-          >
-            <div
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-display ${
-                s.num < current
-                  ? "bg-accent/20 text-accent"
-                  : s.num === current
-                  ? "bg-mint/20 text-mint"
-                  : "bg-forest-deep/40 text-muted"
-              }`}
-            >
-              {s.num < current ? "✓" : s.num}
-            </div>
-            <span className="font-mono text-xs uppercase tracking-wider">{s.label}</span>
-          </div>
+    <div style={{ display: "flex", borderBottom: `1px solid ${DS.border}` }}>
+      {steps.map((s) => (
+        <div key={s.num} style={{
+          flex: 1, padding: "14px 30px", fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em",
+          borderRight: s.num < 3 ? `1px solid ${DS.border}` : "none",
+          backgroundColor: s.num === current ? "#d5d0c8" : s.num < current ? DS.bg : DS.bg,
+          color: s.num < current ? DS.green : s.num === current ? DS.text : DS.textMuted,
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <span style={{
+            width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem", fontWeight: 700,
+            backgroundColor: s.num < current ? DS.green : s.num === current ? DS.dark : "#bbb",
+            color: DS.white,
+          }} className="mp-white-text">
+            {s.num < current ? "✓" : s.num}
+          </span>
+          {s.label}
         </div>
       ))}
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Input components                                                   */
-/* ------------------------------------------------------------------ */
-
-function Input({
-  label,
-  value,
-  onChange,
-  placeholder,
-  maxLength,
-  hint,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  maxLength?: number;
-  hint?: string;
-}) {
-  return (
-    <div>
-      <MonoLabel className="mb-1">{label}</MonoLabel>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        className="w-full bg-bg-base border border-mint/20 rounded px-3 py-2 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none"
-      />
-      {hint && <p className="font-mono text-xs text-muted/50 mt-1">{hint}</p>}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Main Page                                                          */
-/* ------------------------------------------------------------------ */
-
+/* ─── Main Page ─── */
 export default function CreateAgentPage() {
   const router = useRouter();
   const { address } = useWalletStore();
@@ -160,463 +76,340 @@ export default function CreateAgentPage() {
 
   useEffect(() => { setMounted(true); }, []);
 
+  /* Theme override */
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.setAttribute("data-create-theme", "true");
+    style.textContent = `
+      body { background-color: ${DS.bg} !important; color: ${DS.text} !important; }
+      main.pt-14 { padding-top: 56px; }
+      nav[aria-label="Main navigation"] { background-color: ${DS.bg} !important; border-bottom: 1px solid ${DS.border} !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+      nav[aria-label="Main navigation"] a, nav[aria-label="Main navigation"] span { color: ${DS.text} !important; font-family: ${DS.fontMono} !important; }
+      nav[aria-label="Main navigation"] a:hover { color: ${DS.textMuted} !important; }
+      nav[aria-label="Main navigation"] a[aria-current="page"] { color: ${DS.text} !important; font-weight: 700 !important; }
+      nav[aria-label="Main navigation"] .w-2.h-2 { background-color: ${DS.green} !important; }
+      nav[aria-label="Main navigation"] .w-px { background-color: ${DS.border} !important; opacity: 0.2; }
+      main.pt-14 * { color: #000000 !important; }
+      main.pt-14 input::placeholder { color: #555555 !important; }
+      main.pt-14 .mp-white-text { color: #ffffff !important; }
+      main.pt-14 .ds-accent-text { color: ${DS.green} !important; }
+      main.pt-14 .ds-error-text { color: ${DS.error} !important; }
+      main.pt-14 .ds-muted-text { color: ${DS.textMuted} !important; }
+      main.pt-14 select, main.pt-14 option { color: #000 !important; background-color: ${DS.bg} !important; }
+      .tpl-btn { transition: background-color 0.15s ease; }
+      .tpl-btn:hover { background-color: ${DS.bgHover} !important; }
+      ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
+      ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
   if (!mounted) return null;
 
   if (!address) {
     return (
-      <div className="max-w-[1920px] mx-auto px-10 py-12 flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <span className="font-mono text-sm text-muted">Connect your wallet to create an agent.</span>
-        <BtnPrimary onClick={() => router.push("/connect")}>Connect Wallet</BtnPrimary>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16, fontFamily: DS.fontPrimary }}>
+        <p style={{ ...bandLabel, color: DS.textMuted }}>CONNECT YOUR WALLET TO CREATE AN AGENT</p>
+        <button onClick={() => router.push("/connect")} className="mp-white-text" style={btnDark}>Connect Wallet</button>
       </div>
     );
   }
 
-  // Success screen
+  /* Success screen */
   if (store.published && store.txHash) {
     return (
-      <div className="max-w-[1920px] mx-auto px-10 py-12">
-        <div className="max-w-xl mx-auto">
-          <div className="border border-accent/30 rounded-xl p-8 bg-accent/5 text-center">
-            <div className="text-4xl mb-4">🎉</div>
-            <h2 className="font-display text-xl text-mint uppercase tracking-wider mb-3">
-              Agent Published!
-            </h2>
-            <p className="font-mono text-sm text-body mb-4">
-              Your agent <span className="text-accent">{store.name}</span> is now live on the marketplace.
-              People can start using it and you will earn USDC.
-            </p>
-            {store.txHash !== "hosted-only" && (
-              <a
-                href={`https://explorer.solana.com/tx/${store.txHash}?cluster=devnet`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-xs text-mint underline break-all block mb-4"
-              >
-                {store.txHash}
-              </a>
-            )}
-            <div className="flex gap-3 justify-center mt-6">
-              <BtnPrimary onClick={() => router.push("/marketplace")}>
-                View Marketplace
-              </BtnPrimary>
-              <BtnPrimary
-                variant="secondary"
-                onClick={() => { store.resetBuilder(); }}
-              >
-                Create Another
-              </BtnPrimary>
-            </div>
+      <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", fontFamily: DS.fontPrimary }}>
+        <header style={{ padding: "40px 30px", borderBottom: `1px solid ${DS.border}` }}>
+          <h2 style={{ fontSize: "4rem", fontWeight: 400, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: "-0.02em", color: DS.text, fontFamily: DS.fontPrimary }}>
+            Agent Published
+          </h2>
+        </header>
+        <div style={{ padding: "60px 30px", maxWidth: 700 }}>
+          <p style={{ fontFamily: DS.fontPrimary, fontSize: "1.1rem", lineHeight: 1.5, marginBottom: 20 }}>
+            Your agent <strong>{store.name}</strong> is now live on the marketplace. People can start using it and you will earn USDC.
+          </p>
+          {store.txHash !== "hosted-only" && (
+            <a href={`https://explorer.solana.com/tx/${store.txHash}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, color: DS.text, wordBreak: "break-all", display: "block", marginBottom: 24 }}>
+              TX: {store.txHash}
+            </a>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => router.push("/marketplace")} className="mp-white-text" style={btnDark}>VIEW MARKETPLACE</button>
+            <button onClick={() => store.resetBuilder()} style={btnOutline}>CREATE ANOTHER</button>
           </div>
         </div>
       </div>
     );
   }
 
-  const agentIdSlug = store.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 32);
+  const agentIdSlug = store.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
 
-  /* ---- Step validation ---- */
   const step1Valid = store.name.trim().length > 0 && store.template !== "";
   const step2Valid = store.systemPrompt.trim().length > 10;
-  const step3Valid =
-    store.capabilities.length > 0 &&
-    store.capabilities.every(
-      (c) => c.id.trim() && c.description.trim() && parseFloat(c.amount) > 0
-    );
+  const step3Valid = store.capabilities.length > 0 && store.capabilities.every((c) => c.id.trim() && c.description.trim() && parseFloat(c.amount) > 0);
 
-  /* ---- Template selection handler ---- */
   const selectTemplate = (key: string) => {
     store.setTemplate(key);
     const tpl = TEMPLATES.find((t) => t.key === key);
     if (tpl && key !== "custom") {
       store.setSystemPrompt(tpl.prompt);
-      store.setCapabilities([
-        { id: tpl.capId, description: tpl.capDesc, amount: tpl.price },
-      ]);
+      store.setCapabilities([{ id: tpl.capId, description: tpl.capDesc, amount: tpl.price }]);
     }
   };
 
-  /* ---- Publish handler ---- */
   const handlePublish = async () => {
     if (!address || !step3Valid) return;
     store.setPublishing(true);
-
     try {
-      // Step 1: Register hosted agent config on server
       const res = await fetch("/api/hosted-agent/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agentId: agentIdSlug,
-          ownerAddress: address,
-          name: store.name.trim(),
-          description: store.description.trim(),
-          systemPrompt: store.systemPrompt.trim(),
-          tier: store.tier,
-          provider: store.provider,
+          agentId: agentIdSlug, ownerAddress: address, name: store.name.trim(), description: store.description.trim(),
+          systemPrompt: store.systemPrompt.trim(), tier: store.tier, provider: store.provider,
           customApiKey: store.tier === "custom" ? store.customApiKey : undefined,
-          capabilities: store.capabilities.map((c) => ({
-            id: c.id.trim(),
-            description: c.description.trim(),
-            pricing: { amount: c.amount, token: "USDC", network: "solana" },
-          })),
+          capabilities: store.capabilities.map((c) => ({ id: c.id.trim(), description: c.description.trim(), pricing: { amount: c.amount, token: "USDC", network: "solana" } })),
           canOrchestrate: store.canOrchestrate,
         }),
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to register hosted agent");
-      }
-
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to register hosted agent"); }
       const data = await res.json();
-
-      // Step 2: Register on-chain
       const sig = await registerOnChain({
-        agentId: agentIdSlug,
-        name: store.name.trim(),
-        endpoint: data.endpoint,
-        agentType: 1, // Task
-        walletAddress: address,
-        version: "1.0.0",
-        capabilities: store.capabilities.map((c) => ({
-          id: c.id.trim(),
-          description: c.description.trim(),
-          pricing: { amount: c.amount, token: "USDC", network: "solana" },
-        })),
+        agentId: agentIdSlug, name: store.name.trim(), endpoint: data.endpoint, agentType: 1,
+        walletAddress: address, version: "1.0.0",
+        capabilities: store.capabilities.map((c) => ({ id: c.id.trim(), description: c.description.trim(), pricing: { amount: c.amount, token: "USDC", network: "solana" } })),
       });
-
       store.setPublished(sig || "hosted-only");
-    } catch (err) {
-      store.setError(err instanceof Error ? err.message : String(err));
-    }
+    } catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
   };
 
   return (
-    <div className="max-w-[1920px] mx-auto px-10 py-12">
-      {/* Header */}
-      <div className="mb-6 text-center">
-        <span className="font-mono text-xs text-muted uppercase tracking-wider">No-Code Builder</span>
-        <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">
-          Create Your Agent
-        </h2>
-        <p className="font-mono text-sm text-muted mt-3 max-w-xl mx-auto">
-          Build an AI agent in minutes. No coding, no deployment, no technical knowledge needed.
-        </p>
-      </div>
+    <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", padding: "0 0 40px", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
 
+      {/* ═══ Header ═══ */}
+      <header style={{ padding: "40px 30px", borderBottom: `1px solid ${DS.border}` }}>
+        <h2 style={{ fontSize: "4rem", fontWeight: 400, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: "-0.02em", color: DS.text, fontFamily: DS.fontPrimary }}>
+          Create
+          <br />
+          Your Agent
+        </h2>
+        <p style={{ ...bandLabel, color: DS.textMuted, marginTop: 16, fontWeight: 400 }}>
+          No-code builder / Build an AI agent in minutes
+        </p>
+      </header>
+
+      {/* ═══ Step Indicator ═══ */}
       <StepIndicator current={store.step} />
 
-      <div className="max-w-2xl mx-auto">
-        {/* =============== STEP 1: DEFINE =============== */}
-        {store.step === 1 && (
-          <div className="flex flex-col gap-6">
-            <Input
-              label="Agent Name"
-              value={store.name}
-              onChange={store.setName}
-              placeholder="My Translator Agent"
-              maxLength={64}
-              hint={agentIdSlug ? `ID: ${agentIdSlug}` : undefined}
-            />
+      {/* ═══ STEP 1: DEFINE ═══ */}
+      {store.step === 1 && (
+        <div>
+          {/* Name */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>AGENT NAME</span>
+            <input type="text" value={store.name} onChange={(e) => store.setName(e.target.value)} placeholder="My Translator Agent" maxLength={64} style={inputStyle} />
+            {agentIdSlug && <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", display: "block", marginTop: 6 }}>ID: {agentIdSlug}</span>}
+          </div>
 
-            <Input
-              label="Short Description (optional)"
-              value={store.description}
-              onChange={store.setDescription}
-              placeholder="Translates text between languages accurately"
-              maxLength={200}
-            />
+          {/* Description */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>SHORT DESCRIPTION (OPTIONAL)</span>
+            <input type="text" value={store.description} onChange={(e) => store.setDescription(e.target.value)} placeholder="Translates text between languages accurately" maxLength={200} style={inputStyle} />
+          </div>
 
-            <div>
-              <MonoLabel className="mb-3">Choose a Template</MonoLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {TEMPLATES.map((tpl) => (
-                  <button
-                    key={tpl.key}
-                    onClick={() => selectTemplate(tpl.key)}
-                    className={`border rounded-lg p-4 text-left transition-all ${
-                      store.template === tpl.key
-                        ? "border-mint/40 bg-mint/5"
-                        : "border-forest-deep/40 hover:border-mint/20"
-                    }`}
-                  >
-                    <span className="text-2xl block mb-2">{tpl.icon}</span>
-                    <span className="font-mono text-sm text-mint block">{tpl.label}</span>
-                    {tpl.key !== "custom" && (
-                      <span className="font-mono text-xs text-muted block mt-1">{tpl.capDesc}</span>
-                    )}
+          {/* Templates */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>CHOOSE A TEMPLATE</span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0, backgroundColor: DS.border }}>
+              {TEMPLATES.map((tpl) => (
+                <button key={tpl.key} onClick={() => selectTemplate(tpl.key)} className="tpl-btn" style={{
+                  padding: "20px 16px", textAlign: "left", backgroundColor: store.template === tpl.key ? "#d5d0c8" : DS.bg,
+                  border: "none", cursor: "pointer", borderLeft: store.template === tpl.key ? `4px solid ${DS.green}` : "4px solid transparent",
+                }}>
+                  <span style={{ fontFamily: DS.fontPrimary, fontSize: "1rem", fontWeight: 400, textTransform: "uppercase", display: "block", marginBottom: 4 }}>{tpl.label}</span>
+                  {tpl.key !== "custom" && <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem" }}>{tpl.capDesc}</span>}
+                  {tpl.key === "custom" && <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem" }}>BLANK CANVAS</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Next */}
+          <div style={{ padding: "20px 30px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+            {!step1Valid && <span className="ds-error-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700 }}>{!store.name.trim() ? "AGENT NAME REQUIRED" : "SELECT A TEMPLATE"}</span>}
+            <button onClick={() => store.setStep(2)} disabled={!step1Valid} className="mp-white-text" style={{ ...btnDark, opacity: step1Valid ? 1 : 0.4, cursor: step1Valid ? "pointer" : "not-allowed" }}>
+              NEXT: BEHAVIOR
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ STEP 2: BEHAVIOR ═══ */}
+      {store.step === 2 && (
+        <div>
+          {/* System Prompt */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 4 }}>SYSTEM PROMPT</span>
+            <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", display: "block", marginBottom: 10 }}>
+              Tell your agent who it is and what it should do
+            </span>
+            <textarea value={store.systemPrompt} onChange={(e) => store.setSystemPrompt(e.target.value)} placeholder="You are a helpful assistant that..." rows={8} maxLength={2000} style={{ ...inputStyle, resize: "vertical" }} />
+            <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", display: "block", marginTop: 4, textAlign: "right" }}>{store.systemPrompt.length}/2000</span>
+          </div>
+
+          {/* Orchestration */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}`, borderLeft: `4px solid ${DS.purple}` }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
+              <input type="checkbox" checked={store.canOrchestrate} onChange={(e) => store.setCanOrchestrate(e.target.checked)} style={{ marginTop: 4, width: 18, height: 18, accentColor: DS.purple }} />
+              <div>
+                <span style={{ fontFamily: DS.fontPrimary, fontSize: "1rem", fontWeight: 400, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Agent-to-Agent Delegation</span>
+                <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem" }}>
+                  Enable this agent to autonomously call other agents from the marketplace using its budget.
+                </span>
+              </div>
+            </label>
+          </div>
+
+          {/* Prompt Tips */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}`, backgroundColor: "#dddcd7" }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 10 }}>TIPS FOR A GOOD PROMPT</span>
+            {[
+              "Be specific about the role: \"You are a professional legal translator\"",
+              "Define the output format: \"Always respond in JSON format\"",
+              "Set boundaries: \"Only answer questions about cooking\"",
+              "Add personality: \"Be concise and direct, no fluff\"",
+            ].map((tip, i) => (
+              <p key={i} style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, lineHeight: 1.6, paddingLeft: 12, position: "relative" }}>
+                <span style={{ position: "absolute", left: 0 }}>-</span>{tip}
+              </p>
+            ))}
+          </div>
+
+          {/* Nav */}
+          <div style={{ padding: "20px 30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <button onClick={() => store.setStep(1)} style={btnOutline}>BACK</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {!step2Valid && <span className="ds-error-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700 }}>MIN 10 CHARACTERS</span>}
+              <button onClick={() => store.setStep(3)} disabled={!step2Valid} className="mp-white-text" style={{ ...btnDark, opacity: step2Valid ? 1 : 0.4, cursor: step2Valid ? "pointer" : "not-allowed" }}>
+                NEXT: PUBLISH
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ STEP 3: PRICE & PUBLISH ═══ */}
+      {store.step === 3 && (
+        <div>
+          {/* AI Engine */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>AI ENGINE</span>
+            <div style={{ display: "flex", gap: 0 }}>
+              <button onClick={() => { store.setTier("platform"); store.setProvider("anthropic"); }} style={{
+                flex: 1, padding: "16px 20px", textAlign: "left", fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase",
+                backgroundColor: store.tier === "platform" ? "#c8c3ba" : "transparent",
+                color: DS.text,
+                border: `1px solid ${DS.border}`, borderRight: "none", cursor: "pointer",
+                borderLeft: store.tier === "platform" ? `4px solid ${DS.green}` : `1px solid ${DS.border}`,
+              }}>
+                <span style={{ display: "block", marginBottom: 4 }}>PLATFORM AI</span>
+                <span style={{ fontSize: "0.85rem", fontWeight: 400, color: DS.textMuted }}>CLAUDE HAIKU / NO KEY NEEDED</span>
+              </button>
+              <button onClick={() => store.setTier("custom")} style={{
+                flex: 1, padding: "16px 20px", textAlign: "left", fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase",
+                backgroundColor: store.tier === "custom" ? "#c8c3ba" : "transparent",
+                color: DS.text,
+                border: `1px solid ${DS.border}`, cursor: "pointer",
+                borderLeft: store.tier === "custom" ? `4px solid ${DS.green}` : `1px solid ${DS.border}`,
+              }}>
+                <span style={{ display: "block", marginBottom: 4 }}>YOUR OWN KEY</span>
+                <span style={{ fontSize: "0.85rem", fontWeight: 400, color: DS.textMuted }}>ANTHROPIC OR OPENAI / NO COMMISSION</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Custom API Key */}
+          {store.tier === "custom" && (
+            <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}` }}>
+              <div style={{ display: "flex", gap: 0, marginBottom: 12 }}>
+                {(["anthropic", "openai"] as const).map((p) => (
+                  <button key={p} onClick={() => store.setProvider(p)} style={{
+                    padding: "10px 24px", fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase",
+                    backgroundColor: store.provider === p ? "#c8c3ba" : "transparent",
+                    color: DS.text,
+                    border: `1px solid ${DS.border}`, borderRight: p === "anthropic" ? "none" : `1px solid ${DS.border}`, cursor: "pointer",
+                    borderBottom: store.provider === p ? `3px solid ${DS.green}` : `1px solid ${DS.border}`,
+                  }}>
+                    {p === "anthropic" ? "ANTHROPIC" : "OPENAI"}
                   </button>
                 ))}
               </div>
+              <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>API KEY</span>
+              <input type="text" value={store.customApiKey} onChange={(e) => store.setCustomApiKey(e.target.value)} placeholder={store.provider === "anthropic" ? "sk-ant-..." : "sk-..."} style={inputStyle} />
+              <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", display: "block", marginTop: 6 }}>Your key is stored securely and only used when your agent is called.</span>
             </div>
+          )}
 
-            <div className="flex items-center justify-end gap-3 mt-4">
-              {!step1Valid && (
-                <span className="font-mono text-[10px] text-red-400">
-                  {!store.name.trim() ? "Agent name is required" : "Select a template to continue"}
+          {/* Capabilities */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>CAPABILITIES & PRICING</span>
+            {store.capabilities.map((cap, idx) => (
+              <div key={idx} style={{ border: `1px solid ${DS.border}`, marginBottom: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                  <div style={{ padding: "12px 14px", borderRight: `1px solid ${DS.border}`, borderBottom: `1px solid ${DS.border}` }}>
+                    <span style={{ ...bandLabel, fontSize: "0.8rem", color: DS.textMuted, display: "block", marginBottom: 6 }}>CAPABILITY ID</span>
+                    <input type="text" value={cap.id} onChange={(e) => store.updateCapability(idx, "id", e.target.value)} placeholder="text.translate" style={{ ...inputStyle, padding: "6px 10px", fontSize: "0.85rem" }} />
+                  </div>
+                  <div style={{ padding: "12px 14px", borderBottom: `1px solid ${DS.border}` }}>
+                    <span style={{ ...bandLabel, fontSize: "0.8rem", color: DS.textMuted, display: "block", marginBottom: 6 }}>DISPLAY NAME</span>
+                    <input type="text" value={cap.description} onChange={(e) => store.updateCapability(idx, "description", e.target.value)} placeholder="Translate Text" style={{ ...inputStyle, padding: "6px 10px", fontSize: "0.85rem" }} />
+                  </div>
+                </div>
+                <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ ...bandLabel, fontSize: "0.8rem", color: DS.textMuted }}>PRICE PER TASK:</span>
+                    <input type="number" step="0.01" min="0.01" value={cap.amount} onChange={(e) => store.updateCapability(idx, "amount", e.target.value)} style={{ ...inputStyle, width: 80, padding: "6px 10px", fontSize: "0.85rem", textAlign: "center" }} />
+                    <span style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700 }}>USDC</span>
+                  </div>
+                  {store.capabilities.length > 1 && (
+                    <button onClick={() => store.removeCapability(idx)} className="ds-error-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase" }}>REMOVE</button>
+                  )}
+                </div>
+              </div>
+            ))}
+            <button onClick={store.addCapability} className="ds-accent-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", marginTop: 4 }}>+ ADD CAPABILITY</button>
+          </div>
+
+          {/* Commission */}
+          {store.tier === "platform" && (
+            <div style={{ padding: "16px 30px", borderBottom: `1px solid ${DS.border}`, backgroundColor: "#dddcd7" }}>
+              <span style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700 }}>
+                PLATFORM AI COMMISSION: 20% of each task payment covers AI costs. You earn 80%.
+              </span>
+              {store.capabilities[0]?.amount && (
+                <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", display: "block", marginTop: 4 }}>
+                  Example: {store.capabilities[0].amount} USDC per task → you earn {(parseFloat(store.capabilities[0].amount) * 0.8).toFixed(2)} USDC
                 </span>
               )}
-              <BtnPrimary onClick={() => store.setStep(2)} disabled={!step1Valid}>
-                Next: Behavior
-                <span className="ml-1">→</span>
-              </BtnPrimary>
             </div>
+          )}
+
+          {/* Error */}
+          {store.error && (
+            <div style={{ padding: "12px 30px", borderBottom: `1px solid ${DS.border}`, backgroundColor: "#f5e6e6" }}>
+              <span className="ds-error-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700 }}>{store.error}</span>
+            </div>
+          )}
+
+          {/* Nav */}
+          <div style={{ padding: "20px 30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <button onClick={() => store.setStep(2)} style={btnOutline}>BACK</button>
+            <button onClick={handlePublish} disabled={!step3Valid || store.publishing || chainLoading} className="mp-white-text" style={{ ...btnDark, opacity: !step3Valid || store.publishing || chainLoading ? 0.4 : 1, cursor: !step3Valid || store.publishing || chainLoading ? "not-allowed" : "pointer" }}>
+              {store.publishing || chainLoading ? "PUBLISHING..." : "PUBLISH AGENT"}
+            </button>
           </div>
-        )}
-
-        {/* =============== STEP 2: BEHAVIOR =============== */}
-        {store.step === 2 && (
-          <div className="flex flex-col gap-6">
-            <div>
-              <MonoLabel className="mb-1">System Prompt</MonoLabel>
-              <p className="font-mono text-xs text-muted/60 mb-2">
-                Tell your agent who it is and what it should do. This is the instruction your agent follows for every task.
-              </p>
-              <textarea
-                value={store.systemPrompt}
-                onChange={(e) => store.setSystemPrompt(e.target.value)}
-                placeholder="You are a helpful assistant that..."
-                rows={8}
-                maxLength={2000}
-                className="w-full bg-bg-base border border-mint/20 rounded px-3 py-2 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none resize-y"
-              />
-              <p className="font-mono text-xs text-muted/50 mt-1 text-right">
-                {store.systemPrompt.length}/2000
-              </p>
-            </div>
-
-            {/* Orchestration toggle */}
-            <div className="border border-purple-800/30 rounded-lg p-4 bg-purple-900/5">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={store.canOrchestrate}
-                  onChange={(e) => store.setCanOrchestrate(e.target.checked)}
-                  className="mt-1 w-4 h-4 accent-purple-400"
-                />
-                <div>
-                  <span className="font-display text-sm text-purple-400 uppercase tracking-wider block">
-                    Agent-to-Agent Delegation
-                  </span>
-                  <span className="font-mono text-xs text-muted block mt-1">
-                    Enable this agent to autonomously call other agents from the marketplace using its budget.
-                    When a task is too complex, your agent will plan sub-tasks, delegate them, and synthesize the results.
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            {/* Prompt tips */}
-            <div className="border border-mint/10 rounded-lg p-4 bg-forest-deep/10">
-              <h4 className="font-display text-xs text-mint uppercase tracking-wider mb-2">
-                Tips for a good prompt
-              </h4>
-              <ul className="font-mono text-xs text-body leading-relaxed flex flex-col gap-1.5">
-                <li><span className="text-accent mr-2">-</span>Be specific about the role: &quot;You are a professional legal translator&quot;</li>
-                <li><span className="text-accent mr-2">-</span>Define the output format: &quot;Always respond in JSON format&quot;</li>
-                <li><span className="text-accent mr-2">-</span>Set boundaries: &quot;Only answer questions about cooking&quot;</li>
-                <li><span className="text-accent mr-2">-</span>Add personality: &quot;Be concise and direct, no fluff&quot;</li>
-              </ul>
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <BtnPrimary variant="ghost" onClick={() => store.setStep(1)}>
-                <span className="mr-1">←</span> Back
-              </BtnPrimary>
-              <div className="flex items-center gap-3">
-                {!step2Valid && (
-                  <span className="font-mono text-[10px] text-red-400">
-                    System prompt must be at least 10 characters
-                  </span>
-                )}
-                <BtnPrimary onClick={() => store.setStep(3)} disabled={!step2Valid}>
-                  Next: Publish
-                  <span className="ml-1">→</span>
-                </BtnPrimary>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* =============== STEP 3: PRICE & PUBLISH =============== */}
-        {store.step === 3 && (
-          <div className="flex flex-col gap-6">
-            {/* AI Tier Selection */}
-            <div>
-              <MonoLabel className="mb-3">AI Engine</MonoLabel>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => { store.setTier("platform"); store.setProvider("anthropic"); }}
-                  className={`border rounded-lg p-4 text-left transition-all ${
-                    store.tier === "platform"
-                      ? "border-mint/40 bg-mint/5"
-                      : "border-forest-deep/40 hover:border-mint/20"
-                  }`}
-                >
-                  <span className="font-display text-sm text-mint uppercase tracking-wider block mb-1">
-                    Platform AI
-                  </span>
-                  <span className="font-mono text-xs text-muted block">
-                    Uses Claude Haiku. No API key needed. Small commission per task.
-                  </span>
-                </button>
-                <button
-                  onClick={() => store.setTier("custom")}
-                  className={`border rounded-lg p-4 text-left transition-all ${
-                    store.tier === "custom"
-                      ? "border-mint/40 bg-mint/5"
-                      : "border-forest-deep/40 hover:border-mint/20"
-                  }`}
-                >
-                  <span className="font-display text-sm text-mint uppercase tracking-wider block mb-1">
-                    Your Own Key
-                  </span>
-                  <span className="font-mono text-xs text-muted block">
-                    Bring your Anthropic or OpenAI key. No commission.
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Custom API Key */}
-            {store.tier === "custom" && (
-              <div className="border border-mint/10 rounded-lg p-4">
-                <div className="mb-3">
-                  <MonoLabel className="mb-2">Provider</MonoLabel>
-                  <div className="flex gap-2">
-                    {(["anthropic", "openai"] as const).map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => store.setProvider(p)}
-                        className={`font-mono text-xs uppercase px-3 py-1.5 rounded border transition-colors ${
-                          store.provider === p
-                            ? "border-mint/30 text-mint bg-mint/10"
-                            : "border-forest-deep/40 text-muted hover:text-mint"
-                        }`}
-                      >
-                        {p === "anthropic" ? "Anthropic" : "OpenAI"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <Input
-                  label="API Key"
-                  value={store.customApiKey}
-                  onChange={store.setCustomApiKey}
-                  placeholder={store.provider === "anthropic" ? "sk-ant-..." : "sk-..."}
-                  hint="Your key is stored securely and only used when your agent is called."
-                />
-              </div>
-            )}
-
-            {/* Capabilities */}
-            <div>
-              <MonoLabel className="mb-2">Capabilities & Pricing</MonoLabel>
-              <div className="flex flex-col gap-3">
-                {store.capabilities.map((cap, idx) => (
-                  <div key={idx} className="border border-forest-deep/40 rounded p-3 flex flex-col gap-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="font-mono text-xs text-muted/60 uppercase block mb-1">Capability ID</span>
-                        <input
-                          type="text"
-                          value={cap.id}
-                          onChange={(e) => store.updateCapability(idx, "id", e.target.value)}
-                          placeholder="text.translate"
-                          className="w-full bg-bg-base border border-mint/10 rounded px-2 py-1.5 font-mono text-xs text-mint placeholder:text-muted/40 focus:border-mint/30 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <span className="font-mono text-xs text-muted/60 uppercase block mb-1">Display Name</span>
-                        <input
-                          type="text"
-                          value={cap.description}
-                          onChange={(e) => store.updateCapability(idx, "description", e.target.value)}
-                          placeholder="Translate Text"
-                          className="w-full bg-bg-base border border-mint/10 rounded px-2 py-1.5 font-mono text-xs text-mint placeholder:text-muted/40 focus:border-mint/30 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div>
-                        <span className="font-mono text-xs text-muted/60 uppercase block mb-1">Price per task</span>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={cap.amount}
-                            onChange={(e) => store.updateCapability(idx, "amount", e.target.value)}
-                            className="w-24 bg-bg-base border border-mint/10 rounded px-2 py-1.5 font-mono text-xs text-accent focus:border-mint/30 focus:outline-none"
-                          />
-                          <span className="font-mono text-xs text-muted">USDC</span>
-                        </div>
-                      </div>
-                      {store.capabilities.length > 1 && (
-                        <button
-                          onClick={() => store.removeCapability(idx)}
-                          className="ml-auto mt-4 font-mono text-xs text-red-400 hover:text-red-300"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={store.addCapability}
-                className="mt-2 font-mono text-xs text-mint hover:text-accent transition-colors"
-              >
-                + Add Capability
-              </button>
-            </div>
-
-            {/* Commission info */}
-            {store.tier === "platform" && (
-              <div className="border border-accent/20 rounded-lg p-4 bg-accent/5">
-                <p className="font-mono text-xs text-body">
-                  <span className="text-accent font-display uppercase">Platform AI Commission:</span>{" "}
-                  20% of each task payment covers AI costs. You earn 80%.
-                  {store.capabilities[0]?.amount && (
-                    <span className="text-muted block mt-1">
-                      Example: {store.capabilities[0].amount} USDC per task → you earn{" "}
-                      <span className="text-accent">
-                        {(parseFloat(store.capabilities[0].amount) * 0.8).toFixed(2)}
-                      </span>{" "}
-                      USDC
-                    </span>
-                  )}
-                </p>
-              </div>
-            )}
-
-            {/* Error */}
-            {store.error && (
-              <p className="font-mono text-xs text-red-400 bg-red-900/10 border border-red-800/30 rounded p-2">
-                {store.error}
-              </p>
-            )}
-
-            {/* Actions */}
-            <div className="flex justify-between mt-4">
-              <BtnPrimary variant="ghost" onClick={() => store.setStep(2)}>
-                <span className="mr-1">←</span> Back
-              </BtnPrimary>
-              <BtnPrimary
-                onClick={handlePublish}
-                disabled={!step3Valid || store.publishing || chainLoading}
-              >
-                {store.publishing || chainLoading ? "Publishing..." : "Publish Agent"}
-              </BtnPrimary>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
