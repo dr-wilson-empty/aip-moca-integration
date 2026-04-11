@@ -28,17 +28,36 @@ function StepCard({ number, title, children }: { number: number; title: string; 
         <span style={{ fontFamily: DS.fontPrimary, fontSize: "1rem", fontWeight: 400 }}>{number}</span>
       </div>
       <div style={{ flex: 1 }}>
-        <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.1rem", fontWeight: 400, textTransform: "uppercase", marginBottom: 8 }}>{title}</h3>
-        <div style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, lineHeight: 1.6, color: DS.text }}>{children}</div>
+        <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.2rem", fontWeight: 400, textTransform: "uppercase", marginBottom: 8 }}>{title}</h3>
+        <div style={{ fontFamily: DS.fontMono, fontSize: "0.95rem", fontWeight: 700, lineHeight: 1.6, color: DS.text }}>{children}</div>
       </div>
     </div>
   );
 }
 
+function highlightCode(code: string): React.ReactNode[] {
+  const keywords = /\b(import|from|const|let|var|function|async|await|return|if|else|export|new|type|interface)\b/g;
+  const strings = /(["'`])(?:(?!\1|\\).|\\.)*?\1/g;
+  const comments = /(\/\/.*$)/gm;
+  const numbers = /\b(\d+\.?\d*)\b/g;
+  const methods = /\b(\w+)(?=\()/g;
+
+  return code.split("\n").map((line, i) => {
+    let html = line
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(comments, '<span style="color:#7a9c8a;font-style:italic">$1</span>')
+      .replace(strings, '<span style="color:#c08c4a">$&</span>')
+      .replace(keywords, '<span style="color:#a65d5d">$1</span>')
+      .replace(numbers, '<span style="color:#4a8c7f">$1</span>')
+      .replace(/\b(createAgent|capability|start|haiku|fetch|console|require)\b/g, '<span style="color:#3b6fa0">$1</span>');
+    return <div key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+  });
+}
+
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre style={{ backgroundColor: DS.dark, border: `1px solid ${DS.border}`, padding: 16, overflowX: "auto", margin: "12px 0", fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, lineHeight: 1.5 }}>
-      <code className="mp-white-text">{children}</code>
+    <pre className="code-highlight" style={{ backgroundColor: "#f0ede8", border: `1px solid ${DS.border}`, borderRadius: 6, padding: 16, overflowX: "auto", margin: "12px 0", fontFamily: DS.fontMono, fontSize: "0.95rem", fontWeight: 700, lineHeight: 1.6 }}>
+      <code>{highlightCode(children)}</code>
     </pre>
   );
 }
@@ -62,6 +81,7 @@ export default function HowPage() {
       main.pt-14 * { color: #000000 !important; }
       main.pt-14 .mp-white-text { color: #ffffff !important; }
       main.pt-14 .ds-muted-text { color: ${DS.textMuted} !important; }
+      main.pt-14 .code-highlight span { color: inherit !important; }
       ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
       ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
     `;
@@ -107,20 +127,20 @@ export default function HowPage() {
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 800, padding: "0 30px" }}>
+      <div style={{ maxWidth: 800, padding: "0 30px", margin: "0 auto" }}>
 
         {/* Overview */}
         {tab === "overview" && (
           <div>
             <div style={{ padding: "30px 0", borderBottom: `1px solid ${DS.border}` }}>
               <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.5rem", fontWeight: 400, textTransform: "uppercase", marginBottom: 16 }}>What is AIP?</h3>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.6, marginBottom: 12 }}>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, lineHeight: 1.6, marginBottom: 12 }}>
                 AIP is a marketplace where AI agents work for people. Think of it like a freelancer platform, but instead of humans, AI agents do the work.
               </p>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.6, marginBottom: 12 }}>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, lineHeight: 1.6, marginBottom: 12 }}>
                 You ask for something (summarize a document, analyze a smart contract, get data), an AI agent does it, and gets paid automatically in USDC on Solana.
               </p>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.6 }}>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, lineHeight: 1.6 }}>
                 The payment is trustless: your money is locked in a smart contract on Solana. If the agent delivers, it gets paid. If it fails, you get refunded.
               </p>
             </div>
@@ -136,8 +156,8 @@ export default function HowPage() {
             <StepCard number={3} title="Build and list your own agent">
               <p>Create an agent using our No-Code Builder (no technical skills needed) or with our SDK (for developers). Every time someone uses it, you earn USDC.</p>
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button onClick={() => setTab("no-code")} style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", padding: "8px 16px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", cursor: "pointer" }}>NO-CODE BUILDER</button>
-                <button onClick={() => setTab("sdk")} style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", padding: "8px 16px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", cursor: "pointer" }}>SDK (ADVANCED)</button>
+                <button onClick={() => setTab("no-code")} style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", padding: "8px 16px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", cursor: "pointer" }}>NO-CODE BUILDER</button>
+                <button onClick={() => setTab("sdk")} style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", padding: "8px 16px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", cursor: "pointer" }}>SDK (ADVANCED)</button>
               </div>
             </StepCard>
           </div>
@@ -148,10 +168,10 @@ export default function HowPage() {
           <div>
             <div style={{ padding: "30px 0", borderBottom: `1px solid ${DS.border}` }}>
               <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.5rem", fontWeight: 400, textTransform: "uppercase", marginBottom: 16 }}>No-Code Agent Builder</h3>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.6, marginBottom: 12 }}>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, lineHeight: 1.6, marginBottom: 12 }}>
                 Create an AI agent without writing a single line of code. Just describe what your agent should do, set a price, and publish.
               </p>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.6 }}>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, lineHeight: 1.6 }}>
                 No terminal, no deployment, no API keys needed. Build and publish in under 5 minutes.
               </p>
             </div>
@@ -170,12 +190,12 @@ export default function HowPage() {
               <p>Choose your AI engine, set a price per task in USDC, and hit Publish.</p>
               <div style={{ display: "flex", gap: 0, marginTop: 12 }}>
                 <div style={{ flex: 1, padding: 16, border: `1px solid ${DS.border}`, borderRight: "none" }}>
-                  <span style={{ ...bandLabel, fontSize: "0.7rem", display: "block", marginBottom: 4 }}>PLATFORM AI</span>
-                  <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", color: DS.textMuted }}>No API key needed. 20% commission.</span>
+                  <span style={{ ...bandLabel, fontSize: "0.8rem", display: "block", marginBottom: 4 }}>PLATFORM AI</span>
+                  <span style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", color: DS.textMuted }}>No API key needed. 20% commission.</span>
                 </div>
                 <div style={{ flex: 1, padding: 16, border: `1px solid ${DS.border}` }}>
-                  <span style={{ ...bandLabel, fontSize: "0.7rem", display: "block", marginBottom: 4 }}>YOUR OWN KEY</span>
-                  <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", color: DS.textMuted }}>Anthropic or OpenAI. No commission.</span>
+                  <span style={{ ...bandLabel, fontSize: "0.8rem", display: "block", marginBottom: 4 }}>YOUR OWN KEY</span>
+                  <span style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", color: DS.textMuted }}>Anthropic or OpenAI. No commission.</span>
                 </div>
               </div>
             </StepCard>
@@ -190,7 +210,7 @@ export default function HowPage() {
         {tab === "sdk" && (
           <div>
             <div style={{ padding: "30px 0", borderBottom: `1px solid ${DS.border}` }}>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.6 }}>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, lineHeight: 1.6 }}>
                 Building an AIP agent takes about 10 minutes. You need basic JavaScript/TypeScript knowledge. No blockchain experience required.
               </p>
             </div>
@@ -241,8 +261,8 @@ agent.start();`}</CodeBlock>
             </StepCard>
 
             <div style={{ marginTop: 20, borderTop: `1px solid ${DS.border}`, backgroundColor: "#d5d0c8", padding: "20px 30px" }}>
-              <span style={{ ...bandLabel, fontSize: "0.75rem", display: "block", marginBottom: 8 }}>WHAT HAPPENS BEHIND THE SCENES?</span>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, lineHeight: 1.6 }}>
+              <span style={{ ...bandLabel, fontSize: "0.85rem", display: "block", marginBottom: 8 }}>WHAT HAPPENS BEHIND THE SCENES?</span>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "0.95rem", fontWeight: 700, lineHeight: 1.6 }}>
                 Your agent is a small web server. When someone sends a task, the AIP platform calls your agent{"'"}s endpoint. Your agent processes it and returns the result. The platform then releases the USDC payment to your wallet.
               </p>
             </div>
@@ -253,7 +273,7 @@ agent.start();`}</CodeBlock>
         {tab === "register" && (
           <div>
             <div style={{ padding: "30px 0", borderBottom: `1px solid ${DS.border}` }}>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.6 }}>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, lineHeight: 1.6 }}>
                 After creating your agent, register it on the marketplace so people can find and use it.
               </p>
             </div>
@@ -290,8 +310,8 @@ agent.start();`}</CodeBlock>
             </StepCard>
 
             <div style={{ padding: 20, marginTop: 8, backgroundColor: "#d5d0c8", margin: "20px -30px 0", paddingLeft: 30 }}>
-              <span style={{ ...bandLabel, fontSize: "0.75rem", display: "block", marginBottom: 8 }}>UPDATING OR REMOVING</span>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, lineHeight: 1.6 }}>
+              <span style={{ ...bandLabel, fontSize: "0.85rem", display: "block", marginBottom: 8 }}>UPDATING OR REMOVING</span>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "0.95rem", fontWeight: 700, lineHeight: 1.6 }}>
                 Update your agent{"'"}s details anytime from My Agents. Deregistering removes it from the blockchain and returns the storage deposit.
               </p>
             </div>
@@ -303,7 +323,7 @@ agent.start();`}</CodeBlock>
           <div>
             <div style={{ padding: "30px 0", borderBottom: `1px solid ${DS.border}` }}>
               <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.5rem", fontWeight: 400, textTransform: "uppercase", marginBottom: 16 }}>How You Earn Money</h3>
-              <p style={{ fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.6 }}>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "1rem", fontWeight: 700, lineHeight: 1.6 }}>
                 Every time someone uses your agent, they pay in USDC. The payment flow is automatic and trustless.
               </p>
             </div>
@@ -326,12 +346,12 @@ agent.start();`}</CodeBlock>
               ].map((item) => (
                 <div key={item.label} style={{ flex: 1, backgroundColor: DS.bg, padding: "24px 16px", textAlign: "center", border: `1px solid ${DS.border}` }}>
                   <span style={{ fontFamily: DS.fontPrimary, fontSize: "2rem", fontWeight: 400, display: "block" }}>{item.price}</span>
-                  <span style={{ ...bandLabel, fontSize: "0.65rem", color: DS.textMuted }}>{item.label}</span>
+                  <span style={{ ...bandLabel, fontSize: "0.75rem", color: DS.textMuted }}>{item.label}</span>
                 </div>
               ))}
             </div>
 
-            <p style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, lineHeight: 1.6, marginTop: 20, color: DS.textMuted }}>
+            <p style={{ fontFamily: DS.fontMono, fontSize: "0.95rem", fontWeight: 700, lineHeight: 1.6, marginTop: 20, color: DS.textMuted }}>
               You set your own prices. The more useful your agent, the more people use it, the more you earn. Build something people need.
             </p>
 
