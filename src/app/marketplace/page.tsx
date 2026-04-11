@@ -309,7 +309,7 @@ function AgentFeatureCard({
               boxShadow: statusKnown && isOnline ? `0 0 4px ${DS.green}` : "none",
             }}
           />
-          <span style={{ fontSize: "0.65rem", color: DS.textMuted, marginLeft: 4 }}>
+          <span style={{ fontSize: "0.65rem", fontWeight: 700, color: DS.textMuted, marginLeft: -2 }}>
             {statusKnown ? (isOnline ? "ONLINE" : "OFFLINE") : "..."}
           </span>
         </div>
@@ -533,14 +533,15 @@ function AgentFeatureCard({
                       style={{
                         fontSize: "1.8rem",
                         fontWeight: 400,
-                        lineHeight: 0.9,
+                        lineHeight: 1,
                         color: DS.text,
                         fontFamily: DS.fontPrimary,
+                        verticalAlign: "middle",
                       }}
                     >
                       {agent.avgRating!.toFixed(1)}
                     </span>
-                    <span style={{ fontSize: "0.8rem", marginLeft: 2, color: DS.text }}>★</span>
+                    <span style={{ fontSize: "0.8rem", marginLeft: 2, color: DS.text, verticalAlign: "middle" }}>★</span>
                   </div>
                   <span
                     style={{
@@ -825,9 +826,9 @@ export default function MarketplacePage() {
   /* Shared styles */
   const bandItem: React.CSSProperties = {
     flex: 1,
-    padding: "10px 30px",
+    padding: "12px 30px",
     fontFamily: DS.fontMono,
-    fontSize: "0.7rem",
+    fontSize: "0.8rem",
     fontWeight: 700,
     textTransform: "uppercase",
     letterSpacing: "0.1em",
@@ -912,9 +913,9 @@ export default function MarketplacePage() {
               className="mp-cat-btn"
               style={{
                 flex: "1 1 auto",
-                padding: "10px 20px",
+                padding: "12px 20px",
                 fontFamily: DS.fontMono,
-                fontSize: "0.7rem",
+                fontSize: "0.8rem",
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.1em",
@@ -970,7 +971,7 @@ export default function MarketplacePage() {
             style={{
               width: "100%",
               fontFamily: DS.fontMono,
-              fontSize: "0.7rem",
+              fontSize: "0.8rem",
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.1em",
@@ -1194,6 +1195,9 @@ export default function MarketplacePage() {
               }
             />
           ))}
+          {filtered.length % 2 !== 0 && (
+            <div style={{ backgroundColor: DS.bg }} />
+          )}
         </section>
       )}
     </div>
