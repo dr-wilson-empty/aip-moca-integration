@@ -221,21 +221,25 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
           }
         });
 
-        // Build rich artifact with sub-task metadata
+        totalSpent += orchResult.totalSpent;
+        logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1, subSpent: orchResult.totalSpent });
+
+        // Orchestrator handled all sub-steps — mark chain as completed and exit loop
+        // (sub-steps were already updated via onStep callbacks above)
+        chain.status = "completed";
+        chain.totalSpent = totalSpent.toFixed(2);
+        chain.completedAt = new Date().toISOString();
+
+        // Set final artifact from orchestrator synthesis
         const subTaskInfo = orchResult.subTasks
           .filter((s) => s.status === "completed")
           .map((s) => `${s.agentName} (${s.capabilityId}) — ${s.cost.toFixed(2)} USDC`)
           .join("\n");
-
-        step.artifact = orchResult.answer +
+        chain.finalArtifact = orchResult.answer +
           `\n\n---\n**${hostedConfig.name}** orchestrated ${orchResult.stepsCompleted} agent(s), spent ${orchResult.totalSpent.toFixed(2)} USDC from budget` +
           (subTaskInfo ? `\n${subTaskInfo}` : "");
-        step.status = "completed";
-        step.taskId = `orch_${chain.id}_${i}`;
-        step.estimatedCost = orchResult.totalSpent.toFixed(2);
-        totalSpent += orchResult.totalSpent;
-        logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1, subSpent: orchResult.totalSpent });
-        continue; // Skip normal escrow flow
+
+        return; // Exit loop — orchestrator handled everything
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         step.status = "failed";
