@@ -35,9 +35,9 @@ export function seedDemoAgents(): void {
   // Platform-hosted Web Search Agent (uses Tavily API, no external process needed)
   registerCard(WEB_SEARCH_AGENT);
 
-  // Load hosted agents from Supabase and register their cards
+  // Load hosted agents from Supabase and register their cards (only public ones)
   loadHostedAgentsFromDb().then(() => {
-    for (const ha of listHostedAgents()) {
+    for (const ha of listHostedAgents().filter((a) => a.isPublic !== false)) {
       registerCard({
         did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
         name: ha.name,

@@ -189,6 +189,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                     <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.3rem", fontWeight: 400, textTransform: "uppercase" }}>{agent.name}</h3>
                     {isOrch && <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "3px 10px", backgroundColor: DS.green, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>DEFAULT</span>}
+                    {agent.isPublic === false && <span style={{ fontSize: "0.65rem", padding: "3px 10px", backgroundColor: DS.textMuted, color: DS.white, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>PRIVATE</span>}
                     <SourceBadge source={agent.registrationSource} />
                     {/* Online/Offline */}
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>

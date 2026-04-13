@@ -9,10 +9,11 @@ import { dbGetPreferences } from "@/lib/supabase/preferences";
 seedDemoAgents();
 
 let _hostedSynced = false;
-async function ensureHostedAgentCards() {
-  if (_hostedSynced) return;
+async function ensureHostedAgentCards(callerWallet?: string) {
   await loadHostedAgentsFromDb();
+  // Register public hosted agents (always) + caller's private agents
   for (const ha of listHostedAgents()) {
+    if (ha.isPublic === false && ha.ownerAddress !== callerWallet) continue;
     registerCard({
       did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
       name: ha.name,
@@ -38,8 +39,8 @@ async function ensureHostedAgentCards() {
  * Returns: { mode: "single"|"pipeline", steps: [...], explanation, totalCost }
  */
 export async function POST(request: NextRequest) {
+  await loadHostedAgentsFromDb();
   seedDemoAgents();
-  await ensureHostedAgentCards();
 
   let body: Record<string, unknown>;
   try {
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest) {
   const message = body.message as string;
   const walletAddress = body.walletAddress as string | undefined;
   const skipOrchestrator = body.skipOrchestrator === true;
+
+  await ensureHostedAgentCards(walletAddress);
   if (!message?.trim()) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
   }
@@ -77,12 +80,13 @@ export async function POST(request: NextRequest) {
   }
 
   const agents = listCards();
-  // Get orchestrator agent names to exclude from pipeline capability list when needed
+  // Always exclude ALL orchestrator agents from the pipeline capability list
+  // Orchestrators are only offered as a single-step option, never as pipeline steps
   const allOrchestrators = listHostedAgents().filter((a) => a.canOrchestrate);
   const orchestratorNames = new Set(allOrchestrators.map((o) => o.name));
 
   const capabilityList = agents
-    .filter((a) => !skipOrchestrator || !orchestratorNames.has(a.name)) // exclude orchestrators when replanning
+    .filter((a) => !orchestratorNames.has(a.name)) // always exclude orchestrators from pipeline steps
     .flatMap((a) =>
       a.capabilities.map((c) => ({
         agentName: a.name,
@@ -111,10 +115,10 @@ export async function POST(request: NextRequest) {
     .map((c) => `- ${c.agentName} → ${c.capabilityId} (${c.description}) — ${c.price} USDC`)
     .join("\n");
 
-  // Identify orchestrator agents — prefer the user's own orchestrator
-  const allOrch = skipOrchestrator ? [] : listHostedAgents().filter((a) => a.canOrchestrate);
-  const userOrch = walletAddress ? allOrch.filter((a) => a.ownerAddress === walletAddress) : [];
-  const orchestrators = userOrch.length > 0 ? userOrch : allOrch;
+  // Identify orchestrator agents — ONLY use the caller's own orchestrator, never another wallet's
+  const orchestrators = skipOrchestrator || !walletAddress
+    ? []
+    : listHostedAgents().filter((a) => a.canOrchestrate && a.ownerAddress === walletAddress);
   const orchestratorInfo = orchestrators.length > 0
     ? "\n\nORCHESTRATOR AGENTS (these agents can internally call other agents — prefer them for complex multi-step tasks):\n" +
       orchestrators.map((o) => {

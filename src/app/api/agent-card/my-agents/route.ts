@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
         registrationSource: "hosted",
         onChainPDA: onChainMatch?.pda ?? null,
         owner: config.ownerAddress,
+        isPublic: config.isPublic ?? true,
       });
       seenAgentIds.add(config.agentId);
     }

@@ -31,6 +31,7 @@ interface AgentBuilderState {
   provider: AIProvider;
   customApiKey: string;
   capabilities: BuilderCapability[];
+  isPublic: boolean;
 
   // Status
   publishing: boolean;
@@ -49,6 +50,7 @@ interface AgentBuilderState {
   setProvider: (provider: AIProvider) => void;
   setCustomApiKey: (key: string) => void;
   setCapabilities: (caps: BuilderCapability[]) => void;
+  setIsPublic: (v: boolean) => void;
   addCapability: () => void;
   removeCapability: (idx: number) => void;
   updateCapability: (idx: number, field: keyof BuilderCapability, value: string) => void;
@@ -69,6 +71,7 @@ const INITIAL_STATE = {
   provider: "anthropic" as AIProvider,
   customApiKey: "",
   capabilities: [{ id: "", description: "", amount: "0.10" }] as BuilderCapability[],
+  isPublic: true,
   publishing: false,
   published: false,
   txHash: null as string | null,
@@ -90,6 +93,7 @@ export const useAgentBuilderStore = create<AgentBuilderState>()(
       setProvider: (provider) => set({ provider }),
       setCustomApiKey: (customApiKey) => set({ customApiKey }),
       setCapabilities: (capabilities) => set({ capabilities }),
+      setIsPublic: (isPublic) => set({ isPublic }),
 
       addCapability: () =>
         set((s) => ({
@@ -125,6 +129,7 @@ export const useAgentBuilderStore = create<AgentBuilderState>()(
         tier: state.tier,
         provider: state.provider,
         capabilities: state.capabilities,
+        isPublic: state.isPublic,
       }),
     }
   )

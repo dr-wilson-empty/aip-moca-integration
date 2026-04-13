@@ -3,6 +3,8 @@ import { getConnection } from "@/lib/solana/connection";
 import { createAndExecuteChain, getChain, listChains } from "@/lib/protocol/chain-executor";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { dbGetBudgetsByOwner } from "@/lib/supabase/agent-budgets";
+import { getOrchestratorId } from "@/lib/orchestrator/default-orchestrator";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import type { ChainStep } from "@/types/aip";
 
 seedDemoAgents();
@@ -69,29 +71,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Autonomous mode: only orchestrator steps use budget
-  // Non-orchestrator steps (web.search, text.summarize etc.) are funded by authority wallet
-  // with no budget tracking — the escrow handles payment directly.
-  // Budget is ONLY for orchestrator agents that delegate to sub-agents.
+  // Autonomous mode: orchestrator's budget pays for ALL steps.
+  // The user's default orchestrator budget is used as the funding source.
+  // Authority wallet creates escrows on-chain, budget is the accounting layer.
   let budgetAgentDid: string | undefined;
   if (depositTxHash === "autonomous-mode") {
-    // Check if any step is an orchestrator — only then do we need budget
-    const hasOrchestratorStep = steps.some((s) =>
-      s.agentEndpoint?.includes("/api/hosted-agent")
-    );
+    // Find the user's default orchestrator budget
+    const orchId = getOrchestratorId(callerAddress);
+    const orchDid = canonicalAgentDid(callerAddress, orchId);
+    const budgets = await dbGetBudgetsByOwner(callerAddress);
 
-    if (hasOrchestratorStep) {
-      const budgets = await dbGetBudgetsByOwner(callerAddress);
-      // Find the orchestrator agent's own budget
-      const stepAgentDids = new Set(steps.map((s) => s.agentDid));
-      const matchingBudget = budgets.find((b) => stepAgentDids.has(b.agent_did) && b.balance > 0);
+    // Prefer default orchestrator budget, fallback to any orchestrator budget with balance
+    const orchBudget = budgets.find((b) => b.agent_did === orchDid && b.balance > 0);
+    const anyBudget = budgets.find((b) => b.balance > 0);
+    const matchingBudget = orchBudget || anyBudget;
 
-      if (matchingBudget) {
-        budgetAgentDid = matchingBudget.agent_did;
-      }
-      // If no budget found for orchestrator, it will handle the error internally
+    if (!matchingBudget || matchingBudget.balance <= 0) {
+      return NextResponse.json(
+        { error: "Orchestrator budget is empty. Deposit USDC to your Orchestrator Agent budget in My Agents." },
+        { status: 402 }
+      );
     }
-    // Non-orchestrator autonomous steps: no budget needed, authority wallet funds escrows
+
+    // Check if budget covers total cost
+    const totalCostNum = parseFloat(totalCost);
+    if (matchingBudget.balance < totalCostNum) {
+      return NextResponse.json(
+        { error: `Insufficient orchestrator budget: have ${matchingBudget.balance.toFixed(2)} USDC, need ${totalCost} USDC` },
+        { status: 402 }
+      );
+    }
+
+    budgetAgentDid = matchingBudget.agent_did;
   }
 
   // Verify the deposit transaction exists on-chain (non-autonomous mode)

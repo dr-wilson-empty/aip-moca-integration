@@ -315,13 +315,60 @@ export default function TwinPage() {
     addMessage({ id: genId(), role: "user", content: fileContext ? `${userMsg} [+ ${fileName}]` : userMsg, timestamp: new Date().toLocaleTimeString() }, address ?? undefined);
     setProcessing(true);
     const planMsgId = genId();
+
+    // Auto mode ON → skip analyze, send directly to orchestrator
+    if (autonomousMode && address) {
+      addMessage({ id: planMsgId, role: "twin", content: "Orchestrator Agent will handle this task autonomously.", timestamp: new Date().toLocaleTimeString(), state: "confirming" }, address);
+
+      try {
+        // Fetch user's orchestrator info
+        const orchRes = await fetch("/api/orchestrator/ensure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress: address }),
+        });
+        const orchData = await orchRes.json();
+        if (!orchData.ok) throw new Error("Could not find your Orchestrator Agent");
+
+        const orchEndpoint = `/api/hosted-agent?agentId=${orchData.agentId}`;
+        const orchDid = `did:aip:${address.slice(0, 8)}:${orchData.agentId}`;
+        const orchStep: PipelineStep = {
+          agentName: "Orchestrator Agent",
+          agentEndpoint: orchEndpoint,
+          agentDid: orchDid,
+          walletAddress: address,
+          capabilityId: "orchestrate.task",
+          capabilityDescription: "Autonomous multi-agent orchestration",
+          input: fullMsg,
+          inputFromPrev: false,
+          estimatedCost: "0.00",
+          label: "Orchestrator Agent",
+          status: "pending",
+        };
+
+        updateMessage(planMsgId, {
+          content: `Orchestrator Agent will plan and execute this task using your budget.`,
+          state: "confirming",
+          mode: "single",
+          steps: [orchStep],
+          totalCost: "auto",
+          currentStep: 0,
+        });
+      } catch (err) {
+        updateMessage(planMsgId, { content: `Error: ${err instanceof Error ? err.message : String(err)}`, state: "failed" });
+        setProcessing(false);
+      }
+      return;
+    }
+
+    // Auto mode OFF → normal analyze flow
     addMessage({ id: planMsgId, role: "twin", content: "Analyzing your request...", timestamp: new Date().toLocaleTimeString(), state: "planning" }, address ?? undefined);
 
     try {
       const res = await fetch("/api/twin/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: fullMsg, walletAddress: address }),
+        body: JSON.stringify({ message: fullMsg, walletAddress: address, skipOrchestrator: true }),
       });
 
       if (!res.ok) {
@@ -345,8 +392,6 @@ export default function TwinPage() {
         mode: plan.mode,
         steps,
         totalCost: plan.totalCost,
-        orchestratorAlt: plan.orchestratorAlternative || undefined,
-        hasPipelineAlt: plan.hasPipelineAlternative || false,
         currentStep: 0,
         plan: steps.length === 1 ? steps[0] : undefined,
       });
@@ -400,18 +445,47 @@ export default function TwinPage() {
           const { chain: updated } = await pollRes.json();
 
           if (updated.steps) {
+            // Sync steps from chain (orchestrator may have replaced placeholder with sub-steps)
             const currentMsg = messages.find((m) => m.id === msgId);
-            const uiStepCount = currentMsg?.steps?.length ?? 0;
-            const limit = Math.min(updated.steps.length, uiStepCount);
-            for (let i = 0; i < limit; i++) {
-              const chainStep = updated.steps[i];
-              updateStep(msgId, i, {
-                status: chainStep.status, taskId: chainStep.taskId,
-                artifact: chainStep.artifact, escrowTxHash: chainStep.escrowTxHash,
-                settlementTxHash: chainStep.settlementTxHash,
-              });
+            const uiSteps = currentMsg?.steps || [];
+            const chainSteps = updated.steps as Array<{
+              agentName: string; capabilityId: string; capabilityDescription: string;
+              estimatedCost: string; label: string; status: string; taskId?: string;
+              artifact?: string; escrowTxHash?: string; settlementTxHash?: string;
+              agentDid?: string; agentEndpoint?: string; walletAddress?: string;
+              input?: string; inputFromPrev?: boolean; error?: string;
+            }>;
+
+            // If chain has more steps than UI (orchestrator expanded), update UI steps
+            if (chainSteps.length !== uiSteps.length) {
+              const newSteps: PipelineStep[] = chainSteps.map((cs) => ({
+                agentName: cs.agentName,
+                agentDid: cs.agentDid || "",
+                agentEndpoint: cs.agentEndpoint || "",
+                walletAddress: cs.walletAddress || "",
+                capabilityId: cs.capabilityId,
+                capabilityDescription: cs.capabilityDescription || cs.label,
+                estimatedCost: cs.estimatedCost,
+                input: cs.input || "",
+                inputFromPrev: cs.inputFromPrev || false,
+                label: cs.label || `${cs.agentName}: ${cs.capabilityId}`,
+                status: (cs.status || "pending") as "pending" | "executing" | "completed" | "failed",
+                taskId: cs.taskId,
+                artifact: cs.artifact,
+                escrowTxHash: cs.escrowTxHash,
+                settlementTxHash: cs.settlementTxHash,
+              }));
+              updateMessage(msgId, { steps: newSteps, currentStep: updated.currentStep });
+            } else {
+              for (let i = 0; i < chainSteps.length; i++) {
+                updateStep(msgId, i, {
+                  status: chainSteps[i].status as "pending" | "executing" | "completed" | "failed", taskId: chainSteps[i].taskId,
+                  artifact: chainSteps[i].artifact, escrowTxHash: chainSteps[i].escrowTxHash,
+                  settlementTxHash: chainSteps[i].settlementTxHash,
+                });
+              }
+              updateMessage(msgId, { currentStep: updated.currentStep });
             }
-            updateMessage(msgId, { currentStep: Math.min(updated.currentStep, uiStepCount - 1) });
           }
 
           if (updated.status === "completed") {
@@ -457,39 +531,14 @@ export default function TwinPage() {
   const handleConfirm = (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg?.steps?.length) return;
-    if (autonomousMode && hasOrchestratorStep(msg.steps)) {
+    // Auto mode ON → all steps go through autonomous chain (orchestrator budget pays)
+    if (autonomousMode) {
       executeAutonomousChain(msgId);
       return;
     }
+    // Manual mode → step-by-step with wallet signing
     updateMessage(msgId, { state: "executing" });
     executeStep(msgId, 0);
-  };
-
-  const handleDirectPipeline = async (msgId: string) => {
-    const msg = messages.find((m) => m.id === msgId);
-    if (!msg) return;
-    const msgIdx = messages.findIndex((m) => m.id === msgId);
-    const userMsg = messages.slice(0, msgIdx).reverse().find((m) => m.role === "user");
-    const originalInput = userMsg?.content || msg.content;
-
-    updateMessage(msgId, { content: "Replanning as direct pipeline...", state: "planning" });
-    try {
-      const res = await fetch("/api/twin/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: originalInput, walletAddress: address, skipOrchestrator: true }) });
-      if (!res.ok) { updateMessage(msgId, { content: "Failed to replan.", state: "failed" }); setProcessing(false); return; }
-      const plan = await res.json().catch(() => null);
-      if (!plan || !plan.steps) { updateMessage(msgId, { content: "Failed to parse replan response.", state: "failed" }); setProcessing(false); return; }
-      const steps = (plan.steps as PipelineStep[]).map((s) => ({ ...s, status: "pending" as const }));
-      updateMessage(msgId, { content: plan.explanation, state: "confirming", mode: plan.mode, steps, totalCost: plan.totalCost, hasPipelineAlt: false, orchestratorAlt: plan.orchestratorAlternative || undefined });
-    } catch { updateMessage(msgId, { content: "Replan failed.", state: "failed" }); setProcessing(false); }
-  };
-
-  const handleUseOrchestrator = (msgId: string) => {
-    const msg = messages.find((m) => m.id === msgId);
-    if (!msg?.orchestratorAlt) return;
-    const orch = msg.orchestratorAlt;
-    const orchStep: PipelineStep = { agentName: orch.agentName, agentEndpoint: orch.agentEndpoint, agentDid: orch.agentDid, walletAddress: orch.walletAddress, capabilityId: orch.capabilityId, capabilityDescription: orch.capabilityDescription, input: input || msg.content || "", inputFromPrev: false, estimatedCost: orch.estimatedCost, label: `${orch.agentName}: ${orch.capabilityDescription}`, status: "pending" };
-    updateMessage(msgId, { mode: "single", steps: [orchStep], totalCost: orch.estimatedCost, orchestratorAlt: undefined });
-    if (autonomousMode) { setTimeout(() => executeAutonomousChain(msgId), 100); }
   };
 
   const handleCancel = (msgId: string) => {
@@ -597,23 +646,11 @@ export default function TwinPage() {
                       <span style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700 }}>{msg.totalCost} USDC</span>
                     </div>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {msg.orchestratorAlt && autonomousMode && (
-                      <button onClick={() => handleUseOrchestrator(msg.id)} className="mp-white-text" style={{ ...btnDark, backgroundColor: "#7DB342", width: "100%", textAlign: "center" }}>
-                        Use {msg.orchestratorAlt.agentName} ({msg.orchestratorAlt.estimatedCost} USDC)
-                      </button>
-                    )}
-                    {msg.hasPipelineAlt && autonomousMode && (
-                      <button onClick={() => handleDirectPipeline(msg.id)} style={{ ...btnOutline, width: "100%", textAlign: "center" }}>
-                        Switch to Direct Pipeline
-                      </button>
-                    )}
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => handleConfirm(msg.id)} className="mp-white-text" style={{ ...btnDark, flex: 1, textAlign: "center" }}>
-                        {autonomousMode && hasOrchestratorStep(msg.steps || []) ? (msg.orchestratorAlt ? "Direct Pipeline" : "Run Autonomously") : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
-                      </button>
-                      <button onClick={() => handleCancel(msg.id)} className="ds-error-text" style={{ ...btnOutline, color: DS.error }}>Cancel</button>
-                    </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => handleConfirm(msg.id)} className="mp-white-text" style={{ ...btnDark, flex: 1, textAlign: "center" }}>
+                      {autonomousMode ? "Run" : msg.mode === "pipeline" ? "Execute Pipeline" : "Confirm & Pay"}
+                    </button>
+                    <button onClick={() => handleCancel(msg.id)} className="ds-error-text" style={{ ...btnOutline, color: DS.error }}>Cancel</button>
                   </div>
                 </div>
               )}

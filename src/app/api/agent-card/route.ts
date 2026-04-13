@@ -9,6 +9,8 @@ import {
 } from "@/lib/protocol/agent-card-store";
 import { verifyDID } from "@/lib/identity/did";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
+import { listHostedAgents, getHostedAgent, loadHostedAgentsFromDb } from "@/lib/hosted-agents";
+import { isDefaultOrchestrator } from "@/lib/orchestrator/default-orchestrator";
 
 // Demo ajanlarini yukle
 seedDemoAgents();
@@ -40,7 +42,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const all = Array.from(byEndpoint.values());
+    // Filter out private/orchestrator/deactivated hosted agents
+    await loadHostedAgentsFromDb();
+    const privateAgentIds = new Set(
+      listHostedAgents().filter((a) => a.isPublic === false).map((a) => a.agentId)
+    );
+    const all = Array.from(byEndpoint.values()).filter((card) => {
+      const match = card.endpoint.match(/[?&]agentId=([^&]+)/);
+      if (match) {
+        const agentId = match[1];
+        // Hide private agents
+        if (privateAgentIds.has(agentId)) return false;
+        // Hide default orchestrators (they're per-wallet, not marketplace agents)
+        if (isDefaultOrchestrator(agentId)) return false;
+        // Hide deactivated or deleted hosted agents (still on-chain but removed from platform)
+        const hosted = getHostedAgent(agentId);
+        if (!hosted || !hosted.active) return false;
+      }
+      return true;
+    });
 
     // Server-side pagination support
     const page = parseInt(request.nextUrl.searchParams.get("page") || "1") || 1;

@@ -106,13 +106,16 @@ body {
   background: #d5d0c8 !important;
 }
 
-.wallet-adapter-modal-wrapper * {
-  color: #000000 !important;
-}
-
+.wallet-adapter-modal-wrapper,
+.wallet-adapter-modal-wrapper *,
 .wallet-adapter-modal-wrapper h1,
 .wallet-adapter-modal-wrapper p,
-.wallet-adapter-modal-wrapper span {
+.wallet-adapter-modal-wrapper span,
+.wallet-adapter-modal-wrapper div,
+.wallet-adapter-modal-wrapper button,
+.wallet-adapter-modal-wrapper .wallet-adapter-button,
+.wallet-adapter-modal-wrapper .wallet-adapter-button span,
+.wallet-adapter-modal-list-more span {
   color: #000000 !important;
 }
 

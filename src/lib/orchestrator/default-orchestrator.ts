@@ -41,7 +41,7 @@ const DEFAULT_CAPABILITIES: HostedAgentConfig["capabilities"] = [
   {
     id: "orchestrate.task",
     description: "Plan and execute multi-agent tasks autonomously",
-    pricing: { amount: "0.05", token: "USDC", network: "solana" },
+    pricing: { amount: "0.00", token: "USDC", network: "solana" },
   },
 ];
 
@@ -77,6 +77,7 @@ export async function ensureDefaultOrchestrator(
     provider: "anthropic",
     capabilities: DEFAULT_CAPABILITIES,
     canOrchestrate: true,
+    isPublic: false,
     createdAt: new Date().toISOString(),
     active: true,
   };

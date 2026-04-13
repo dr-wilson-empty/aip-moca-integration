@@ -141,7 +141,7 @@ export default function CreateAgentPage() {
         </header>
         <div style={{ padding: "60px 30px", maxWidth: 700 }}>
           <p style={{ fontFamily: DS.fontPrimary, fontSize: "1.1rem", lineHeight: 1.5, marginBottom: 20 }}>
-            Your agent <strong>{store.name}</strong> is now live on the marketplace. People can start using it and you will earn USDC.
+            Your agent <strong>{store.name}</strong> is now live{store.isPublic ? " on the marketplace. People can start using it and you will earn USDC." : ". It's private — only you can use it via Twin."}
           </p>
           {store.txHash !== "hosted-only" && (
             <a href={`https://explorer.solana.com/tx/${store.txHash}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, color: DS.text, wordBreak: "break-all", display: "block", marginBottom: 24 }}>
@@ -184,6 +184,7 @@ export default function CreateAgentPage() {
           customApiKey: store.tier === "custom" ? store.customApiKey : undefined,
           capabilities: store.capabilities.map((c) => ({ id: c.id.trim(), description: c.description.trim(), pricing: { amount: c.amount, token: "USDC", network: "solana" } })),
           canOrchestrate: store.canOrchestrate,
+          isPublic: store.isPublic,
         }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to register hosted agent"); }
@@ -387,6 +388,31 @@ export default function CreateAgentPage() {
               </div>
             ))}
             <button onClick={store.addCapability} className="ds-accent-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", marginTop: 4 }}>+ ADD CAPABILITY</button>
+          </div>
+
+          {/* Visibility */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>MARKETPLACE VISIBILITY</span>
+            <div style={{ display: "flex", gap: 0 }}>
+              <button onClick={() => store.setIsPublic(true)} style={{
+                flex: 1, padding: "14px 20px", textAlign: "left", fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase",
+                backgroundColor: store.isPublic ? "#c8c3ba" : "transparent", color: DS.text,
+                border: `1px solid ${DS.border}`, borderRight: "none", cursor: "pointer",
+                borderLeft: store.isPublic ? `4px solid ${DS.green}` : `1px solid ${DS.border}`,
+              }}>
+                <span style={{ display: "block", marginBottom: 4 }}>PUBLIC</span>
+                <span style={{ fontSize: "0.8rem", fontWeight: 400, color: DS.textMuted }}>VISIBLE ON MARKETPLACE / ANYONE CAN USE</span>
+              </button>
+              <button onClick={() => store.setIsPublic(false)} style={{
+                flex: 1, padding: "14px 20px", textAlign: "left", fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase",
+                backgroundColor: !store.isPublic ? "#c8c3ba" : "transparent", color: DS.text,
+                border: `1px solid ${DS.border}`, cursor: "pointer",
+                borderLeft: !store.isPublic ? `4px solid ${DS.green}` : `1px solid ${DS.border}`,
+              }}>
+                <span style={{ display: "block", marginBottom: 4 }}>PRIVATE</span>
+                <span style={{ fontSize: "0.8rem", fontWeight: 400, color: DS.textMuted }}>ONLY YOU CAN USE / NOT LISTED</span>
+              </button>
+            </div>
           </div>
 
           {/* Commission */}
