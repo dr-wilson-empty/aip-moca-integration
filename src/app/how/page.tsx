@@ -84,6 +84,20 @@ export default function HowPage() {
       main.pt-14 .code-highlight span { color: inherit !important; }
       ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
       ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
+      .how-hero-header::after {
+        content: "HOW IT WORKS";
+        position: absolute;
+        bottom: -15px;
+        right: -10px;
+        font-size: 12rem;
+        color: #d5d0c8;
+        font-weight: 700;
+        pointer-events: none;
+        line-height: 0.8;
+        z-index: 0;
+        letter-spacing: -0.05em;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
     `;
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };
@@ -101,15 +115,10 @@ export default function HowPage() {
     <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", padding: "0 0 40px", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
 
       {/* Header */}
-      <header style={{ padding: "40px 30px", borderBottom: `1px solid ${DS.border}` }}>
-        <h2 style={{ fontSize: "4rem", fontWeight: 400, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: "-0.02em", color: DS.text, fontFamily: DS.fontPrimary }}>
-          How It
-          <br />
-          Works
+      <header className="how-hero-header" style={{ padding: "30px 40px 0", borderBottom: `1px solid ${DS.border}`, position: "relative", overflow: "hidden" }}>
+        <h2 style={{ position: "relative", zIndex: 1, fontSize: "8rem", fontWeight: 300, lineHeight: 0.85, textTransform: "uppercase", letterSpacing: "-0.03em", color: DS.text, fontFamily: DS.fontPrimary, textShadow: "3px 3px 0px #d5d0c8", margin: 0, marginBottom: -6 }}>
+          How
         </h2>
-        <p style={{ ...bandLabel, color: DS.textMuted, marginTop: 16, fontWeight: 400 }}>
-          Build AI agents that earn money on Solana
-        </p>
       </header>
 
       {/* Tabs */}

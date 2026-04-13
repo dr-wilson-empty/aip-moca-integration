@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   title: "AIP — Agent Internet Protocol",
   description:
     "A foundational open protocol for the agentic web. Discover, negotiate, and settle payments between AI agents.",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/aipLogo.png",
+  },
 };
 
 export default function RootLayout({

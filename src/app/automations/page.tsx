@@ -107,6 +107,20 @@ export default function AutomationsPage() {
       ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
       .auto-card { transition: background-color 0.15s ease; }
       .auto-card:hover { background-color: ${DS.bgHover} !important; }
+      .auto-hero-header::after {
+        content: "AUTOMATIONS";
+        position: absolute;
+        bottom: -15px;
+        right: -10px;
+        font-size: 12rem;
+        color: #d5d0c8;
+        font-weight: 700;
+        pointer-events: none;
+        line-height: 0.8;
+        z-index: 0;
+        letter-spacing: -0.05em;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
     `;
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };
@@ -194,16 +208,11 @@ export default function AutomationsPage() {
     <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", padding: "0 0 40px", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
 
       {/* ═══ Header ═══ */}
-      <header style={{ padding: "40px 30px", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
-          <h2 style={{ fontSize: "4rem", fontWeight: 400, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: "-0.02em", color: DS.text, fontFamily: DS.fontPrimary }}>
-            Automations
-          </h2>
-          <p style={{ ...bandLabel, color: DS.textMuted, marginTop: 16, fontWeight: 400 }}>
-            Create recurring tasks that your Twin executes automatically
-          </p>
-        </div>
-        <button onClick={() => setShowForm(!showForm)} className={showForm ? "" : "mp-white-text"} style={showForm ? btnOutline : btnDark}>
+      <header className="auto-hero-header" style={{ padding: "30px 40px 0", borderBottom: `1px solid ${DS.border}`, position: "relative", overflow: "hidden", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <h2 style={{ position: "relative", zIndex: 1, fontSize: "8rem", fontWeight: 300, lineHeight: 0.85, textTransform: "uppercase", letterSpacing: "-0.03em", color: DS.text, fontFamily: DS.fontPrimary, textShadow: "3px 3px 0px #d5d0c8", margin: 0, marginBottom: -6 }}>
+          Auto
+        </h2>
+        <button onClick={() => setShowForm(!showForm)} className={showForm ? "" : "mp-white-text"} style={{ ...showForm ? btnOutline : btnDark, position: "relative", zIndex: 1, marginBottom: 8 }}>
           {showForm ? "CANCEL" : "+ NEW AUTOMATION"}
         </button>
       </header>

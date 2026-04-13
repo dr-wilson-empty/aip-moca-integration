@@ -284,7 +284,7 @@ function AgentFeatureCard({
           letterSpacing: "0.05em",
           borderBottom: `1px solid ${DS.border}`,
           borderLeft: `4px solid ${agentColor}`,
-          backgroundColor: `color-mix(in srgb, ${agentColor} 8%, ${DS.bg})`,
+          backgroundColor: `color-mix(in srgb, ${agentColor} 15%, ${DS.bg})`,
           color: DS.text,
           display: "flex",
           justifyContent: "space-between",

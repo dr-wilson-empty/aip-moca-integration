@@ -21,11 +21,18 @@ const DS = {
 
 export default function LogPage() {
   const { address } = useWalletStore();
-  const { loaded, loadFromServer } = useLogStore();
+  const { loaded, loadedAddress, loadFromServer, clearTasks } = useLogStore();
 
   useEffect(() => {
-    if (address && !loaded) loadFromServer(address);
-  }, [address, loaded, loadFromServer]);
+    if (!address) {
+      clearTasks();
+      return;
+    }
+    // Re-fetch when wallet changes or not yet loaded
+    if (!loaded || loadedAddress !== address) {
+      loadFromServer(address);
+    }
+  }, [address, loaded, loadedAddress, loadFromServer, clearTasks]);
 
   useEffect(() => {
     const style = document.createElement("style");
@@ -48,6 +55,20 @@ export default function LogPage() {
       main.pt-14 select, main.pt-14 option { color: #000 !important; background-color: ${DS.bg} !important; }
       ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
       ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
+      .log-hero-header::after {
+        content: "TASK LOG";
+        position: absolute;
+        bottom: -15px;
+        right: -10px;
+        font-size: 12rem;
+        color: #d5d0c8;
+        font-weight: 700;
+        pointer-events: none;
+        line-height: 0.8;
+        z-index: 0;
+        letter-spacing: -0.05em;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
     `;
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };
@@ -56,15 +77,10 @@ export default function LogPage() {
   return (
     <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", padding: "0 0 40px", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
       {/* Header */}
-      <header style={{ padding: "40px 30px", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
-          <h2 style={{ fontSize: "4rem", fontWeight: 400, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: "-0.02em", color: DS.text, fontFamily: DS.fontPrimary }}>
-            History
-          </h2>
-          <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 400, textTransform: "uppercase", letterSpacing: "0.1em", color: DS.textMuted, marginTop: 16 }}>
-            Full history of all agent tasks, payments, and state transitions
-          </p>
-        </div>
+      <header className="log-hero-header" style={{ padding: "30px 40px 0", borderBottom: `1px solid ${DS.border}`, position: "relative", overflow: "hidden", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <h2 style={{ position: "relative", zIndex: 1, fontSize: "8rem", fontWeight: 300, lineHeight: 0.85, textTransform: "uppercase", letterSpacing: "-0.03em", color: DS.text, fontFamily: DS.fontPrimary, textShadow: "3px 3px 0px #d5d0c8", margin: 0, marginBottom: -6 }}>
+          History
+        </h2>
         {address && (
           <button onClick={async () => {
             const res = await signedFetch(`/api/tasks/history?address=${address}&format=csv`);
@@ -74,7 +90,7 @@ export default function LogPage() {
             const a = document.createElement("a");
             a.href = url; a.download = `task-history-${address.slice(0, 8)}.csv`; a.click();
             URL.revokeObjectURL(url);
-          }} style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", padding: "10px 24px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", cursor: "pointer" }}>
+          }} style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", padding: "10px 24px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", cursor: "pointer", position: "relative", zIndex: 1, marginBottom: 8 }}>
             EXPORT CSV
           </button>
         )}

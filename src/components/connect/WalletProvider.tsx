@@ -11,7 +11,8 @@ import { clusterApiUrl } from "@solana/web3.js";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-const ENDPOINT = clusterApiUrl("devnet");
+const ENDPOINT =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl("devnet");
 const WALLETS: [] = [];
 
 export default function WalletProvider({ children }: { children: ReactNode }) {

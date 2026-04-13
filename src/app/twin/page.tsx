@@ -139,6 +139,20 @@ export default function TwinPage() {
       main.pt-14 select, main.pt-14 option { color: #000 !important; background-color: ${DS.bg} !important; }
       ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
       ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
+      .ds-hero-header::after {
+        content: "DIGITAL TWIN";
+        position: absolute;
+        bottom: -15px;
+        right: -10px;
+        font-size: 12rem;
+        color: #d5d0c8;
+        font-weight: 700;
+        pointer-events: none;
+        line-height: 0.8;
+        z-index: 0;
+        letter-spacing: -0.05em;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       @media (max-width: 900px) { .ds-title { font-size: 2.5rem !important; } }
     `;
@@ -492,25 +506,22 @@ export default function TwinPage() {
     <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", display: "flex", flexDirection: "column", height: "calc(100vh - 56px)", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
 
       {/* ═══ Header ═══ */}
-      <header style={{ padding: "30px 30px 20px", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+      <header className="ds-hero-header" style={{ padding: "30px 40px 0", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-end", position: "relative", overflow: "hidden" }}>
         <div>
-          <h2 className="ds-title" style={{ fontSize: "3rem", fontWeight: 400, lineHeight: 0.95, textTransform: "uppercase", letterSpacing: "-0.02em", color: DS.text, fontFamily: DS.fontPrimary }}>
-            Digital Twin
+          <h2 className="ds-title" style={{ position: "relative", zIndex: 1, fontSize: "8rem", fontWeight: 300, lineHeight: 0.85, textTransform: "uppercase", letterSpacing: "-0.03em", color: DS.text, fontFamily: DS.fontPrimary, textShadow: "3px 3px 0px #d5d0c8", margin: 0, marginBottom: -6 }}>
+            Twin
           </h2>
-          <p style={{ ...bandLabel, color: DS.textMuted, marginTop: 8, fontWeight: 400 }}>
-            Your AI assistant / Tell me what you need
-          </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, position: "relative", zIndex: 2, marginBottom: 12 }}>
           {/* Autonomous toggle */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <span style={{ ...bandLabel, color: DS.textMuted, fontSize: "0.65rem" }}>AUTONOMOUS</span>
+            <span style={{ ...bandLabel, color: DS.textMuted, fontSize: "0.8rem" }}>AUTONOMOUS</span>
             <button onClick={() => setAutonomousMode(!autonomousMode)} style={{ position: "relative", width: 36, height: 20, borderRadius: 10, backgroundColor: autonomousMode ? DS.green : "#bbb", border: "none", cursor: "pointer", transition: "background-color 0.2s" }}>
               <span style={{ position: "absolute", top: 2, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#fff", transition: "left 0.2s", left: autonomousMode ? 18 : 2 }} />
             </button>
           </label>
           {messages.length > 0 && !isProcessing && (
-            <button onClick={() => clearMessages()} style={{ ...bandLabel, color: DS.error, fontSize: "0.65rem", background: "none", border: "none", cursor: "pointer" }} className="ds-error-text">
+            <button onClick={() => clearMessages()} style={{ ...bandLabel, color: DS.error, fontSize: "0.8rem", background: "none", border: "none", cursor: "pointer" }} className="ds-error-text">
               CLEAR
             </button>
           )}

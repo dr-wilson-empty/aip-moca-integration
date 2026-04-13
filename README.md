@@ -100,16 +100,18 @@ This starts both the web app (port 3000) and all agent services (ports 4001-4003
 
 ### Usage Flow
 1. Connect Phantom wallet at `/connect` (signs auth session automatically)
-2. Browse agents at `/marketplace` (live online/offline status indicators)
-3. Use **Digital Twin** at `/twin` — describe what you need in plain language
-4. Twin auto-selects agents, builds pipeline, executes with x402 payment
-5. Or use **Orchestrator** mode — Research Assistant auto-delegates to sub-agents
-6. Create your own agents at `/create-agent` (No-Code Builder)
-7. Register agents on-chain at `/my-agents`
-8. Set up **Automations** at `/automations` — scheduled/webhook/on-chain triggers
-9. View protocol lifecycle at `/dashboard`
-10. Configure **Preferences** at `/profile` — language, detail level, agent memories
-11. View & export history at `/log` (CSV export available)
+2. Browse agents at `/marketplace` (sort by price/rating/capabilities, filter by type, live status)
+3. Compare agents side-by-side (shared & unique capabilities)
+4. Use **Digital Twin** at `/twin` — describe what you need in plain language
+5. Twin auto-selects agents, builds pipeline, executes with x402 payment
+6. Or use **Orchestrator** mode — Research Assistant auto-delegates to sub-agents
+7. Create your own agents at `/create-agent` (No-Code Builder with 5 templates)
+8. Register agents on-chain at `/my-agents` — view per-agent analytics (tasks, revenue, daily activity)
+9. Set up **Automations** at `/automations` — scheduled/webhook/on-chain triggers
+10. View protocol lifecycle at `/dashboard`
+11. Track individual task execution at `/task/[taskId]` (event timeline with timestamps)
+12. Configure **Preferences** at `/profile` — language, detail level, agent memories
+13. View & export history at `/log` (CSV export available)
 
 ---
 
@@ -118,6 +120,7 @@ This starts both the web app (port 3000) and all agent services (ports 4001-4003
 ```
 aip-website/
 ├── src/
+│   ├── middleware.ts                    # Rate limiting (120 req/min) + SSRF protection
 │   ├── app/                          # Next.js App Router pages
 │   │   ├── marketplace/              # Agent marketplace (browse, search, filter, status)
 │   │   ├── agent/[did]/              # Agent detail page
@@ -131,7 +134,7 @@ aip-website/
 │   │   ├── leaderboard/              # Agent leaderboard (ratings)
 │   │   ├── how/                      # How it works explainer
 │   │   ├── connect/                  # Wallet connection
-│   │   └── api/                      # Backend API routes (20+ endpoints)
+│   │   └── api/                      # Backend API routes (35 endpoints)
 │   │       ├── task/                 # Task creation, quote, delegation, SSE stream
 │   │       ├── twin/                 # Twin analyze, messages persistence
 │   │       ├── hosted-agent/         # Platform AI agent (JSON-RPC 2.0 endpoint)
@@ -145,6 +148,7 @@ aip-website/
 │   │       ├── memory/               # Agent memory CRUD
 │   │       ├── preferences/          # User preference management
 │   │       ├── ratings/              # Agent ratings + leaderboard
+│   │       ├── leaderboard/          # Agent leaderboard data
 │   │       ├── identity/             # DID resolution
 │   │       ├── files/                # File upload + parse (PDF, XLSX, CSV)
 │   │       ├── tasks/history/        # Persistent task history + CSV export
@@ -164,6 +168,7 @@ aip-website/
 │   ├── store/                        # Zustand state management
 │   │   ├── walletStore.ts            # Wallet + DID + auth session
 │   │   ├── agentStore.ts             # Selected agent
+│   │   ├── agentBuilderStore.ts      # No-Code Agent Builder wizard state
 │   │   ├── taskStore.ts              # Active task + SSE
 │   │   ├── logStore.ts               # Task history (localStorage + Supabase)
 │   │   └── twinStore.ts              # Twin messages (Supabase-persisted)
@@ -175,7 +180,8 @@ aip-website/
 │   │   ├── solana/                   # Blockchain interaction
 │   │   │   ├── escrow-program.ts     # Escrow PDA instructions + task ID validation
 │   │   │   ├── registry-program.ts   # Registry PDA instructions
-│   │   │   └── connection.ts         # RPC singleton
+│   │   │   ├── connection.ts         # RPC singleton
+│   │   │   └── idl/                  # Anchor IDL files (aip_escrow.json, aip_registry.json)
 │   │   ├── payment/                  # Payment layer
 │   │   │   ├── x402.ts              # x402 protocol (verify, settle, payer cross-check)
 │   │   │   ├── escrow.ts            # Escrow records + on-chain release/refund + expiration
@@ -190,6 +196,8 @@ aip-website/
 │   │   │   ├── agent-card-schema.ts # Card validation (URL protocol check)
 │   │   │   ├── agent-orchestrator.ts # Agent-to-agent autonomous delegation
 │   │   │   ├── chain-executor.ts    # Sequential multi-agent pipeline runner + TTL
+│   │   │   ├── messages.ts          # Protocol message type definitions
+│   │   │   ├── demo-agent.ts        # Demo agent for local testing
 │   │   │   └── seed-agents.ts       # Demo agent seeding
 │   │   ├── web/                      # Web data layer
 │   │   │   ├── search.ts            # Tavily web search API
@@ -209,7 +217,11 @@ aip-website/
 │   │   │   ├── db.ts                # Tasks, escrows, agents, twin messages
 │   │   │   ├── agent-budgets.ts     # Atomic budget ops (Supabase RPC)
 │   │   │   ├── automations.ts       # Automation rules + results
+│   │   │   ├── ratings.ts           # Agent ratings + leaderboard queries
 │   │   │   └── preferences.ts       # User preferences
+│   │   ├── files/
+│   │   │   └── parser.ts            # File parsing (PDF, XLSX, CSV)
+│   │   ├── validation.ts            # Input validation helpers
 │   │   ├── scheduler.ts             # node-cron automation scheduler + escrow expiration
 │   │   ├── hosted-agents.ts         # Hosted agent config store (encrypted API keys)
 │   │   └── logger.ts                # Structured logging
@@ -225,6 +237,8 @@ aip-website/
 │   └── agents/                       # Demo agent services (legacy runner)
 │       └── src/
 │           ├── agents.ts             # 3 agents defined with SDK
+│           ├── create-agent.ts       # Agent factory helper
+│           ├── haiku.ts              # Claude Haiku handler
 │           └── start.ts              # Starts all agents
 ├── scripts/
 │   ├── run-demo-agents.ts            # Demo agent runner (loads .env.local)
@@ -373,13 +387,34 @@ Your personal AI assistant at `/twin`. Describe what you need in natural languag
 
 Create AI agents without writing code at `/create-agent`:
 
-1. **Identity** — Name, template (researcher, translator, analyst, custom)
+1. **Identity** — Name, template (Translator, Summarizer, Code Reviewer, Data Analyst, Content Writer, Custom)
 2. **Behavior** — System prompt, capabilities, pricing
 3. **AI Provider** — Platform (Anthropic) or your own API key (encrypted at rest)
 4. **Orchestration** — Enable autonomous delegation to other agents
 5. **Publish** — Live on marketplace + optional on-chain registration
 
 Hosted agents run on the platform's infrastructure. Revenue split: 80% agent owner, 20% platform (platform tier only).
+
+---
+
+## Agent Analytics
+
+Per-agent performance dashboard at `/my-agents`:
+
+- **Tasks** — Total executed, completed, failed counts
+- **Revenue** — Total USDC earned + budget spent (for orchestrators)
+- **Ratings** — Average score + total rating count
+- **Activity Graph** — Daily task activity over last 7 days
+
+---
+
+## Agent Comparison
+
+Side-by-side comparison of two agents at `/marketplace`:
+
+- Shared capabilities (overlap detection)
+- Unique capabilities per agent
+- Price and type comparison
 
 ---
 

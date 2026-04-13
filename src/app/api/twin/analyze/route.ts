@@ -111,8 +111,10 @@ export async function POST(request: NextRequest) {
     .map((c) => `- ${c.agentName} → ${c.capabilityId} (${c.description}) — ${c.price} USDC`)
     .join("\n");
 
-  // Identify orchestrator agents (can delegate to other agents autonomously)
-  const orchestrators = skipOrchestrator ? [] : listHostedAgents().filter((a) => a.canOrchestrate);
+  // Identify orchestrator agents — prefer the user's own orchestrator
+  const allOrch = skipOrchestrator ? [] : listHostedAgents().filter((a) => a.canOrchestrate);
+  const userOrch = walletAddress ? allOrch.filter((a) => a.ownerAddress === walletAddress) : [];
+  const orchestrators = userOrch.length > 0 ? userOrch : allOrch;
   const orchestratorInfo = orchestrators.length > 0
     ? "\n\nORCHESTRATOR AGENTS (these agents can internally call other agents — prefer them for complex multi-step tasks):\n" +
       orchestrators.map((o) => {

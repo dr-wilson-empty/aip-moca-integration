@@ -46,6 +46,11 @@ function SourceBadge({ source }: { source: string }) {
   return <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "3px 10px", backgroundColor: s.bg, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>;
 }
 
+const ORCH_ID_PREFIX = "orch-";
+function isDefaultOrchestrator(agentId: string): boolean {
+  return agentId.startsWith(ORCH_ID_PREFIX);
+}
+
 export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () => void }) {
   const { publicKey } = useWallet();
   const router = useRouter();
@@ -161,7 +166,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
 
         {myAgentsLoading ? (
           <div style={{ padding: "40px 30px" }}><span style={{ ...bandLabel, color: DS.textMuted }}>LOADING AGENTS FROM CHAIN...</span></div>
-        ) : myAgents.length === 0 ? (
+        ) : myAgents.length === 0 && !myAgentsLoading ? (
           <div style={{ padding: "60px 30px", textAlign: "center" }}>
             <p style={{ ...bandLabel, color: DS.textMuted, marginBottom: 20 }}>NO AGENTS YET</p>
             <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
@@ -171,12 +176,19 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
           </div>
         ) : (
           <div>
-            {myAgents.map((agent) => (
-              <div key={agent.agentId} style={{ borderBottom: `1px solid ${DS.border}`, padding: "20px 30px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+            {[...myAgents].sort((a, b) => {
+              const aOrch = isDefaultOrchestrator(a.agentId) ? 0 : 1;
+              const bOrch = isDefaultOrchestrator(b.agentId) ? 0 : 1;
+              return aOrch - bOrch;
+            }).map((agent) => {
+              const isOrch = isDefaultOrchestrator(agent.agentId);
+              return (
+              <div key={agent.agentId} style={{ borderBottom: `1px solid ${DS.border}`, padding: "20px 30px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, backgroundColor: isOrch ? "#d5d0c8" : "transparent" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {/* Name + badge */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                     <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.3rem", fontWeight: 400, textTransform: "uppercase" }}>{agent.name}</h3>
+                    {isOrch && <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "3px 10px", backgroundColor: DS.green, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>DEFAULT</span>}
                     <SourceBadge source={agent.registrationSource} />
                     {/* Online/Offline */}
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -214,12 +226,15 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
                       {agent.registrationSource === "external" ? "CLAIM" : "EDIT"}
                     </button>
                   )}
-                  <button onClick={() => agent.registrationSource === "hosted" ? handleDeleteHosted(agent.agentId) : handleDeregister(agent.agentId)} disabled={loading} className="ds-error-text" style={{ ...btnSmall, borderColor: DS.error }}>
-                    {loading ? "..." : "DELETE"}
-                  </button>
+                  {!isOrch && (
+                    <button onClick={() => agent.registrationSource === "hosted" ? handleDeleteHosted(agent.agentId) : handleDeregister(agent.agentId)} disabled={loading} className="ds-error-text" style={{ ...btnSmall, borderColor: DS.error }}>
+                      {loading ? "..." : "DELETE"}
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
