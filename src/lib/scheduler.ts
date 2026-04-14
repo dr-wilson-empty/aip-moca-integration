@@ -12,6 +12,7 @@ import { processOnchainAutomations } from "./trigger/onchain-listener";
 import { getExpiredEscrows, refundEscrow } from "./payment/escrow";
 
 const SCHEDULE_MS: Record<string, number> = {
+  "1min": 60_000,
   "2min": 120_000,
   "5min": 300_000,
   "hourly": 3_600_000,
@@ -204,7 +205,7 @@ async function runAutomation(
 
   const estimatedCost = parseFloat(match.price);
   if (auto.total_spent + estimatedCost > auto.budget_limit) {
-    console.log(`[cron] Budget exceeded for ${auto.name}: ${auto.total_spent}/${auto.budget_limit}`);
+    console.log(`[cron] Budget exceeded for ${auto.name}: spent=${auto.total_spent} + cost=${estimatedCost} (${match.agentName}) > limit=${auto.budget_limit}`);
     return;
   }
 
