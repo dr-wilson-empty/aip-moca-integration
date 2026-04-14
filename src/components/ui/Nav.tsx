@@ -25,17 +25,17 @@ const TAB = {
   inactive2: "#94A3B0",
   textColor: "#111111",
   font: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-  fontSize: "16px",
+  fontSize: "15.5px",
   fontWeightNormal: 700,
   fontWeightActive: 700,
   letterSpacing: "0.02em",
-  borderRadius: "12px 12px 0 0",
+  borderRadius: "11px 11px 0 0",
   marginRight: "-12px",
   clipPath: "polygon(10% 0, 90% 0, 100% 100%, 0% 100%)",
-  minWidth: "120px",
-  paddingActive: "14px 30px 12px",
-  paddingInactive: "14px 30px 10px",
-  containerHeight: "54px",
+  minWidth: "115px",
+  paddingActive: "13px 28px 11px",
+  paddingInactive: "13px 28px 9px",
+  containerHeight: "51px",
 };
 
 /* Alternating inactive colors between the two tones */
@@ -91,7 +91,7 @@ export default function Nav() {
     <nav
       className="fixed top-0 left-0 right-0 z-50"
       aria-label="Main navigation"
-      style={{ backgroundColor: "transparent", paddingTop: 12 }}
+      style={{ backgroundColor: "transparent", paddingTop: 11 }}
     >
       <div
         style={{
@@ -117,7 +117,7 @@ export default function Nav() {
             borderBottom: "1px solid #000",
           }}
         >
-          <img src="/aipLogo.png" alt="AIP" style={{ height: 56, width: "auto", display: "block" }} />
+          <img src="/aipLogo.png" alt="AIP" style={{ height: 52, width: "auto", display: "block" }} />
         </Link>
 
         {/* Left border line */}
