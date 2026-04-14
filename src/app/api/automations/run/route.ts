@@ -94,6 +94,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No matching capability" }, { status: 404 });
   }
 
+  // Reset budget if period has elapsed
+  const periodMs = auto.budget_period === "weekly" ? 604_800_000 : 86_400_000;
+  const lastRun = auto.last_run ? new Date(auto.last_run).getTime() : 0;
+  if (Date.now() - lastRun > periodMs && auto.total_spent > 0) {
+    auto.total_spent = 0;
+    const sb = (await import("@/lib/supabase/client")).getSupabase();
+    await sb.from("automations").update({ total_spent: 0 }).eq("id", auto.id);
+  }
+
   // Budget check
   const estimatedCost = parseFloat(match.price);
   if (auto.total_spent + estimatedCost > auto.budget_limit) {

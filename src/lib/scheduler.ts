@@ -47,6 +47,17 @@ export function startScheduler() {
 
       const now = Date.now();
 
+      // Reset budget for automations whose budget_period has elapsed
+      for (const auto of automations) {
+        const periodMs = auto.budget_period === "weekly" ? 604_800_000 : 86_400_000;
+        const lastRun = auto.last_run ? new Date(auto.last_run).getTime() : 0;
+        const periodStart = now - periodMs;
+        if (lastRun < periodStart && auto.total_spent > 0) {
+          await sb.from("automations").update({ total_spent: 0 }).eq("id", auto.id);
+          auto.total_spent = 0;
+        }
+      }
+
       // Process schedule-based automations
       for (const auto of automations.filter((a: { trigger_type: string }) => a.trigger_type === "schedule")) {
         const intervalMs = SCHEDULE_MS[auto.schedule] || SCHEDULE_MS.daily;

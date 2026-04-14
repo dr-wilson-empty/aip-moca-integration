@@ -341,17 +341,17 @@ export default function TwinPage() {
           capabilityDescription: "Autonomous multi-agent orchestration",
           input: fullMsg,
           inputFromPrev: false,
-          estimatedCost: "0.00",
+          estimatedCost: "0.05/step",
           label: "Orchestrator Agent",
           status: "pending",
         };
 
         updateMessage(planMsgId, {
-          content: `Orchestrator Agent will plan and execute this task using your budget.`,
+          content: `Orchestrator Agent will plan and execute this task using your budget.\nOrchestration fee: 0.05 USDC per agent step + agent costs.`,
           state: "confirming",
           mode: "single",
           steps: [orchStep],
-          totalCost: "auto",
+          totalCost: "0.05/step + agent fees",
           currentStep: 0,
         });
       } catch (err) {
@@ -563,7 +563,7 @@ export default function TwinPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, position: "relative", zIndex: 2, marginBottom: 12 }}>
           {/* Autonomous toggle */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", position: "relative" }} title="ON: Orchestrator Agent plans and executes tasks autonomously using your budget. No wallet signing needed.&#10;OFF: You approve each step manually and pay from your wallet.">
             <span style={{ ...bandLabel, color: DS.textMuted, fontSize: "0.8rem" }}>AUTONOMOUS</span>
             <button onClick={() => setAutonomousMode(!autonomousMode)} style={{ position: "relative", width: 36, height: 20, borderRadius: 10, backgroundColor: autonomousMode ? DS.green : "#bbb", border: "none", cursor: "pointer", transition: "background-color 0.2s" }}>
               <span style={{ position: "absolute", top: 2, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#fff", transition: "left 0.2s", left: autonomousMode ? 18 : 2 }} />
