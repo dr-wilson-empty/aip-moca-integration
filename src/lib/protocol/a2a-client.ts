@@ -156,8 +156,34 @@ export async function pollTaskStatus(
 }
 
 /**
+ * Execute a hosted agent directly (no HTTP self-call).
+ * Calls processHostedTask in-process, then reads result from hostedTasks map.
+ */
+async function executeHostedAgentDirect(
+  agentId: string,
+  capability: string,
+  input: string,
+  taskId?: string,
+): Promise<TaskStatusResult> {
+  const { getHostedAgent } = await import("@/lib/hosted-agents");
+  const config = getHostedAgent(agentId);
+  if (!config) {
+    return { taskId: taskId || "", status: "FAILED", error: `Hosted agent not found: ${agentId}` };
+  }
+
+  const id = taskId || `ht_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const { processHostedTask, getHostedTaskResult } = await import("@/app/api/hosted-agent/route");
+  await processHostedTask(id, config, input);
+
+  const result = getHostedTaskResult(id);
+  if (result) return { taskId: id, ...result };
+  return { taskId: id, status: "FAILED", error: "No result from hosted agent" };
+}
+
+/**
  * Send task/create and poll until completion or failure.
- * Returns the final result.
+ * For hosted agents: calls directly in-process (avoids HTTP self-call on serverless).
+ * For external agents: uses HTTP JSON-RPC.
  */
 export async function executeTask(
   endpoint: string,
@@ -167,6 +193,19 @@ export async function executeTask(
   pollIntervalMs = 500,
   maxPollAttempts = 60
 ): Promise<TaskStatusResult> {
+  // Hosted agent shortcut — direct function call instead of HTTP
+  const hostedMatch = endpoint.match(/[?&]agentId=([^&]+)/);
+  if (hostedMatch && endpoint.includes("/api/hosted-agent")) {
+    return executeHostedAgentDirect(hostedMatch[1], capability, input, taskId);
+  }
+
+  // Web agent shortcut — direct function call
+  if (endpoint.includes("/api/web/agent")) {
+    const { executeWebSearch } = await import("@/app/api/web/agent/route");
+    const wsResult = await executeWebSearch(input, taskId);
+    return { taskId: taskId || `ws_${Date.now()}`, ...wsResult };
+  }
+
   if (!acquireSlot(endpoint)) {
     throw new Error("Agent is at capacity. Too many concurrent requests — please wait and try again.");
   }
