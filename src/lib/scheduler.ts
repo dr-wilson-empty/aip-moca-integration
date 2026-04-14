@@ -2,6 +2,9 @@
  * Server-side automation scheduler using node-cron.
  * Runs inside the Next.js server process.
  * Checks automations every minute and executes those that are due.
+ *
+ * Payment: Automations are funded by the user's orchestrator budget.
+ * Each run reserves cost from budget before executing.
  */
 import cron from "node-cron";
 import { getSupabase } from "./supabase/client";
@@ -10,6 +13,9 @@ import { executeTask } from "./protocol/a2a-client";
 import { seedDemoAgents } from "./protocol/seed-agents";
 import { processOnchainAutomations } from "./trigger/onchain-listener";
 import { getExpiredEscrows, refundEscrow } from "./payment/escrow";
+import { reserveBudget, refundBudget, getAgentBudget } from "./payment/agent-budget";
+import { getOrchestratorId } from "./orchestrator/default-orchestrator";
+import { canonicalAgentDid } from "./identity/canonical-did";
 
 const SCHEDULE_MS: Record<string, number> = {
   "1min": 60_000,
@@ -20,22 +26,22 @@ const SCHEDULE_MS: Record<string, number> = {
   "weekly": 604_800_000,
 };
 
+const ORCHESTRATION_FEE = 0.05;
+
 const gs = globalThis as typeof globalThis & {
   __aip_cron?: boolean;
-  __aip_cron_running?: boolean;
+  __aip_cron_running_ids?: Set<string>;
 };
 
 export function startScheduler() {
   if (gs.__aip_cron) return;
   gs.__aip_cron = true;
 
-  // Run every minute (with concurrency guard to prevent overlapping runs)
+  if (!gs.__aip_cron_running_ids) gs.__aip_cron_running_ids = new Set();
+  const runningIds = gs.__aip_cron_running_ids;
+
+  // Run every minute — per-automation concurrency guard (not global)
   cron.schedule("* * * * *", async () => {
-    if (gs.__aip_cron_running) {
-      console.log("[cron] Previous run still active — skipping this tick");
-      return;
-    }
-    gs.__aip_cron_running = true;
     try {
       seedDemoAgents();
       const sb = getSupabase();
@@ -48,31 +54,21 @@ export function startScheduler() {
 
       const now = Date.now();
 
-      // Reset budget for automations whose budget_period has elapsed
-      for (const auto of automations) {
-        const periodMs = auto.budget_period === "weekly" ? 604_800_000 : auto.budget_period === "monthly" ? 2_592_000_000 : 86_400_000;
-        const lastRun = auto.last_run ? new Date(auto.last_run).getTime() : 0;
-        const periodStart = now - periodMs;
-        if (lastRun < periodStart && auto.total_spent > 0) {
-          await sb.from("automations").update({ total_spent: 0 }).eq("id", auto.id);
-          auto.total_spent = 0;
-        }
-      }
-
       // Process schedule-based automations
       for (const auto of automations.filter((a: { trigger_type: string }) => a.trigger_type === "schedule")) {
+        if (runningIds.has(auto.id)) continue;
+
         const intervalMs = SCHEDULE_MS[auto.schedule] || SCHEDULE_MS.daily;
         const lastRun = auto.last_run ? new Date(auto.last_run).getTime() : 0;
 
         if (now - lastRun < intervalMs) continue;
 
         console.log(`[cron] Running automation: ${auto.name}`);
+        runningIds.add(auto.id);
 
-        try {
-          await runAutomation(auto, sb);
-        } catch (err) {
-          console.error(`[cron] Failed: ${auto.name}`, err instanceof Error ? err.message : "");
-        }
+        runAutomation(auto, sb)
+          .catch((err) => console.error(`[cron] Failed: ${auto.name}`, err instanceof Error ? err.message : ""))
+          .finally(() => runningIds.delete(auto.id));
       }
 
       // Process on-chain automations (balance monitoring)
@@ -96,9 +92,7 @@ export function startScheduler() {
           console.error(`[cron] Auto-refund failed for ${esc.taskId}:`, err instanceof Error ? err.message : "");
         }
       }
-    } catch { /* ignore cron errors */ } finally {
-      gs.__aip_cron_running = false;
-    }
+    } catch { /* ignore cron errors */ }
   });
 
   console.log("[cron] Scheduler started — checking automations every minute");
@@ -106,64 +100,98 @@ export function startScheduler() {
 
 /**
  * On-chain automation: respond directly with Claude (no web search needed).
- * The context data already contains the blockchain event info.
  */
 async function runOnchainAutomation(
-  auto: { id: string; name: string; prompt: string; total_spent: number; budget_limit: number; run_count: number },
+  auto: { id: string; name: string; prompt: string; total_spent: number; budget_limit: number; run_count: number; wallet_address: string },
   sb: ReturnType<typeof getSupabase>,
   contextData: string
 ) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return;
 
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey });
+  // Check orchestrator budget
+  const orchDid = getOrchestratorDid(auto.wallet_address);
+  const budget = await getAgentBudget(orchDid);
+  if (!budget || budget.balance < ORCHESTRATION_FEE) {
+    console.log(`[onchain] No budget for ${auto.name} (wallet: ${auto.wallet_address.slice(0, 8)}...)`);
+    return;
+  }
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
-    system:
-      "You are a blockchain notification assistant. " +
-      "The user set up an automation to be notified about on-chain events. " +
-      "Provide a clear, concise notification based on the event data. " +
-      "Respond in the same language as the user's prompt.",
-    messages: [{
-      role: "user",
-      content: `Automation: "${auto.prompt}"\n\nEvent: ${contextData}`,
-    }],
-  });
+  // Reserve fee from budget
+  const taskId = `auto_oc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    await reserveBudget(orchDid, ORCHESTRATION_FEE, taskId, "automation-onchain");
+  } catch (err) {
+    console.log(`[onchain] Budget reserve failed for ${auto.name}: ${err instanceof Error ? err.message : ""}`);
+    return;
+  }
 
-  const text = response.content[0];
-  const artifact = text.type === "text" ? text.text : "No response";
+  try {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey });
 
-  const resultId = `ares_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  await sb.from("automation_results").insert({
-    id: resultId,
-    automation_id: auto.id,
-    agent_name: "On-chain Listener",
-    capability: "blockchain.monitor",
-    input: contextData,
-    artifact,
-    estimated_cost: "0.00",
-    status: "completed",
-    trigger_source: "onchain",
-  });
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 512,
+      system:
+        "You are a blockchain notification assistant. " +
+        "The user set up an automation to be notified about on-chain events. " +
+        "Provide a clear, concise notification based on the event data. " +
+        "Respond in the same language as the user's prompt.",
+      messages: [{
+        role: "user",
+        content: `Automation: "${auto.prompt}"\n\nEvent: ${contextData}`,
+      }],
+    });
 
-  await sb.from("automations").update({
-    last_run: new Date().toISOString(),
-    run_count: auto.run_count + 1,
-  }).eq("id", auto.id);
+    const text = response.content[0];
+    const artifact = text.type === "text" ? text.text : "No response";
 
-  console.log(`[onchain] Completed: ${auto.name}`);
+    const resultId = `ares_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    await sb.from("automation_results").insert({
+      id: resultId,
+      automation_id: auto.id,
+      agent_name: "On-chain Listener",
+      capability: "blockchain.monitor",
+      input: contextData,
+      artifact,
+      estimated_cost: ORCHESTRATION_FEE.toFixed(2),
+      status: "completed",
+    });
+
+    await sb.from("automations").update({
+      last_run: new Date().toISOString(),
+      total_spent: auto.total_spent + ORCHESTRATION_FEE,
+      run_count: auto.run_count + 1,
+    }).eq("id", auto.id);
+
+    console.log(`[onchain] Completed: ${auto.name} (${ORCHESTRATION_FEE} USDC from budget)`);
+  } catch (err) {
+    // Refund on failure
+    await refundBudget(orchDid, ORCHESTRATION_FEE, taskId).catch(() => {});
+    console.error(`[onchain] Failed: ${auto.name}`, err instanceof Error ? err.message : "");
+  }
 }
 
+/**
+ * Run a schedule-based automation. Pays from orchestrator budget.
+ */
 async function runAutomation(
-  auto: { id: string; name: string; prompt: string; total_spent: number; budget_limit: number; run_count: number },
+  auto: { id: string; name: string; prompt: string; total_spent: number; budget_limit: number; run_count: number; wallet_address: string },
   sb: ReturnType<typeof getSupabase>
 ) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return;
 
+  // 1. Find orchestrator budget for this user
+  const orchDid = getOrchestratorDid(auto.wallet_address);
+  const budget = await getAgentBudget(orchDid);
+  if (!budget || budget.balance <= 0) {
+    console.log(`[cron] No orchestrator budget for ${auto.name} (wallet: ${auto.wallet_address.slice(0, 8)}...)`);
+    return;
+  }
+
+  // 2. Plan which agent to call
   const agents = listCards();
   const capabilityList = agents.flatMap((a) =>
     a.capabilities.map((c) => ({
@@ -177,7 +205,6 @@ async function runAutomation(
 
   if (capabilityList.length === 0) return;
 
-  // Analyze with Haiku
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic({ apiKey });
 
@@ -203,32 +230,70 @@ async function runAutomation(
   const plan = JSON.parse(jsonMatch[0]) as { agentName: string; capabilityId: string; input: string };
   const match = capabilityList.find((c) => c.capabilityId === plan.capabilityId) || capabilityList[0];
 
-  const estimatedCost = parseFloat(match.price);
-  if (auto.total_spent + estimatedCost > auto.budget_limit) {
-    console.log(`[cron] Budget exceeded for ${auto.name}: spent=${auto.total_spent} + cost=${estimatedCost} (${match.agentName}) > limit=${auto.budget_limit}`);
+  // 3. Calculate total cost (agent fee + orchestration fee)
+  const agentCost = parseFloat(match.price);
+  const totalCost = agentCost + ORCHESTRATION_FEE;
+
+  // 4. Check automation budget limit
+  if (auto.total_spent + totalCost > auto.budget_limit) {
+    console.log(`[cron] Budget limit for ${auto.name}: spent=${auto.total_spent.toFixed(2)} + cost=${totalCost.toFixed(2)} > limit=${auto.budget_limit}`);
     return;
   }
 
-  const result = await executeTask(match.agentEndpoint, match.capabilityId, plan.input, undefined, 500, 60);
+  // 5. Check orchestrator budget has enough
+  if (budget.balance < totalCost) {
+    console.log(`[cron] Orchestrator budget low for ${auto.name}: balance=${budget.balance.toFixed(2)} < cost=${totalCost.toFixed(2)}`);
+    return;
+  }
 
-  const resultId = `ares_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  // 6. Reserve from orchestrator budget
+  const taskId = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    await reserveBudget(orchDid, totalCost, taskId, `automation:${match.agentName}`);
+    console.log(`[cron] Budget reserved for ${auto.name}: ${totalCost.toFixed(2)} USDC`);
+  } catch (err) {
+    console.log(`[cron] Budget reserve failed for ${auto.name}: ${err instanceof Error ? err.message : ""}`);
+    return;
+  }
 
-  await sb.from("automation_results").insert({
-    id: resultId,
-    automation_id: auto.id,
-    agent_name: match.agentName,
-    capability: match.description,
-    input: plan.input,
-    artifact: result.artifact ?? result.error ?? "",
-    estimated_cost: match.price,
-    status: result.status === "COMPLETED" ? "completed" : "failed",
-  });
+  // 7. Execute agent
+  try {
+    const result = await executeTask(match.agentEndpoint, match.capabilityId, plan.input, undefined, 500, 60);
 
-  await sb.from("automations").update({
-    last_run: new Date().toISOString(),
-    total_spent: auto.total_spent + (result.status === "COMPLETED" ? estimatedCost : 0),
-    run_count: auto.run_count + 1,
-  }).eq("id", auto.id);
+    const resultId = `ares_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    await sb.from("automation_results").insert({
+      id: resultId,
+      automation_id: auto.id,
+      agent_name: match.agentName,
+      capability: match.description,
+      input: plan.input,
+      artifact: result.artifact ?? result.error ?? "",
+      estimated_cost: totalCost.toFixed(2),
+      status: result.status === "COMPLETED" ? "completed" : "failed",
+    });
 
-  console.log(`[cron] Completed: ${auto.name} → ${match.agentName}`);
+    if (result.status !== "COMPLETED") {
+      // Refund budget on agent failure
+      await refundBudget(orchDid, totalCost, taskId).catch(() => {});
+      console.log(`[cron] Agent failed, budget refunded for ${auto.name}`);
+    }
+
+    await sb.from("automations").update({
+      last_run: new Date().toISOString(),
+      total_spent: auto.total_spent + (result.status === "COMPLETED" ? totalCost : 0),
+      run_count: auto.run_count + 1,
+    }).eq("id", auto.id);
+
+    console.log(`[cron] Completed: ${auto.name} → ${match.agentName} (${totalCost.toFixed(2)} USDC from budget)`);
+  } catch (err) {
+    // Refund on execution error
+    await refundBudget(orchDid, totalCost, taskId).catch(() => {});
+    throw err;
+  }
+}
+
+/** Helper: get orchestrator DID for a wallet */
+function getOrchestratorDid(walletAddress: string): string {
+  const orchId = getOrchestratorId(walletAddress);
+  return canonicalAgentDid(walletAddress, orchId);
 }
