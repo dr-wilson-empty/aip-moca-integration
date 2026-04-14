@@ -172,12 +172,9 @@ async function executeHostedAgentDirect(
   }
 
   const id = taskId || `ht_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  const { processHostedTask, getHostedTaskResult } = await import("@/app/api/hosted-agent/route");
-  await processHostedTask(id, config, input);
-
-  const result = getHostedTaskResult(id);
-  if (result) return { taskId: id, ...result };
-  return { taskId: id, status: "FAILED", error: "No result from hosted agent" };
+  const { executeHostedAgentDirect } = await import("@/lib/hosted-agent-executor");
+  const result = await executeHostedAgentDirect(config, input);
+  return { taskId: id, ...result };
 }
 
 /**

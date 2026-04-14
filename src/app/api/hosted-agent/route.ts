@@ -28,12 +28,6 @@ function scheduleHostedTaskCleanup(taskId: string): void {
   setTimeout(() => { hostedTasks.delete(taskId); }, HOSTED_TASK_TTL_MS);
 }
 
-/** Get hosted task result (used by direct in-process execution) */
-export function getHostedTaskResult(taskId: string): { status: "COMPLETED" | "FAILED"; artifact?: string; error?: string } | null {
-  const r = hostedTasks.get(taskId);
-  if (!r) return null;
-  return { status: r.status as "COMPLETED" | "FAILED", artifact: r.artifact, error: r.error };
-}
 
 interface JsonRpcRequest {
   jsonrpc: "2.0";
@@ -171,7 +165,7 @@ export async function POST(request: NextRequest) {
 /**
  * Process hosted agent task using the configured AI provider.
  */
-export async function processHostedTask(
+async function processHostedTask(
   taskId: string,
   config: import("@/lib/hosted-agents").HostedAgentConfig,
   input: string
