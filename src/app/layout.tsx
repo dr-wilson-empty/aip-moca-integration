@@ -25,7 +25,7 @@ export default function RootLayout({
         <WalletProvider>
           <WalletSync />
           <Nav />
-          <main className="pt-14" style={{ paddingTop: 64 }}>{children}</main>
+          <main className="pt-14" style={{ paddingTop: 76 }}>{children}</main>
         </WalletProvider>
       </body>
     </html>
