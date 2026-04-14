@@ -98,21 +98,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ jsonrpc: "2.0", error: { code: -32601, message: `Unknown method: ${method}` }, id });
 }
 
-/** Direct in-process web search (bypasses HTTP self-call on serverless) */
-export async function executeWebSearch(
-  input: string,
-  taskId?: string,
-): Promise<{ status: "COMPLETED" | "FAILED"; artifact?: string; error?: string }> {
-  try {
-    const artifact = isProductQuery(input)
-      ? await productSearch(input)
-      : await generalSearch(input);
-    return { status: "COMPLETED", artifact };
-  } catch (err) {
-    return { status: "FAILED", error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
 export async function GET() {
   return NextResponse.json({
     did: "did:aip:platform:web-search",

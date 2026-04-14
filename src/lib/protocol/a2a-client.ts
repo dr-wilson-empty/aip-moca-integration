@@ -198,8 +198,8 @@ export async function executeTask(
 
   // Web agent shortcut — direct function call
   if (endpoint.includes("/api/web/agent")) {
-    const { executeWebSearch } = await import("@/app/api/web/agent/route");
-    const wsResult = await executeWebSearch(input, taskId);
+    const { executeWebSearchDirect } = await import("@/lib/web-search-executor");
+    const wsResult = await executeWebSearchDirect(input);
     return { taskId: taskId || `ws_${Date.now()}`, ...wsResult };
   }
 
