@@ -32,9 +32,36 @@ async function ensureHostedAgentCards(callerWallet?: string) {
   _hostedSynced = true;
 }
 
+/* ── Rate limiter: 5 per minute, 30 per hour per wallet ── */
+const analyzeRateMap = new Map<string, { minute: number[]; hour: number[] }>();
+const RATE_MINUTE = 5;
+const RATE_HOUR = 30;
+
+function checkAnalyzeRate(wallet: string): boolean {
+  const now = Date.now();
+  let entry = analyzeRateMap.get(wallet);
+  if (!entry) { entry = { minute: [], hour: [] }; analyzeRateMap.set(wallet, entry); }
+  entry.minute = entry.minute.filter((t) => now - t < 60_000);
+  entry.hour = entry.hour.filter((t) => now - t < 3_600_000);
+  if (entry.minute.length >= RATE_MINUTE || entry.hour.length >= RATE_HOUR) return false;
+  entry.minute.push(now);
+  entry.hour.push(now);
+  return true;
+}
+
+// Cleanup stale entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  analyzeRateMap.forEach((v, k) => {
+    v.hour = v.hour.filter((t) => now - t < 3_600_000);
+    if (v.hour.length === 0) analyzeRateMap.delete(k);
+  });
+}, 600_000);
+
 /**
  * POST /api/twin/analyze
  * Analyzes user intent — returns single task or multi-step pipeline.
+ * Rate limited: 5/min, 30/hour per wallet.
  *
  * Body: { message: string }
  * Returns: { mode: "single"|"pipeline", steps: [...], explanation, totalCost }
@@ -52,6 +79,12 @@ export async function POST(request: NextRequest) {
 
   const message = body.message as string;
   const walletAddress = body.walletAddress as string | undefined;
+
+  // Rate limit check
+  const rateKey = walletAddress || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (!checkAnalyzeRate(rateKey)) {
+    return NextResponse.json({ error: "Rate limit exceeded. Max 5 requests per minute." }, { status: 429 });
+  }
   const skipOrchestrator = body.skipOrchestrator === true;
 
   await ensureHostedAgentCards(walletAddress);
