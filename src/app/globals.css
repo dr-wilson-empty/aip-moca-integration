@@ -11,12 +11,12 @@
 }
 
 html {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 body {
-  background-color: #010001;
-  color: #E7FFEF;
+  background-color: #e6e5e0;
+  color: #000000;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
@@ -55,10 +55,10 @@ body {
   height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #010001;
+  background: #e6e5e0;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2d5a41;
+  background: #999;
 }
 
 /* Wallet adapter modal — editorial bej theme */

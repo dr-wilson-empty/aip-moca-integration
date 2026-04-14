@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { AgentCard, AgentType } from "@/types/aip";
 
@@ -74,25 +74,15 @@ const TYPE_MAP: Record<
   Execution: { pattern: "yellow", accent: DS.yellow, label: "EXECUTION AGENT" },
 };
 
-/* ─── Capability color palette ─── */
-const CAP_PALETTE: Record<string, { label: string; bg: string; text: string }> = {
-  "web.search":      { label: "WEB",       bg: "#3b6fa0", text: "#fff" },  // steel blue
-  "text.summarize":  { label: "AI",        bg: "#8b5c9e", text: "#fff" },  // muted plum
-  "text.classify":   { label: "CLASSIFY",  bg: "#7b6b8a", text: "#fff" },  // dusty violet
-  "text.translate":  { label: "TRANSLATE", bg: "#4a8c7f", text: "#fff" },  // sage teal
-  "text.write":      { label: "WRITE",     bg: "#6b8e6b", text: "#fff" },  // fern green
-  "code.audit":      { label: "SECURITY",  bg: "#a65d5d", text: "#fff" },  // brick red
-  "code.review":     { label: "CODE",      bg: "#7a7a7a", text: "#fff" },  // slate grey
-  "data.retrieve":   { label: "DATA",      bg: "#c08c4a", text: "#fff" },  // warm amber
-  "data.analyze":    { label: "ANALYTICS", bg: "#b8913a", text: "#fff" },  // deep gold
-  "defi.analyze":    { label: "DEFI",      bg: "#4a7a5e", text: "#fff" },  // forest
-  "trade.execute":   { label: "TRADE",     bg: "#2e6e7a", text: "#fff" },  // dark cyan
-  "document.parse":  { label: "PDF",       bg: "#c27a3a", text: "#fff" },  // burnt orange
+const CAP_MAP: Record<string, string> = {
+  "web.search": "WEB",
+  "document.parse": "PDF",
+  "text.translate": "TRANSLATE",
+  "code.audit": "SECURITY",
+  "defi.analyze": "DEFI",
+  "text.summarize": "AI",
+  "data.retrieve": "DATA",
 };
-
-const CAP_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(CAP_PALETTE).map(([k, v]) => [k, v.label])
-);
 
 /* ─── Helpers ─── */
 function priceDisplay(card: AgentCard): string {
@@ -114,114 +104,16 @@ function shortDid(did: string): string {
   return did;
 }
 
-/* ─── Dither Wave Canvas (from dalga.js) ─── */
-function DitherWave({ color, alive }: { color: string; alive: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef = useRef<number>(0);
-  const timeRef = useRef(Math.random() * 100);
-  const aliveRef = useRef(alive);
-  aliveRef.current = alive;
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const parent = canvas.parentElement;
-    if (!parent) return;
-
-    const bayerMatrix = [
-      [0, 8, 2, 10],
-      [12, 4, 14, 6],
-      [3, 11, 1, 9],
-      [15, 7, 13, 5],
-    ];
-
-    function getThreshold(x: number, y: number) {
-      return bayerMatrix[y % 4][x % 4] / 16 - 0.5;
-    }
-
-    function draw() {
-      const w = parent!.clientWidth;
-      const h = parent!.clientHeight;
-      if (canvas!.width !== w || canvas!.height !== h) {
-        canvas!.width = w;
-        canvas!.height = h;
-      }
-
-      ctx!.fillStyle = DS.dark;
-      ctx!.fillRect(0, 0, w, h);
-
-      const gridSize = 5;
-      const cols = Math.ceil(w / gridSize);
-      const rows = Math.ceil(h / gridSize);
-      const waveCenterY = rows / 2;
-      const waveAmplitude = rows / 3.5;
-      const frequency = 0.08;
-      const speed = 0.015;
-
-      for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-          const wave1 =
-            Math.sin(x * frequency + timeRef.current) * waveAmplitude;
-          const wave2 =
-            Math.cos(x * frequency * 0.5 - timeRef.current) *
-            (waveAmplitude * 0.5);
-          const distFromWave = Math.abs(y - (waveCenterY + wave1 + wave2));
-          let intensity = Math.max(0, 1 - distFromWave / 12);
-          intensity += (Math.random() - 0.5) * 0.08;
-          const threshold = getThreshold(x, y);
-          if (intensity + threshold > 0.5) {
-            ctx!.fillStyle = color;
-            ctx!.fillRect(
-              x * gridSize,
-              y * gridSize,
-              gridSize - 1,
-              gridSize - 1
-            );
-          }
-        }
-      }
-
-      if (aliveRef.current) {
-        timeRef.current += speed;
-        animRef.current = requestAnimationFrame(draw);
-      }
-    }
-
-    draw();
-
-    return () => {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
-    };
-  }, [color, alive]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-      }}
-    />
-  );
-}
-
 /* ─── Status Tag ─── */
-function StatusTag({ label, bg }: { label: string; bg: string }) {
+function StatusTag({ label, color }: { label: string; color: string }) {
   return (
     <span
-      className="mp-white-text"
       style={{
-        fontSize: "0.7rem",
-        padding: "3px 10px",
-        backgroundColor: bg,
+        fontSize: "0.55rem",
+        padding: "2px 6px",
+        border: `1px solid ${color}`,
+        color,
         fontFamily: DS.fontMono,
-        fontWeight: 700,
         textTransform: "uppercase",
         letterSpacing: "0.05em",
         lineHeight: 1,
@@ -252,10 +144,6 @@ function AgentFeatureCard({
   const capLabels = agent.capabilities
     .map((c) => CAP_MAP[c.id])
     .filter(Boolean);
-  const capColors = agent.capabilities
-    .map((c) => CAP_PALETTE[c.id])
-    .filter(Boolean);
-  const agentColor = capColors.length > 0 ? capColors[0].bg : config.accent;
   const priceStr = priceDisplay(agent);
   const priceFontSize = priceStr.includes("—") ? "1.3rem" : "2.2rem";
   const isHosted = agent.endpoint.includes("/api/hosted-agent");
@@ -272,19 +160,15 @@ function AgentFeatureCard({
         cursor: "pointer",
       }}
     >
-      {/* Label Band — agent accent */}
+      {/* Label Band */}
       <div
-        className="mp-label-band"
         style={{
-          padding: "14px 20px",
-          paddingLeft: 16,
+          padding: "12px 20px",
           fontFamily: DS.fontPrimary,
-          fontSize: "0.85rem",
+          fontSize: "0.75rem",
           textTransform: "uppercase",
           letterSpacing: "0.05em",
           borderBottom: `1px solid ${DS.border}`,
-          borderLeft: `4px solid ${agentColor}`,
-          backgroundColor: `color-mix(in srgb, ${agentColor} 15%, ${DS.bg})`,
           color: DS.text,
           display: "flex",
           justifyContent: "space-between",
@@ -292,9 +176,9 @@ function AgentFeatureCard({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontWeight: 600, color: DS.text }}>{config.label}</span>
-          {agent.onChain && <StatusTag label="ON-CHAIN" bg="#7c3aed" />}
-          {isHosted && <StatusTag label="HOSTED" bg="#0e7490" />}
+          <span style={{ fontWeight: 600 }}>{config.label}</span>
+          {agent.onChain && <StatusTag label="ON-CHAIN" color="#7c3aed" />}
+          {isHosted && <StatusTag label="HOSTED" color={DS.cyan} />}
           <span
             style={{
               width: 6,
@@ -306,10 +190,9 @@ function AgentFeatureCard({
                   : DS.error
                 : "#999",
               display: "inline-block",
-              boxShadow: statusKnown && isOnline ? `0 0 4px ${DS.green}` : "none",
             }}
           />
-          <span style={{ fontSize: "0.65rem", fontWeight: 700, color: DS.textMuted, marginLeft: -2 }}>
+          <span style={{ fontSize: "0.55rem", color: DS.textMuted }}>
             {statusKnown ? (isOnline ? "ONLINE" : "OFFLINE") : "..."}
           </span>
         </div>
@@ -317,8 +200,8 @@ function AgentFeatureCard({
           {isNew && (
             <span
               style={{
-                fontSize: "0.65rem",
-                padding: "3px 10px",
+                fontSize: "0.55rem",
+                padding: "2px 8px",
                 backgroundColor: DS.green,
                 color: DS.text,
                 fontWeight: 700,
@@ -331,8 +214,8 @@ function AgentFeatureCard({
           {isTrending && (
             <span
               style={{
-                fontSize: "0.65rem",
-                padding: "3px 10px",
+                fontSize: "0.55rem",
+                padding: "2px 8px",
                 backgroundColor: DS.yellow,
                 color: DS.text,
                 fontWeight: 700,
@@ -391,8 +274,8 @@ function AgentFeatureCard({
       >
         <div
           style={{
-            fontSize: "1.05rem",
-            lineHeight: 1.45,
+            fontSize: "0.85rem",
+            lineHeight: 1.4,
             color: DS.text,
             fontFamily: DS.fontPrimary,
           }}
@@ -403,48 +286,32 @@ function AgentFeatureCard({
               {i < agent.capabilities.length - 1 ? ". " : "."}
             </span>
           ))}
-          <p
-            style={{
-              fontSize: "0.85rem",
-              color: DS.textMuted,
-              marginTop: 8,
-              fontStyle: "italic",
-              lineHeight: 1.3,
-            }}
-          >
-            {agent.type === "Execution"
-              ? `Autonomous execution agent with ${agent.capabilities.length} on-chain ${agent.capabilities.length > 1 ? "capabilities" : "capability"}.`
-              : agent.type === "LLM"
-              ? `AI-powered language agent offering ${agent.capabilities.length} intelligent ${agent.capabilities.length > 1 ? "services" : "service"}.`
-              : `Task-based agent providing ${agent.capabilities.length} specialized ${agent.capabilities.length > 1 ? "operations" : "operation"} on Solana.`}
-          </p>
         </div>
         <div
           style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            alignContent: "flex-start",
+            fontSize: "0.75rem",
+            lineHeight: 1.3,
+            textTransform: "uppercase",
+            fontWeight: 600,
+            color: DS.text,
+            fontFamily: DS.fontPrimary,
           }}
         >
-          {capColors.map((cap, i) => (
-            <span
-              key={i}
-              className="mp-white-text"
-              style={{
-                fontSize: "0.7rem",
-                fontFamily: DS.fontMono,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                padding: "4px 10px",
-                backgroundColor: cap.bg,
-                lineHeight: 1,
-              }}
-            >
-              {cap.label}
-            </span>
-          ))}
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {capLabels.map((label, i) => (
+              <li
+                key={i}
+                style={{
+                  position: "relative",
+                  paddingLeft: 10,
+                  marginBottom: 4,
+                }}
+              >
+                <span style={{ position: "absolute", left: 0 }}>•</span>
+                {label}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
@@ -457,9 +324,12 @@ function AgentFeatureCard({
             backgroundColor: DS.dark,
             position: "relative",
             overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <DitherWave color={agentColor} alive={isOnline} />
+          <div style={PATTERNS[config.pattern] || PATTERNS.white} />
         </div>
         <div
           style={{ width: "50%", display: "flex", flexDirection: "column" }}
@@ -474,16 +344,16 @@ function AgentFeatureCard({
               alignItems: "center",
               padding: 10,
               borderBottom: `1px solid ${DS.border}`,
-              backgroundColor: agentColor,
+              backgroundColor: config.accent,
             }}
           >
             <div>
               <span
-                className="mp-white-text"
                 style={{
                   fontSize: priceFontSize,
                   fontWeight: 400,
                   lineHeight: 0.9,
+                  color: DS.text,
                   fontFamily: DS.fontPrimary,
                 }}
               >
@@ -491,7 +361,6 @@ function AgentFeatureCard({
               </span>
             </div>
             <span
-              className="mp-white-text"
               style={{
                 fontFamily: DS.fontPrimary,
                 fontSize: "0.65rem",
@@ -499,123 +368,91 @@ function AgentFeatureCard({
                 letterSpacing: "0.05em",
                 marginTop: 4,
                 fontWeight: 600,
-                opacity: 0.85,
+                color: DS.text,
               }}
             >
-              USDC / TASK
+              USDC
             </span>
           </div>
-          {/* Rating + Capabilities */}
+          {/* Rating / Capabilities */}
           <div
             style={{
               height: "50%",
               display: "flex",
-              flexDirection: "row",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              padding: 10,
               backgroundColor: DS.white,
             }}
           >
-            {/* Rating half */}
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                padding: 8,
-                borderRight: `1px solid ${DS.border}`,
-              }}
-            >
-              {(agent.ratingCount ?? 0) > 0 ? (
-                <>
-                  <div>
-                    <span
-                      style={{
-                        fontSize: "1.8rem",
-                        fontWeight: 400,
-                        lineHeight: 1,
-                        color: DS.text,
-                        fontFamily: DS.fontPrimary,
-                        verticalAlign: "middle",
-                      }}
-                    >
-                      {agent.avgRating!.toFixed(1)}
-                    </span>
-                    <span style={{ fontSize: "0.8rem", marginLeft: 2, color: DS.text, verticalAlign: "middle" }}>★</span>
-                  </div>
+            {(agent.ratingCount ?? 0) > 0 ? (
+              <>
+                <div>
                   <span
                     style={{
+                      fontSize: "2.8rem",
+                      fontWeight: 400,
+                      lineHeight: 0.9,
+                      color: DS.text,
                       fontFamily: DS.fontPrimary,
-                      fontSize: "0.55rem",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginTop: 4,
-                      fontWeight: 600,
-                      color: DS.textMuted,
                     }}
                   >
-                    {agent.ratingCount} RATINGS
+                    {agent.avgRating!.toFixed(1)}
                   </span>
-                </>
-              ) : (
-                <>
-                  <span style={{ fontSize: "0.7rem", color: DS.textMuted }}>★</span>
                   <span
                     style={{
-                      fontFamily: DS.fontPrimary,
-                      fontSize: "0.5rem",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginTop: 4,
-                      fontWeight: 600,
-                      color: DS.textMuted,
-                      textAlign: "center",
-                      lineHeight: 1.3,
+                      fontSize: "1rem",
+                      verticalAlign: "super",
+                      marginLeft: 2,
+                      color: DS.text,
+                    }}
+                  >
+                    ★
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontFamily: DS.fontPrimary,
+                    fontSize: "0.65rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginTop: 4,
+                    fontWeight: 600,
+                    color: DS.text,
                   }}
                 >
-                  BE FIRST
-                  <br />
-                  TO RATE
+                  {agent.ratingCount} RATINGS
+                </span>
+              </>
+            ) : (
+              <>
+                <span
+                  style={{
+                    fontFamily: DS.fontPrimary,
+                    fontSize: "2.8rem",
+                    fontWeight: 400,
+                    lineHeight: 0.9,
+                    color: DS.text,
+                  }}
+                >
+                  {agent.capabilities.length}
+                </span>
+                <span
+                  style={{
+                    fontFamily: DS.fontPrimary,
+                    fontSize: "0.65rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginTop: 4,
+                    fontWeight: 600,
+                    color: DS.text,
+                  }}
+                >
+                  CAPABILITIES
                 </span>
               </>
             )}
-            </div>
-            {/* Capabilities half */}
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                padding: 8,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "1.8rem",
-                  fontWeight: 400,
-                  lineHeight: 0.9,
-                  color: DS.text,
-                  fontFamily: DS.fontPrimary,
-                }}
-              >
-                {agent.capabilities.length}
-              </span>
-              <span
-                style={{
-                  fontFamily: DS.fontPrimary,
-                  fontSize: "0.55rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  marginTop: 4,
-                  fontWeight: 600,
-                  color: DS.textMuted,
-                }}
-              >
-                {agent.capabilities.length > 1 ? "CAPABILITIES" : "CAPABILITY"}
-              </span>
-            </div>
           </div>
         </div>
       </div>
@@ -638,9 +475,6 @@ export default function MarketplacePage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterBadge, setFilterBadge] = useState<string>("all");
   const [sort, setSort] = useState<SortKey>("name");
-  const [now, setNow] = useState(0);
-
-  useEffect(() => { setNow(Date.now()); }, []);
 
   /* Override page + nav to match design.js theme */
   useEffect(() => {
@@ -654,7 +488,7 @@ export default function MarketplacePage() {
       /* ── Navbar override ── */
       nav[aria-label="Main navigation"] {
         background-color: ${DS.bg} !important;
-        
+        border-bottom: 1px solid ${DS.border} !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
       }
@@ -687,20 +521,6 @@ export default function MarketplacePage() {
       .mp-btn:hover { background-color: ${DS.bgHover} !important; }
       .mp-cat-btn { transition: background-color 0.15s ease; }
       .mp-cat-btn:hover { background-color: ${DS.bgHover} !important; }
-      .mp-hero-header::after {
-        content: "MARKETPLACE";
-        position: absolute;
-        bottom: -15px;
-        right: -10px;
-        font-size: 12rem;
-        color: #d5d0c8;
-        font-weight: 700;
-        pointer-events: none;
-        line-height: 0.8;
-        z-index: 0;
-        letter-spacing: -0.05em;
-        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-      }
       .mp-loading-pulse { animation: mp-pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
       @keyframes mp-pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
 
@@ -709,7 +529,7 @@ export default function MarketplacePage() {
         .mp-grid { grid-template-columns: 1fr !important; }
         .mp-content-band { grid-template-columns: 1fr !important; }
         .mp-structural-band { flex-direction: column !important; }
-        .mp-structural-band > div { border-right: none !important;  }
+        .mp-structural-band > div { border-right: none !important; border-bottom: 1px solid ${DS.border} !important; }
         .mp-stats-band { flex-wrap: wrap !important; }
         .mp-stats-band > div { flex: 1 1 45% !important; }
         .mp-module-title { font-size: 2.5rem !important; }
@@ -720,11 +540,12 @@ export default function MarketplacePage() {
         .mp-stats-band > div { flex: 1 1 100% !important; }
       }
 
-      /* ── Force #000 on ALL marketplace text ── */
-      main.pt-14 * { color: #000000 !important; }
-      main.pt-14 input::placeholder { color: #555555 !important; }
-      /* white text exceptions */
-      main.pt-14 .mp-white-text { color: #ffffff !important; }
+      /* ── Force black text on all marketplace content ── */
+      main.pt-14 * { color: ${DS.text}; }
+      main.pt-14 select, main.pt-14 option { color: ${DS.text} !important; background-color: ${DS.bg} !important; }
+      main.pt-14 input { color: ${DS.text} !important; }
+      main.pt-14 input::placeholder { color: ${DS.textMuted} !important; }
+      main.pt-14 button { color: ${DS.text} !important; }
 
       /* ── Scrollbar for this page ── */
       ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
@@ -826,10 +647,9 @@ export default function MarketplacePage() {
   /* Shared styles */
   const bandItem: React.CSSProperties = {
     flex: 1,
-    padding: "12px 30px",
+    padding: "10px 30px",
     fontFamily: DS.fontMono,
-    fontSize: "0.8rem",
-    fontWeight: 700,
+    fontSize: "0.65rem",
     textTransform: "uppercase",
     letterSpacing: "0.1em",
     borderRight: `1px solid ${DS.border}`,
@@ -841,8 +661,7 @@ export default function MarketplacePage() {
   const selectStyle: React.CSSProperties = {
     width: "100%",
     fontFamily: DS.fontMono,
-    fontSize: "0.7rem",
-    fontWeight: 700,
+    fontSize: "0.65rem",
     textTransform: "uppercase",
     letterSpacing: "0.1em",
     backgroundColor: "transparent",
@@ -860,40 +679,48 @@ export default function MarketplacePage() {
         width: "100%",
         maxWidth: 1920,
         margin: "0 auto",
-        padding: "0 0 40px",
+        padding: "0 40px 40px",
         fontFamily: DS.fontPrimary,
         WebkitFontSmoothing: "antialiased",
       }}
     >
-      {/* Header — hero.js style */}
+      {/* Header */}
       <header
-        className="mp-hero-header"
         style={{
-          padding: "30px 40px 0",
+          padding: "40px 0",
           borderBottom: `1px solid ${DS.border}`,
-          position: "relative",
-          overflow: "hidden",
         }}
       >
         <h2
           className="mp-module-title"
           style={{
-            position: "relative",
-            zIndex: 1,
-            fontSize: "8rem",
-            fontWeight: 300,
-            lineHeight: 0.85,
+            fontSize: "4rem",
+            fontWeight: 400,
+            lineHeight: 0.95,
             textTransform: "uppercase",
-            letterSpacing: "-0.03em",
+            letterSpacing: "-0.02em",
+            maxWidth: 800,
             color: DS.text,
             fontFamily: DS.fontPrimary,
-            textShadow: "3px 3px 0px #d5d0c8",
-            margin: 0,
-            marginBottom: -6,
           }}
         >
           Agent
+          <br />
+          Marketplace
         </h2>
+        <p
+          style={{
+            fontFamily: DS.fontMono,
+            fontSize: "0.7rem",
+            textTransform: "uppercase",
+            letterSpacing: "0.1em",
+            color: DS.textMuted,
+            marginTop: 16,
+          }}
+        >
+          All agents registered on Solana / Select to view details, rate, and
+          start a task
+        </p>
       </header>
 
       {/* Categories Band */}
@@ -913,10 +740,9 @@ export default function MarketplacePage() {
               className="mp-cat-btn"
               style={{
                 flex: "1 1 auto",
-                padding: "12px 20px",
+                padding: "10px 20px",
                 fontFamily: DS.fontMono,
-                fontSize: "0.8rem",
-                fontWeight: 700,
+                fontSize: "0.65rem",
                 textTransform: "uppercase",
                 letterSpacing: "0.1em",
                 backgroundColor: "transparent",
@@ -971,8 +797,7 @@ export default function MarketplacePage() {
             style={{
               width: "100%",
               fontFamily: DS.fontMono,
-              fontSize: "0.8rem",
-              fontWeight: 700,
+              fontSize: "0.65rem",
               textTransform: "uppercase",
               letterSpacing: "0.1em",
               backgroundColor: "transparent",
@@ -1184,8 +1009,8 @@ export default function MarketplacePage() {
               key={agent.did}
               agent={agent}
               isNew={
-                !!agent.registeredAt && now > 0 &&
-                now / 1000 - agent.registeredAt < 604800
+                !!agent.registeredAt &&
+                Date.now() / 1000 - agent.registeredAt < 604800
               }
               isTrending={topAgentDids.has(agent.did)}
               isOnline={agentStatus.get(agent.did) === true}
@@ -1195,9 +1020,6 @@ export default function MarketplacePage() {
               }
             />
           ))}
-          {filtered.length % 2 !== 0 && (
-            <div style={{ backgroundColor: DS.bg, minHeight: 200 }} />
-          )}
         </section>
       )}
     </div>

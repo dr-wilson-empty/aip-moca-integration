@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-bg-base text-mint font-mono min-h-screen" suppressHydrationWarning>
+      <body className="font-mono min-h-screen" style={{ backgroundColor: "#e6e5e0", color: "#000000" }} suppressHydrationWarning>
         <WalletProvider>
           <WalletSync />
           <Nav />
