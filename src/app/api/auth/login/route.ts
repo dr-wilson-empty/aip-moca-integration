@@ -32,18 +32,14 @@ export async function POST(request: NextRequest) {
 
   if (!password || password !== SITE_PASSWORD) {
     // Wrong password — redirect back with error
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    url.searchParams.set("auth", "failed");
-    return NextResponse.redirect(url);
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    return NextResponse.redirect(`${baseUrl}/?auth=failed`);
   }
 
   // Correct — set auth cookie and redirect to home
   const hash = md5(SITE_PASSWORD);
-  const url = request.nextUrl.clone();
-  url.pathname = "/";
-  url.searchParams.delete("auth");
-  const response = NextResponse.redirect(url);
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+  const response = NextResponse.redirect(baseUrl);
   response.cookies.set(AUTH_COOKIE, hash, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
