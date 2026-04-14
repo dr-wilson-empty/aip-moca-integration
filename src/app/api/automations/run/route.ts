@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Reset budget if period has elapsed
-  const periodMs = auto.budget_period === "weekly" ? 604_800_000 : 86_400_000;
+  const periodMs = auto.budget_period === "weekly" ? 604_800_000 : auto.budget_period === "monthly" ? 2_592_000_000 : 86_400_000;
   const lastRun = auto.last_run ? new Date(auto.last_run).getTime() : 0;
   if (Date.now() - lastRun > periodMs && auto.total_spent > 0) {
     auto.total_spent = 0;

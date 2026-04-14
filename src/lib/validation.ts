@@ -58,7 +58,7 @@ export const automationSchema = z.object({
   walletAddress: z.string().min(32),
   name: z.string().min(1).max(100),
   prompt: z.string().min(1).max(1000),
-  schedule: z.enum(["1min", "5min", "hourly", "daily", "weekly"]).optional(),
+  schedule: z.enum(["2min", "5min", "hourly", "daily", "weekly"]).optional(),
   budgetLimit: z.number().positive().max(1000).optional(),
   budgetPeriod: z.enum(["daily", "weekly", "monthly"]).optional(),
 });

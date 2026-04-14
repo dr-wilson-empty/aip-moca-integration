@@ -12,7 +12,7 @@ import { processOnchainAutomations } from "./trigger/onchain-listener";
 import { getExpiredEscrows, refundEscrow } from "./payment/escrow";
 
 const SCHEDULE_MS: Record<string, number> = {
-  "1min": 60_000,
+  "2min": 120_000,
   "5min": 300_000,
   "hourly": 3_600_000,
   "daily": 86_400_000,
@@ -49,7 +49,7 @@ export function startScheduler() {
 
       // Reset budget for automations whose budget_period has elapsed
       for (const auto of automations) {
-        const periodMs = auto.budget_period === "weekly" ? 604_800_000 : 86_400_000;
+        const periodMs = auto.budget_period === "weekly" ? 604_800_000 : auto.budget_period === "monthly" ? 2_592_000_000 : 86_400_000;
         const lastRun = auto.last_run ? new Date(auto.last_run).getTime() : 0;
         const periodStart = now - periodMs;
         if (lastRun < periodStart && auto.total_spent > 0) {

@@ -139,6 +139,8 @@ export default function TwinPage() {
       main.pt-14 select, main.pt-14 option { color: #000 !important; background-color: ${DS.bg} !important; }
       ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
       ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
+      .auto-tip-wrap:hover .auto-tip { opacity: 1 !important; }
+      .auto-tip * , .auto-tip { color: #e6e5e0 !important; }
       .ds-hero-header::after {
         content: "DIGITAL TWIN";
         position: absolute;
@@ -563,11 +565,14 @@ export default function TwinPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, position: "relative", zIndex: 2, marginBottom: 12 }}>
           {/* Autonomous toggle */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", position: "relative" }} title="ON: Orchestrator Agent plans and executes tasks autonomously using your budget. No wallet signing needed.&#10;OFF: You approve each step manually and pay from your wallet.">
+          <label className="auto-tip-wrap" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", position: "relative" }}>
             <span style={{ ...bandLabel, color: DS.textMuted, fontSize: "0.8rem" }}>AUTONOMOUS</span>
             <button onClick={() => setAutonomousMode(!autonomousMode)} style={{ position: "relative", width: 36, height: 20, borderRadius: 10, backgroundColor: autonomousMode ? DS.green : "#bbb", border: "none", cursor: "pointer", transition: "background-color 0.2s" }}>
               <span style={{ position: "absolute", top: 2, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#fff", transition: "left 0.2s", left: autonomousMode ? 18 : 2 }} />
             </button>
+            <div className="auto-tip" style={{ position: "absolute", top: "100%", left: 0, marginTop: 6, padding: "10px 14px", backgroundColor: DS.dark, color: DS.bg, fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, lineHeight: 1.6, whiteSpace: "pre-line", zIndex: 100, minWidth: 280, pointerEvents: "none", opacity: 0, transition: "opacity 0.15s" }}>
+              {"ON — Orchestrator Agent plans and executes\ntasks using your budget. No wallet signing.\n\nOFF — You approve each step manually\nand pay from your wallet."}
+            </div>
           </label>
           {messages.length > 0 && !isProcessing && (
             <button onClick={() => clearMessages()} style={{ ...bandLabel, color: DS.error, fontSize: "0.8rem", background: "none", border: "none", cursor: "pointer" }} className="ds-error-text">
