@@ -262,7 +262,7 @@ export default function AutomationsPage() {
               </span>
               {triggerType === "schedule" ? (
                 <select value={schedule} onChange={(e) => setSchedule(e.target.value)} style={selectStyle}>
-                  <option value="2min">EVERY 2 MIN</option>
+                  <option value="2min">EVERY 3 MIN</option>
                   <option value="5min">EVERY 5 MIN</option>
                   <option value="hourly">HOURLY</option>
                   <option value="daily">DAILY</option>

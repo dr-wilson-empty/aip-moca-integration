@@ -61,6 +61,7 @@ export default function TwinPage() {
   const [activeMsgId, setActiveMsgId] = useState<string | null>(null);
   const [activeStepIdx, setActiveStepIdx] = useState<number>(-1);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [showAutoTip, setShowAutoTip] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreScrollRef = useRef<{ height: number; pending: boolean }>({ height: 0, pending: false });
@@ -564,19 +565,14 @@ export default function TwinPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 16, position: "relative", zIndex: 2, marginBottom: 12 }}>
           {/* Autonomous toggle */}
           <label
-            style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", position: "relative" }}
-            onMouseEnter={(e) => { const tip = e.currentTarget.querySelector("[data-tip]") as HTMLElement; if (tip) tip.style.opacity = "1"; }}
-            onMouseLeave={(e) => { const tip = e.currentTarget.querySelector("[data-tip]") as HTMLElement; if (tip) tip.style.opacity = "0"; }}
+            style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+            onMouseEnter={() => setShowAutoTip(true)}
+            onMouseLeave={() => setShowAutoTip(false)}
           >
             <span style={{ ...bandLabel, color: DS.textMuted, fontSize: "0.8rem" }}>AUTONOMOUS</span>
             <button onClick={() => setAutonomousMode(!autonomousMode)} style={{ position: "relative", width: 36, height: 20, borderRadius: 10, backgroundColor: autonomousMode ? DS.green : "#bbb", border: "none", cursor: "pointer", transition: "background-color 0.2s" }}>
               <span style={{ position: "absolute", top: 2, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#fff", transition: "left 0.2s", left: autonomousMode ? 18 : 2 }} />
             </button>
-            <div data-tip style={{ position: "absolute", top: "100%", left: 0, marginTop: 6, padding: "10px 14px", backgroundColor: "#222", zIndex: 100, minWidth: 280, pointerEvents: "none", opacity: 0, transition: "opacity 0.15s" }}>
-              <span style={{ color: "#e6e5e0", fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, lineHeight: 1.6, whiteSpace: "pre-line" }}>
-                {"ON — Orchestrator Agent plans and executes\ntasks using your budget. No wallet signing.\n\nOFF — You approve each step manually\nand pay from your wallet."}
-              </span>
-            </div>
           </label>
           {messages.length > 0 && !isProcessing && (
             <button onClick={() => clearMessages()} style={{ ...bandLabel, color: DS.error, fontSize: "0.8rem", background: "none", border: "none", cursor: "pointer" }} className="ds-error-text">
@@ -585,6 +581,21 @@ export default function TwinPage() {
           )}
         </div>
       </header>
+
+      {/* Autonomous tooltip — rendered outside header to avoid overflow:hidden clipping */}
+      {showAutoTip && (
+        <div style={{ position: "relative", zIndex: 50 }}>
+          <div style={{ position: "absolute", top: 0, right: 40, padding: "12px 16px", backgroundColor: DS.bg, border: `1px solid ${DS.border}` }}>
+            <span style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: DS.text, lineHeight: 1.7, display: "block" }}>
+              ON — Orchestrator Agent plans<br />and executes tasks using your budget.<br />No wallet signing.
+            </span>
+            <span style={{ display: "block", width: "100%", height: 1, backgroundColor: DS.border, opacity: 0.15, margin: "8px 0" }} />
+            <span style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: DS.textMuted, lineHeight: 1.7, display: "block" }}>
+              OFF — You approve each step manually<br />and pay from your wallet.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ═══ Messages ═══ */}
       <div ref={scrollRef} role="log" aria-label="Chat messages" aria-live="polite" style={{ flex: 1, overflowY: "auto", padding: "20px 30px", display: "flex", flexDirection: "column", gap: 16 }}>

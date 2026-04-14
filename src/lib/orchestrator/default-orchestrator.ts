@@ -40,8 +40,8 @@ const SYSTEM_PROMPT =
 const DEFAULT_CAPABILITIES: HostedAgentConfig["capabilities"] = [
   {
     id: "orchestrate.task",
-    description: "Plan and execute multi-agent tasks autonomously",
-    pricing: { amount: "0.00", token: "USDC", network: "solana" },
+    description: "Autonomous orchestration — 0.05 USDC per agent step",
+    pricing: { amount: "0.05", token: "USDC", network: "solana" },
   },
 ];
 
