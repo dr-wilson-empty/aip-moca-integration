@@ -553,7 +553,7 @@ export default function TwinPage() {
   const btnOutline: React.CSSProperties = { ...btnDark, backgroundColor: "transparent", border: `1px solid ${DS.border}`, color: DS.text };
 
   return (
-    <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", display: "flex", flexDirection: "column", height: "calc(100dvh / 0.9 - 76px)", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
+    <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", display: "flex", flexDirection: "column", height: "calc(100dvh / 0.9 - 63px)", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
 
       {/* ═══ Header ═══ */}
       <header className="ds-hero-header" style={{ padding: "30px 40px 0", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-end", position: "relative", overflow: "hidden" }}>
