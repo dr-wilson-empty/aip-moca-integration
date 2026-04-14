@@ -26,18 +26,48 @@ interface Chain {
   finalArtifact?: string;
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  completed: "text-accent border-accent/30 bg-accent/10",
-  failed: "text-red-400 border-red-800/30 bg-red-900/10",
-  executing: "text-blue-400 border-blue-800/30 bg-blue-900/10",
-  pending: "text-muted border-forest-deep/30 bg-forest-deep/10",
+const DS = {
+  bg: "#e6e5e0",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  dark: "#222222",
+  green: "#7cb342",
+  error: "#c62828",
+  cyan: "#4dd0e1",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
+
+const STATUS_BG: Record<string, { bg: string; text: string }> = {
+  completed: { bg: DS.green, text: "#fff" },
+  failed: { bg: DS.error, text: "#fff" },
+  executing: { bg: "#3b6fa0", text: "#fff" },
+  pending: { bg: "#bbb", text: DS.dark },
 };
 
 function StepDot({ status }: { status: string }) {
-  if (status === "completed") return <span className="w-3 h-3 rounded-full bg-accent shrink-0" />;
-  if (status === "executing") return <span className="w-3 h-3 rounded-full border-2 border-blue-400 border-t-transparent animate-spin shrink-0" />;
-  if (status === "failed") return <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />;
-  return <span className="w-3 h-3 rounded-full border border-forest-deep shrink-0" />;
+  const s: React.CSSProperties = {
+    width: 10,
+    height: 10,
+    borderRadius: "50%",
+    flexShrink: 0,
+  };
+  if (status === "completed") return <span style={{ ...s, backgroundColor: DS.green }} />;
+  if (status === "executing")
+    return (
+      <span
+        style={{
+          ...s,
+          border: `2px solid #3b6fa0`,
+          borderTopColor: "transparent",
+          animation: "spin 1s linear infinite",
+          backgroundColor: "transparent",
+        }}
+      />
+    );
+  if (status === "failed") return <span style={{ ...s, backgroundColor: DS.error }} />;
+  return <span style={{ ...s, border: `1px solid #bbb`, backgroundColor: "transparent" }} />;
 }
 
 export default function ChainHistory() {
@@ -59,89 +89,155 @@ export default function ChainHistory() {
   const toggle = (id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
   if (!address) return null;
 
+  const bandLabel: React.CSSProperties = {
+    fontFamily: DS.fontMono,
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.1em",
+  };
+
   return (
-    <div className="border border-forest-deep/40 rounded-xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display text-sm text-mint uppercase tracking-wider">Pipeline History</h3>
-        <span className="font-mono text-[10px] text-muted">{chains.length} pipelines</span>
+    <div>
+      {/* Header */}
+      <div
+        style={{
+          padding: "12px 30px",
+          borderBottom: `1px solid ${DS.border}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span style={{ ...bandLabel, color: DS.textMuted }}>PIPELINE HISTORY</span>
+        <span style={{ ...bandLabel, color: DS.textMuted, fontWeight: 400 }}>
+          {chains.length} PIPELINES
+        </span>
       </div>
 
       {loading ? (
-        <p className="font-mono text-xs text-muted animate-pulse py-4 text-center">Loading...</p>
+        <div style={{ padding: "40px 30px", textAlign: "center" }}>
+          <p style={{ ...bandLabel, color: DS.textMuted }}>LOADING...</p>
+        </div>
       ) : chains.length === 0 ? (
-        <p className="font-mono text-xs text-muted py-4 text-center">No pipelines yet. Run one from Twin.</p>
+        <div style={{ padding: "40px 30px", textAlign: "center" }}>
+          <p style={{ ...bandLabel, color: DS.textMuted, fontWeight: 400 }}>
+            No pipelines yet. Run one from Twin.
+          </p>
+        </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {chains.map((chain) => (
-            <div key={chain.id} className="border border-forest-deep/30 rounded-lg overflow-hidden">
-              {/* Chain header */}
-              <button
-                onClick={() => toggle(chain.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-forest-deep/20 transition-colors"
-              >
-                <span className={`font-mono text-[9px] uppercase px-2 py-0.5 border rounded ${STATUS_STYLES[chain.status] || STATUS_STYLES.pending}`}>
-                  {chain.status}
-                </span>
-                <span className="font-mono text-xs text-off-white flex-1 text-left">
-                  {chain.steps.length} steps
-                </span>
-                <span className="font-mono text-xs text-accent">
-                  {chain.totalSpent !== "0.00" ? chain.totalSpent : chain.totalCost} USDC
-                </span>
-                <span className="font-mono text-[10px] text-muted">
-                  {new Date(chain.createdAt).toLocaleTimeString()}
-                </span>
-                <span className="font-mono text-[10px] text-muted">
-                  {expanded.has(chain.id) ? "▾" : "▸"}
-                </span>
-              </button>
+        <div>
+          {chains.map((chain) => {
+            const st = STATUS_BG[chain.status] || STATUS_BG.pending;
+            return (
+              <div key={chain.id} style={{ borderBottom: `1px solid ${DS.border}` }}>
+                {/* Chain row */}
+                <button
+                  onClick={() => toggle(chain.id)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 16,
+                    padding: "10px 30px",
+                    backgroundColor: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: DS.fontMono,
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    textAlign: "left",
+                    color: DS.text,
+                  }}
+                >
+                  <span
+                    className="mp-white-text"
+                    style={{
+                      fontSize: "0.7rem",
+                      padding: "3px 10px",
+                      backgroundColor: st.bg,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {chain.status}
+                  </span>
+                  <span style={{ flex: 1 }}>{chain.steps.length} STEPS</span>
+                  <span>{chain.totalSpent !== "0.00" ? chain.totalSpent : chain.totalCost} USDC</span>
+                  <span style={{ color: DS.textMuted, fontWeight: 400 }}>
+                    {new Date(chain.createdAt).toLocaleTimeString()}
+                  </span>
+                  <span style={{ color: DS.textMuted }}>
+                    {expanded.has(chain.id) ? "—" : "+"}
+                  </span>
+                </button>
 
-              {/* Expanded steps */}
-              {expanded.has(chain.id) && (
-                <div className="px-4 pb-3 border-t border-forest-deep/20">
-                  <div className="flex flex-col gap-1.5 mt-2">
+                {/* Expanded */}
+                {expanded.has(chain.id) && (
+                  <div style={{ padding: "0 30px 16px", borderTop: `1px solid #ccc` }}>
                     {chain.steps.map((step, i) => (
-                      <div key={i} className="flex items-center gap-3 py-1">
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: "6px 0",
+                          fontFamily: DS.fontMono,
+                          fontSize: "0.7rem",
+                        }}
+                      >
                         <StepDot status={step.status} />
-                        <span className="font-mono text-[11px] text-muted w-4">{i + 1}.</span>
-                        <span className="font-mono text-[11px] text-off-white flex-1">
-                          {step.agentName}
-                        </span>
-                        <span className="font-mono text-[10px] text-muted">
-                          {step.capabilityId}
-                        </span>
-                        <span className="font-mono text-[10px] text-accent">
-                          {step.estimatedCost} USDC
-                        </span>
+                        <span style={{ color: DS.textMuted, width: 16 }}>{i + 1}.</span>
+                        <span style={{ flex: 1, fontWeight: 700 }}>{step.agentName}</span>
+                        <span style={{ color: DS.textMuted }}>{step.capabilityId}</span>
+                        <span style={{ fontWeight: 700 }}>{step.estimatedCost} USDC</span>
                       </div>
                     ))}
-                  </div>
-
-                  {/* Chain footer */}
-                  <div className="flex items-center gap-4 mt-3 pt-2 border-t border-forest-deep/15">
-                    <span className="font-mono text-[10px] text-muted">
-                      ID: {chain.id}
-                    </span>
-                    {chain.completedAt && (
-                      <span className="font-mono text-[10px] text-muted">
-                        Duration: {((new Date(chain.completedAt).getTime() - new Date(chain.createdAt).getTime()) / 1000).toFixed(1)}s
+                    {/* Chain footer */}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 16,
+                        marginTop: 10,
+                        paddingTop: 8,
+                        borderTop: `1px solid #ccc`,
+                        fontFamily: DS.fontMono,
+                        fontSize: "0.75rem",
+                        color: DS.textMuted,
+                      }}
+                    >
+                      <span>ID: {chain.id}</span>
+                      {chain.completedAt && (
+                        <span>
+                          DURATION:{" "}
+                          {(
+                            (new Date(chain.completedAt).getTime() -
+                              new Date(chain.createdAt).getTime()) /
+                            1000
+                          ).toFixed(1)}
+                          s
+                        </span>
+                      )}
+                      <span style={{ marginLeft: "auto", fontWeight: 700 }}>
+                        TOTAL: {chain.totalSpent} USDC
                       </span>
-                    )}
-                    <span className="font-mono text-[10px] text-accent ml-auto">
-                      Total: {chain.totalSpent} USDC
-                    </span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

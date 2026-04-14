@@ -10,9 +10,11 @@ import { executeTask } from "@/lib/protocol/a2a-client";
 import {
   verifyWebhookSignature,
   checkRateLimit,
-  checkBudget,
 } from "@/lib/trigger/webhook";
 import { logger } from "@/lib/logger";
+import { reserveBudget, refundBudget, getAgentBudget } from "@/lib/payment/agent-budget";
+import { getOrchestratorId } from "@/lib/orchestrator/default-orchestrator";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 
 seedDemoAgents();
 
@@ -84,7 +86,17 @@ export async function POST(
 
   logger.info("webhook", "triggered", { automationId, name: auto.name });
 
-  // 5. Parse webhook payload for context
+  // 5. Budget check BEFORE Claude call — don't waste API credits on broke accounts
+  const orchId = getOrchestratorId(auto.wallet_address);
+  const orchDid = canonicalAgentDid(auto.wallet_address, orchId);
+  const budget = await getAgentBudget(orchDid);
+  if (!budget || budget.balance <= 0) {
+    await dbUpdateAutomation(automationId, { enabled: false });
+    logger.info("webhook", "no_budget_disabled", { automationId });
+    return NextResponse.json({ error: "No orchestrator budget. Automation disabled." }, { status: 402 });
+  }
+
+  // 6. Parse webhook payload for context
   let webhookData = "";
   try {
     const parsed = JSON.parse(rawBody);
@@ -95,7 +107,9 @@ export async function POST(
     webhookData = rawBody.slice(0, 1000); // Use raw body as context if not JSON
   }
 
-  // 6. Analyze intent with Haiku (same logic as automations/run)
+  const ORCHESTRATION_FEE = 0.05;
+
+  // 7. Analyze intent with Haiku
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
@@ -156,17 +170,30 @@ export async function POST(
     return NextResponse.json({ error: "No matching capability" }, { status: 404 });
   }
 
-  // 7. Budget check
-  const estimatedCost = parseFloat(match.price);
-  const budgetCheck = checkBudget(auto, estimatedCost);
-  if (!budgetCheck.allowed) {
-    // Auto-disable when budget exceeded
+  // 8. Reserve from orchestrator budget
+  const agentCost = parseFloat(match.price);
+  const totalCost = agentCost + ORCHESTRATION_FEE;
+
+  if (budget!.balance < totalCost) {
     await dbUpdateAutomation(automationId, { enabled: false });
-    logger.info("webhook", "budget_exceeded_disabled", { automationId });
-    return NextResponse.json({ error: budgetCheck.error }, { status: 402 });
+    logger.info("webhook", "budget_insufficient_disabled", { automationId, balance: budget!.balance, needed: totalCost });
+    return NextResponse.json({ error: `Insufficient orchestrator budget: have ${budget!.balance.toFixed(2)}, need ${totalCost.toFixed(2)} USDC` }, { status: 402 });
   }
 
-  // 8. Execute agent
+  if (auto.total_spent + totalCost > auto.budget_limit) {
+    await dbUpdateAutomation(automationId, { enabled: false });
+    logger.info("webhook", "automation_limit_disabled", { automationId });
+    return NextResponse.json({ error: `Automation budget limit reached: ${auto.total_spent.toFixed(2)} / ${auto.budget_limit.toFixed(2)} USDC` }, { status: 402 });
+  }
+
+  const taskId = `whk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    await reserveBudget(orchDid, totalCost, taskId, `webhook:${match.agentName}`);
+  } catch (err) {
+    return NextResponse.json({ error: `Budget reserve failed: ${err instanceof Error ? err.message : "Unknown"}` }, { status: 402 });
+  }
+
+  // 9. Execute agent
   try {
     const result = await executeTask(
       match.agentEndpoint,
@@ -186,16 +213,20 @@ export async function POST(
       capability: match.description,
       input: plan.input,
       artifact: result.artifact ?? result.error ?? "",
-      estimated_cost: match.price,
+      estimated_cost: totalCost.toFixed(2),
       status: result.status === "COMPLETED" ? "completed" : "failed",
       trigger_source: "webhook",
     });
+
+    if (result.status !== "COMPLETED") {
+      await refundBudget(orchDid, totalCost, taskId).catch(() => {});
+    }
 
     // Update automation stats + last_trigger_at for rate limiting
     await dbUpdateAutomation(automationId, {
       last_run: new Date().toISOString(),
       last_trigger_at: new Date().toISOString(),
-      total_spent: auto.total_spent + (result.status === "COMPLETED" ? estimatedCost : 0),
+      total_spent: auto.total_spent + (result.status === "COMPLETED" ? totalCost : 0),
       run_count: auto.run_count + 1,
     });
 
@@ -216,6 +247,7 @@ export async function POST(
       },
     });
   } catch (err) {
+    await refundBudget(orchDid, totalCost, taskId).catch(() => {});
     logger.error("webhook", "execution_failed", {
       automationId,
       error: err instanceof Error ? err.message : String(err),

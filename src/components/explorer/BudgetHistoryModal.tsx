@@ -2,27 +2,29 @@
 
 import { useState, useEffect } from "react";
 
-interface BudgetTxn {
-  id: string;
-  type: "deposit" | "spend" | "refund" | "release";
-  amount: number;
-  task_id?: string;
-  target_agent_did?: string;
-  tx_hash?: string;
-  created_at?: string;
-}
-
-const TYPE_CONFIG: Record<string, { label: string; color: string; sign: string }> = {
-  deposit: { label: "DEPOSIT", color: "text-accent", sign: "+" },
-  spend: { label: "SPEND", color: "text-red-400", sign: "-" },
-  refund: { label: "REFUND", color: "text-yellow-400", sign: "+" },
-  release: { label: "RELEASE", color: "text-purple-400", sign: "-" },
+const DS = {
+  bg: "#e6e5e0",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  dark: "#222222",
+  green: "#7cb342",
+  error: "#c62828",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
 };
 
-/** Extract readable agent name from DID */
+interface BudgetTxn { id: string; type: "deposit" | "spend" | "refund" | "release"; amount: number; task_id?: string; target_agent_did?: string; tx_hash?: string; created_at?: string; }
+
+const TYPE_CONFIG: Record<string, { label: string; color: string; sign: string }> = {
+  deposit: { label: "DEPOSIT", color: DS.green, sign: "+" },
+  spend: { label: "SPEND", color: DS.error, sign: "-" },
+  refund: { label: "REFUND", color: "#b8913a", sign: "+" },
+  release: { label: "RELEASE", color: "#7c3aed", sign: "-" },
+};
+
 function agentLabel(did?: string): string {
   if (!did) return "";
-  // did:aip:XXXXXXXX:agent-name or did:aip:platform:web-search or did:key:...
   const parts = did.split(":");
   if (parts.length >= 4) return parts.slice(3).join(":");
   if (parts[2] === "platform") return "platform";
@@ -36,95 +38,56 @@ export default function BudgetHistoryModal({ agentDid, onClose }: { agentDid: st
   useEffect(() => {
     fetch(`/api/budget?agentDid=${encodeURIComponent(agentDid)}&history=true`)
       .then((r) => r.json())
-      .then((data) => {
-        setTxns(data.transactions ?? []);
-        setLoading(false);
-      })
+      .then((data) => { setTxns(data.transactions ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [agentDid]);
 
   const totalSpent = txns.filter((t) => t.type === "spend").reduce((s, t) => s + t.amount, 0);
   const totalDeposited = txns.filter((t) => t.type === "deposit").reduce((s, t) => s + t.amount, 0);
 
+  const bandLabel: React.CSSProperties = { fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-base/80 backdrop-blur-sm px-4" onClick={onClose}>
-      <div className="w-full max-w-lg border border-forest-mid bg-bg-base p-6 rounded-2xl flex flex-col gap-4 max-h-[70vh]" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="font-display text-lg text-mint uppercase">Budget History</h3>
-          <button onClick={onClose} className="font-mono text-xs text-muted hover:text-off-white">✕</button>
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)", padding: 16 }} onClick={onClose}>
+      <div style={{ width: "100%", maxWidth: 560, border: `1px solid ${DS.border}`, backgroundColor: DS.bg, display: "flex", flexDirection: "column", maxHeight: "70vh" }} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ padding: "16px 24px", borderBottom: `1px solid ${DS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#d5d0c8" }}>
+          <span style={bandLabel}>BUDGET HISTORY</span>
+          <button onClick={onClose} style={{ ...bandLabel, fontSize: "1rem", background: "none", border: "none", cursor: "pointer" }}>X</button>
         </div>
 
         {/* Summary */}
         {txns.length > 0 && (
-          <div className="flex gap-4 font-mono text-xs border-b border-forest-deep/20 pb-3">
-            <span className="text-accent">Deposited: {totalDeposited.toFixed(2)} USDC</span>
-            <span className="text-red-400">Spent: {totalSpent.toFixed(2)} USDC</span>
-            <span className="text-muted">Txns: {txns.length}</span>
+          <div style={{ padding: "12px 24px", borderBottom: `1px solid ${DS.border}`, display: "flex", gap: 20, fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700 }}>
+            <span>DEPOSITED: <span className="ds-accent-text">{totalDeposited.toFixed(2)}</span> USDC</span>
+            <span>SPENT: <span className="ds-error-text">{totalSpent.toFixed(2)}</span> USDC</span>
+            <span style={{ color: DS.textMuted }}>TXNS: {txns.length}</span>
           </div>
         )}
 
-        <div className="overflow-y-auto flex-1">
+        {/* Transactions */}
+        <div style={{ overflowY: "auto", flex: 1 }}>
           {loading ? (
-            <p className="font-mono text-xs text-muted animate-pulse py-4 text-center">Loading...</p>
+            <p style={{ padding: "30px 24px", textAlign: "center", ...bandLabel, color: DS.textMuted }}>LOADING...</p>
           ) : txns.length === 0 ? (
-            <p className="font-mono text-xs text-muted py-4 text-center">No transactions yet.</p>
+            <p style={{ padding: "30px 24px", textAlign: "center", ...bandLabel, color: DS.textMuted, fontWeight: 400 }}>NO TRANSACTIONS YET</p>
           ) : (
-            <div className="flex flex-col gap-0.5">
+            <div>
               {txns.map((txn) => {
-                const cfg = TYPE_CONFIG[txn.type] || { label: txn.type, color: "text-muted", sign: "" };
+                const cfg = TYPE_CONFIG[txn.type] || { label: txn.type, color: DS.textMuted, sign: "" };
                 const target = agentLabel(txn.target_agent_did);
-
                 return (
-                  <div key={txn.id} className="flex items-center gap-2 py-2 border-b border-forest-deep/15 last:border-0">
-                    {/* Type badge */}
-                    <span className={`font-mono text-[9px] uppercase w-16 ${cfg.color}`}>
-                      {cfg.label}
-                    </span>
-
-                    {/* Amount */}
-                    <span className={`font-mono text-sm w-16 text-right ${cfg.sign === "+" ? "text-accent" : "text-red-400"}`}>
-                      {cfg.sign}{txn.amount.toFixed(2)}
-                    </span>
-
-                    {/* Description */}
-                    <div className="flex-1 min-w-0 flex flex-col">
-                      {txn.type === "spend" && target && (
-                        <span className="font-mono text-[11px] text-off-white truncate">
-                          → {target}
-                        </span>
-                      )}
-                      {txn.type === "deposit" && txn.tx_hash && (
-                        <span className="font-mono text-[11px] text-off-white">
-                          Wallet deposit
-                        </span>
-                      )}
-                      {txn.type === "refund" && (
-                        <span className="font-mono text-[11px] text-yellow-400">
-                          Task refunded
-                        </span>
-                      )}
-                      {txn.task_id && (
-                        <span className="font-mono text-[9px] text-muted/50 truncate">
-                          {txn.task_id}
-                        </span>
-                      )}
+                  <div key={txn.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 24px", borderBottom: "1px solid #ccc", fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700 }}>
+                    <span style={{ width: 70, fontSize: "0.7rem", color: cfg.color }} className={cfg.sign === "+" ? "ds-accent-text" : "ds-error-text"}>{cfg.label}</span>
+                    <span style={{ width: 70, textAlign: "right", color: cfg.sign === "+" ? DS.green : DS.error }}>{cfg.sign}{txn.amount.toFixed(2)}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {txn.type === "spend" && target && <span style={{ fontSize: "0.75rem" }}>{target}</span>}
+                      {txn.type === "deposit" && <span style={{ fontSize: "0.75rem" }}>Wallet deposit</span>}
+                      {txn.type === "refund" && <span style={{ fontSize: "0.75rem" }}>Task refunded</span>}
+                      {txn.task_id && <span style={{ fontSize: "0.65rem", color: DS.textMuted, display: "block" }}>{txn.task_id}</span>}
                     </div>
-
-                    {/* Date */}
-                    <span className="font-mono text-[10px] text-muted/40 shrink-0">
-                      {txn.created_at ? new Date(txn.created_at).toLocaleDateString() : ""}
-                    </span>
-
-                    {/* Tx link */}
-                    {txn.tx_hash && (
-                      <a
-                        href={`https://explorer.solana.com/tx/${txn.tx_hash}?cluster=devnet`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="font-mono text-[9px] text-muted hover:text-accent shrink-0"
-                      >
-                        tx↗
-                      </a>
-                    )}
+                    <span style={{ fontSize: "0.7rem", color: DS.textMuted, flexShrink: 0 }}>{txn.created_at ? new Date(txn.created_at).toLocaleDateString() : ""}</span>
+                    {txn.tx_hash && <a href={`https://explorer.solana.com/tx/${txn.tx_hash}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.65rem", color: DS.textMuted, textDecoration: "underline", flexShrink: 0 }}>TX</a>}
                   </div>
                 );
               })}

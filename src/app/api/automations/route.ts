@@ -9,6 +9,9 @@ import {
 } from "@/lib/supabase/automations";
 import { generateWebhookSecret } from "@/lib/trigger/webhook";
 import { verifyWalletOwnership, isAuthError } from "@/lib/auth/wallet-auth";
+import { getAgentBudget } from "@/lib/payment/agent-budget";
+import { getOrchestratorId } from "@/lib/orchestrator/default-orchestrator";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 
 /**
  * GET /api/automations?wallet=xxx
@@ -47,6 +50,16 @@ export async function POST(request: NextRequest) {
 
   const auth = verifyWalletOwnership(request, walletAddress);
   if (isAuthError(auth)) return auth;
+
+  // Check orchestrator budget exists before creating automation
+  const orchId = getOrchestratorId(walletAddress);
+  const orchDid = canonicalAgentDid(walletAddress, orchId);
+  const budget = await getAgentBudget(orchDid);
+  if (!budget || budget.balance <= 0) {
+    return NextResponse.json({
+      error: "Orchestrator budget is empty. Deposit USDC to your Orchestrator Agent in My Agents before creating automations.",
+    }, { status: 402 });
+  }
 
   const trigger = triggerType || "schedule";
   const id = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;

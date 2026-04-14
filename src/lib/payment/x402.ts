@@ -216,21 +216,10 @@ export async function settlePayment(
     const connection = getConnection();
     const txBuffer = Buffer.from(paymentPayload.payload.serializedTransaction, "base64");
 
-    // Simulate first
-    const tx = Transaction.from(txBuffer);
-    const sim = await connection.simulateTransaction(tx);
-    if (sim.value.err) {
-      return {
-        transaction: "",
-        status: "failed",
-        error: `Simulation failed: ${JSON.stringify(sim.value.err)}`,
-      };
-    }
-
-    // Send raw transaction
+    // Send raw transaction (skip preflight — Phantom adds compute budget
+    // instructions that can cause false simulation failures on server side)
     const signature = await connection.sendRawTransaction(txBuffer, {
-      skipPreflight: false,
-      preflightCommitment: "confirmed",
+      skipPreflight: true,
     });
 
     // Confirm

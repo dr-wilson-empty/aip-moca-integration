@@ -7,12 +7,17 @@ import {
 import { listCards } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { executeTask } from "@/lib/protocol/a2a-client";
+import { reserveBudget, refundBudget, getAgentBudget } from "@/lib/payment/agent-budget";
+import { getOrchestratorId } from "@/lib/orchestrator/default-orchestrator";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 
 seedDemoAgents();
 
+const ORCHESTRATION_FEE = 0.05;
+
 /**
  * POST /api/automations/run
- * Execute an automation — analyze intent, call agent directly (no escrow).
+ * Execute an automation manually. Pays from orchestrator budget.
  *
  * Body: { automationId: string }
  */
@@ -38,7 +43,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Automation is disabled" }, { status: 400 });
   }
 
-  // Analyze intent with Haiku
+  // 1. Check orchestrator budget
+  const orchId = getOrchestratorId(auto.wallet_address);
+  const orchDid = canonicalAgentDid(auto.wallet_address, orchId);
+  const budget = await getAgentBudget(orchDid);
+
+  if (!budget || budget.balance <= 0) {
+    return NextResponse.json({
+      error: "No orchestrator budget. Deposit USDC to your Orchestrator Agent in My Agents first.",
+    }, { status: 402 });
+  }
+
+  // 2. Plan which agent to call
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
@@ -94,15 +110,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No matching capability" }, { status: 404 });
   }
 
-  // Budget check
-  const estimatedCost = parseFloat(match.price);
-  if (auto.total_spent + estimatedCost > auto.budget_limit) {
+  // 3. Calculate cost and check budget
+  const agentCost = parseFloat(match.price);
+  const totalCost = agentCost + ORCHESTRATION_FEE;
+
+  if (budget.balance < totalCost) {
     return NextResponse.json({
-      error: `Budget exceeded: spent ${auto.total_spent.toFixed(2)} / limit ${auto.budget_limit.toFixed(2)} USDC`,
+      error: `Insufficient orchestrator budget: have ${budget.balance.toFixed(2)} USDC, need ${totalCost.toFixed(2)} USDC`,
+    }, { status: 402 });
+  }
+
+  // Budget limit check
+  if (auto.total_spent + totalCost > auto.budget_limit) {
+    return NextResponse.json({
+      error: `Automation budget limit reached: spent ${auto.total_spent.toFixed(2)} / limit ${auto.budget_limit.toFixed(2)} USDC`,
     }, { status: 400 });
   }
 
-  // Execute directly via A2A (no escrow — autonomous mode)
+  // 4. Reserve from orchestrator budget
+  const taskId = `auto_run_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    await reserveBudget(orchDid, totalCost, taskId, `automation:${match.agentName}`);
+  } catch (err) {
+    return NextResponse.json({
+      error: `Budget reserve failed: ${err instanceof Error ? err.message : "Unknown"}`,
+    }, { status: 402 });
+  }
+
+  // 5. Execute agent
   try {
     const result = await executeTask(
       match.agentEndpoint,
@@ -122,14 +157,17 @@ export async function POST(request: NextRequest) {
       capability: match.description,
       input: plan.input,
       artifact: result.artifact ?? result.error ?? "",
-      estimated_cost: match.price,
+      estimated_cost: totalCost.toFixed(2),
       status: result.status === "COMPLETED" ? "completed" : "failed",
     });
 
-    // Update automation stats
+    if (result.status !== "COMPLETED") {
+      await refundBudget(orchDid, totalCost, taskId).catch(() => {});
+    }
+
     await dbUpdateAutomation(automationId, {
       last_run: new Date().toISOString(),
-      total_spent: auto.total_spent + (result.status === "COMPLETED" ? estimatedCost : 0),
+      total_spent: auto.total_spent + (result.status === "COMPLETED" ? totalCost : 0),
       run_count: auto.run_count + 1,
     });
 
@@ -141,10 +179,11 @@ export async function POST(request: NextRequest) {
         capability: match.description,
         artifact: result.artifact,
         status: result.status,
-        estimatedCost: match.price,
+        cost: totalCost.toFixed(2),
       },
     });
   } catch (err) {
+    await refundBudget(orchDid, totalCost, taskId).catch(() => {});
     return NextResponse.json({
       error: `Agent execution failed: ${err instanceof Error ? err.message : String(err)}`,
     }, { status: 500 });

@@ -9,9 +9,19 @@ import { useWalletStore } from "@/store/walletStore";
 import { useTaskSSE } from "@/hooks/useTaskSSE";
 import { useX402Payment } from "@/hooks/useX402Payment";
 import { TASK_PRESETS } from "@/lib/mock/presets";
-import MonoLabel from "@/components/ui/MonoLabel";
-import BtnPrimary from "@/components/ui/BtnPrimary";
 import type { Task } from "@/types/aip";
+
+const DS = {
+  bg: "#e6e5e0",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  dark: "#222222",
+  green: "#7cb342",
+  error: "#c62828",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
 
 export default function TaskForm() {
   const router = useRouter();
@@ -36,10 +46,8 @@ export default function TaskForm() {
 
   const presets = TASK_PRESETS[selectedCapId] ?? [];
 
-  // SSE hook — activeTaskId set edildiginde stream'e baglanir
   useTaskSSE(activeTaskId);
 
-  // Task tamamlandiginda veya basarisiz oldugunda log'a ekle (useEffect icinde)
   useEffect(() => {
     if ((taskState === "COMPLETED" || taskState === "FAILED") && !taskAddedRef.current && activeTaskId) {
       taskAddedRef.current = true;
@@ -76,10 +84,6 @@ export default function TaskForm() {
     startTask();
 
     try {
-      // x402 Payment Flow:
-      // 1. POST /api/task (no payment) → 402 + requirements
-      // 2. Sign USDC tx with Phantom
-      // 3. POST /api/task + X-PAYMENT → verify + settle + start task
       const result = await submitTaskWithPayment({
         agentEndpoint: counterpartCard.endpoint,
         capability: selectedCapId,
@@ -109,133 +113,267 @@ export default function TaskForm() {
 
   if (!counterpartCard) {
     return (
-      <div className="border border-mint/20 bg-forest-deep/10 p-8 rounded-xl flex flex-col items-center gap-4 text-center">
-        <div className="w-12 h-12 border border-mint/20 rounded-full flex items-center justify-center">
-          <span className="text-mint text-lg">⬡</span>
-        </div>
-        <div>
-          <p className="font-mono text-sm text-mint mb-1">No agent selected yet</p>
-          <p className="font-mono text-xs text-muted">
-            You need to select a counterpart agent before starting a task.
-          </p>
-        </div>
-        <BtnPrimary onClick={() => router.push("/marketplace")}>
-          Select an Agent
-          <span>→</span>
-        </BtnPrimary>
+      <div
+        style={{
+          borderBottom: `1px solid ${DS.border}`,
+          padding: "60px 30px",
+          textAlign: "center",
+        }}
+      >
+        <p
+          style={{
+            fontFamily: DS.fontMono,
+            fontSize: "0.75rem",
+            textTransform: "uppercase",
+            letterSpacing: "0.1em",
+            color: DS.textMuted,
+            marginBottom: 20,
+          }}
+        >
+          No agent selected yet
+        </p>
+        <button
+          onClick={() => router.push("/marketplace")}
+          style={{
+            padding: "12px 30px",
+            fontFamily: DS.fontMono,
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.1em",
+            backgroundColor: DS.dark,
+            color: DS.bg,
+            border: "none",
+            cursor: "pointer",
+          }}
+          className="mp-white-text"
+        >
+          Select an Agent from Marketplace
+        </button>
       </div>
     );
   }
 
+  const bandStyle: React.CSSProperties = {
+    padding: "14px 30px",
+    fontFamily: DS.fontMono,
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.1em",
+    borderBottom: `1px solid ${DS.border}`,
+    color: DS.text,
+  };
+
   return (
-    <div className="border border-mint/20 bg-forest-deep/10 p-6 rounded-xl flex flex-col gap-5">
-      <div className="border-b border-mint/20 pb-4 flex items-center justify-between">
-        <div>
-          <span className="font-mono text-xs text-accent uppercase">Task Configuration</span>
-          <p className="font-mono text-sm text-muted mt-1">
-            Target: <span className="text-mint">{counterpartCard.name}</span>
-          </p>
+    <div>
+      {/* Header band */}
+      <div
+        style={{
+          ...bandStyle,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          backgroundColor: "#d5d0c8",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span>TASK CONFIGURATION</span>
+          <span style={{ color: DS.textMuted, fontWeight: 400 }}>
+            Target: {counterpartCard.name}
+          </span>
         </div>
         {(taskState === "COMPLETED" || taskState === "FAILED") && (
-          <div className="flex gap-3">
-            <BtnPrimary variant="secondary" onClick={handleNewTask}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={handleNewTask}
+              style={{
+                padding: "6px 16px",
+                fontFamily: DS.fontMono,
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                backgroundColor: "transparent",
+                border: `1px solid ${DS.border}`,
+                cursor: "pointer",
+                color: DS.text,
+              }}
+            >
               New Task
-            </BtnPrimary>
-            <BtnPrimary onClick={() => router.push("/log")}>
+            </button>
+            <button
+              onClick={() => router.push("/log")}
+              style={{
+                padding: "6px 16px",
+                fontFamily: DS.fontMono,
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                backgroundColor: DS.dark,
+                border: "none",
+                cursor: "pointer",
+                color: DS.bg,
+              }}
+              className="mp-white-text"
+            >
               View Tx Log
-              <span>→</span>
-            </BtnPrimary>
+            </button>
           </div>
         )}
       </div>
 
-      <div className="flex flex-col gap-4">
-        <div>
-          <MonoLabel className="mb-2">Capability</MonoLabel>
-          <select
-            value={selectedCapId}
-            onChange={(e) => { setSelectedCapId(e.target.value); setInput(""); }}
-            disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
-            className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 rounded-lg font-mono text-sm text-mint outline-none focus:border-mint/40 transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            {counterpartCard.capabilities.map((cap) => (
-              <option key={cap.id} value={cap.id}>
-                {cap.description} — {cap.pricing.amount} {cap.pricing.token}
-              </option>
+      {/* Capability band */}
+      <div style={{ ...bandStyle, display: "flex", alignItems: "center", gap: 20 }}>
+        <span style={{ whiteSpace: "nowrap" }}>CAPABILITY</span>
+        <select
+          value={selectedCapId}
+          onChange={(e) => { setSelectedCapId(e.target.value); setInput(""); }}
+          disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
+          style={{
+            flex: 1,
+            fontFamily: DS.fontMono,
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.1em",
+            backgroundColor: "transparent",
+            border: "none",
+            outline: "none",
+            color: DS.text,
+            cursor: "pointer",
+            appearance: "none",
+            WebkitAppearance: "none",
+            opacity: isRunning || taskState === "COMPLETED" || taskState === "FAILED" ? 0.5 : 1,
+          }}
+        >
+          {counterpartCard.capabilities.map((cap) => (
+            <option key={cap.id} value={cap.id}>
+              {cap.description} — {cap.pricing.amount} {cap.pricing.token}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Presets */}
+      {presets.length > 0 && !isRunning && taskState !== "COMPLETED" && taskState !== "FAILED" && (
+        <div style={{ ...bandStyle, padding: "16px 30px" }}>
+          <span style={{ display: "block", marginBottom: 10, color: DS.textMuted }}>
+            QUICK START
+          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {presets.map((preset) => (
+              <button
+                key={preset}
+                onClick={() => setInput(preset)}
+                style={{
+                  textAlign: "left",
+                  fontFamily: DS.fontMono,
+                  fontSize: "0.75rem",
+                  padding: "8px 14px",
+                  border: `1px solid ${input === preset ? DS.border : "#ccc"}`,
+                  backgroundColor: input === preset ? "#d5d0c8" : "transparent",
+                  cursor: "pointer",
+                  color: DS.text,
+                  fontWeight: input === preset ? 700 : 400,
+                  textTransform: "none",
+                  letterSpacing: "normal",
+                }}
+              >
+                {preset}
+              </button>
             ))}
-          </select>
-          {selectedCap && (
-            <p className="font-mono text-xs text-muted mt-1">
-              {selectedCap.description}
-            </p>
-          )}
-        </div>
-
-        <div>
-          {presets.length > 0 && !isRunning && taskState !== "COMPLETED" && taskState !== "FAILED" && (
-            <div className="mb-3">
-              <MonoLabel className="mb-2">Quick Start — click to use</MonoLabel>
-              <div className="flex flex-col gap-1.5">
-                {presets.map((preset) => (
-                  <button
-                    key={preset}
-                    onClick={() => setInput(preset)}
-                    className={`text-left font-mono text-xs px-4 py-2.5 border rounded-md transition-all duration-200 ${
-                      input === preset
-                        ? "border-mint/40 text-mint bg-mint/5"
-                        : "border-forest-deep/40 text-body hover:text-mint hover:border-mint/20 hover:bg-forest-deep/30"
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <MonoLabel className="mb-2">Or type your own</MonoLabel>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
-            placeholder={selectedCap ? `e.g. "${presets[0] ?? `Use ${selectedCap.id} to...`}"` : "Describe the task..."}
-            rows={2}
-            className="w-full bg-forest-deep/30 border border-mint/20 px-4 py-3 rounded-lg font-mono text-sm text-mint placeholder-muted/40 outline-none focus:border-mint/40 transition-colors resize-none disabled:opacity-50"
-          />
-        </div>
-
-        {paymentError && (
-          <p className="font-mono text-[10px] text-red-400 border border-red-800/30 bg-red-900/10 px-3 py-2 rounded-md">
-            x402 Payment Failed: {paymentError.slice(0, 80)}
-          </p>
-        )}
-
-        <div className="flex items-center justify-between">
-          <div>
-            <MonoLabel className="mb-1">Estimated Cost</MonoLabel>
-            <p className="font-mono text-sm text-accent font-bold">
-              {selectedCap?.pricing.amount ?? "—"} USDC
-            </p>
           </div>
-          {taskState !== "COMPLETED" && taskState !== "FAILED" && (
-            <BtnPrimary
-              onClick={handleStart}
-              disabled={isRunning || !input.trim()}
-            >
-              {isRunning ? (
-                <>
-                  <span className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin-slow" />
-                  Running...
-                </>
-              ) : (
-                <>
-                  <span>⬡</span>
-                  Start Task & Lock Escrow
-                </>
-              )}
-            </BtnPrimary>
-          )}
         </div>
+      )}
+
+      {/* Input */}
+      <div style={{ ...bandStyle, padding: "16px 30px" }}>
+        <span style={{ display: "block", marginBottom: 10, color: DS.textMuted }}>
+          {presets.length > 0 ? "OR TYPE YOUR OWN" : "TASK INPUT"}
+        </span>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={isRunning || taskState === "COMPLETED" || taskState === "FAILED"}
+          placeholder={selectedCap ? `e.g. "${presets[0] ?? `Use ${selectedCap.id} to...`}"` : "Describe the task..."}
+          rows={2}
+          style={{
+            width: "100%",
+            fontFamily: DS.fontMono,
+            fontSize: "0.85rem",
+            padding: "12px 14px",
+            border: `1px solid ${DS.border}`,
+            backgroundColor: "transparent",
+            outline: "none",
+            resize: "none",
+            color: DS.text,
+            opacity: isRunning || taskState === "COMPLETED" || taskState === "FAILED" ? 0.5 : 1,
+          }}
+        />
+      </div>
+
+      {/* Payment error */}
+      {paymentError && (
+        <div
+          style={{
+            ...bandStyle,
+            backgroundColor: "#f5e6e6",
+            color: DS.error,
+          }}
+          className="ds-error-text"
+        >
+          X402 PAYMENT FAILED: {paymentError.slice(0, 80)}
+        </div>
+      )}
+
+      {/* Action band */}
+      <div
+        style={{
+          ...bandStyle,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <span style={{ color: DS.textMuted }}>ESTIMATED COST</span>
+          <p
+            style={{
+              fontFamily: DS.fontPrimary,
+              fontSize: "1.4rem",
+              fontWeight: 400,
+              marginTop: 4,
+              color: DS.text,
+            }}
+          >
+            {selectedCap?.pricing.amount ?? "—"}{" "}
+            <span style={{ fontSize: "0.7rem", fontWeight: 600 }}>USDC</span>
+          </p>
+        </div>
+        {taskState !== "COMPLETED" && taskState !== "FAILED" && (
+          <button
+            onClick={handleStart}
+            disabled={isRunning || !input.trim()}
+            style={{
+              padding: "14px 32px",
+              fontFamily: DS.fontMono,
+              fontSize: "0.75rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+              backgroundColor: isRunning || !input.trim() ? "#999" : DS.dark,
+              color: DS.bg,
+              border: "none",
+              cursor: isRunning || !input.trim() ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+            className="mp-white-text"
+          >
+            {isRunning ? "RUNNING..." : "START TASK & LOCK ESCROW"}
+          </button>
+        )}
       </div>
     </div>
   );

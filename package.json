@@ -33,6 +33,7 @@
     "next": "^14.2.35",
     "node-cron": "^4.2.1",
     "pdf-parse": "^1.1.1",
+    "pg": "^8.20.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tweetnacl": "^1.0.3",
@@ -42,6 +43,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.15.9",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^25.5.0",

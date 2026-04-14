@@ -126,6 +126,7 @@ function persistTask(task: TaskRecord): void {
     is_agent_task: task.isAgentTask ?? false,
     chain_id: task.chainId,
     log: task.log,
+    updated_at: new Date().toISOString(),
   }).catch(() => {});
 }
 

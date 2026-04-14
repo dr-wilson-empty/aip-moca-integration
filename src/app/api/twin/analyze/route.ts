@@ -5,19 +5,21 @@ import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import { getCurrentDateString } from "@/lib/web/realtime-enrichment";
 import { dbGetPreferences } from "@/lib/supabase/preferences";
+import { getAppUrl } from "@/lib/config/app-url";
 
 seedDemoAgents();
 
 let _hostedSynced = false;
-async function ensureHostedAgentCards() {
-  if (_hostedSynced) return;
+async function ensureHostedAgentCards(callerWallet?: string) {
   await loadHostedAgentsFromDb();
+  // Register public hosted agents (always) + caller's private agents
   for (const ha of listHostedAgents()) {
+    if (ha.isPublic === false && ha.ownerAddress !== callerWallet) continue;
     registerCard({
       did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
       name: ha.name,
       version: "1.0.0",
-      endpoint: `http://localhost:3000/api/hosted-agent?agentId=${ha.agentId}`,
+      endpoint: `${getAppUrl()}/api/hosted-agent?agentId=${ha.agentId}`,
       type: "Task",
       walletAddress: ha.ownerAddress,
       capabilities: ha.capabilities.map((c) => ({
@@ -30,16 +32,43 @@ async function ensureHostedAgentCards() {
   _hostedSynced = true;
 }
 
+/* ── Rate limiter: 5 per minute, 30 per hour per wallet ── */
+const analyzeRateMap = new Map<string, { minute: number[]; hour: number[] }>();
+const RATE_MINUTE = 5;
+const RATE_HOUR = 30;
+
+function checkAnalyzeRate(wallet: string): boolean {
+  const now = Date.now();
+  let entry = analyzeRateMap.get(wallet);
+  if (!entry) { entry = { minute: [], hour: [] }; analyzeRateMap.set(wallet, entry); }
+  entry.minute = entry.minute.filter((t) => now - t < 60_000);
+  entry.hour = entry.hour.filter((t) => now - t < 3_600_000);
+  if (entry.minute.length >= RATE_MINUTE || entry.hour.length >= RATE_HOUR) return false;
+  entry.minute.push(now);
+  entry.hour.push(now);
+  return true;
+}
+
+// Cleanup stale entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  analyzeRateMap.forEach((v, k) => {
+    v.hour = v.hour.filter((t) => now - t < 3_600_000);
+    if (v.hour.length === 0) analyzeRateMap.delete(k);
+  });
+}, 600_000);
+
 /**
  * POST /api/twin/analyze
  * Analyzes user intent — returns single task or multi-step pipeline.
+ * Rate limited: 5/min, 30/hour per wallet.
  *
  * Body: { message: string }
  * Returns: { mode: "single"|"pipeline", steps: [...], explanation, totalCost }
  */
 export async function POST(request: NextRequest) {
+  await loadHostedAgentsFromDb();
   seedDemoAgents();
-  await ensureHostedAgentCards();
 
   let body: Record<string, unknown>;
   try {
@@ -50,7 +79,15 @@ export async function POST(request: NextRequest) {
 
   const message = body.message as string;
   const walletAddress = body.walletAddress as string | undefined;
+
+  // Rate limit check
+  const rateKey = walletAddress || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (!checkAnalyzeRate(rateKey)) {
+    return NextResponse.json({ error: "Rate limit exceeded. Max 5 requests per minute." }, { status: 429 });
+  }
   const skipOrchestrator = body.skipOrchestrator === true;
+
+  await ensureHostedAgentCards(walletAddress);
   if (!message?.trim()) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
   }
@@ -77,12 +114,13 @@ export async function POST(request: NextRequest) {
   }
 
   const agents = listCards();
-  // Get orchestrator agent names to exclude from pipeline capability list when needed
+  // Always exclude ALL orchestrator agents from the pipeline capability list
+  // Orchestrators are only offered as a single-step option, never as pipeline steps
   const allOrchestrators = listHostedAgents().filter((a) => a.canOrchestrate);
   const orchestratorNames = new Set(allOrchestrators.map((o) => o.name));
 
   const capabilityList = agents
-    .filter((a) => !skipOrchestrator || !orchestratorNames.has(a.name)) // exclude orchestrators when replanning
+    .filter((a) => !orchestratorNames.has(a.name)) // always exclude orchestrators from pipeline steps
     .flatMap((a) =>
       a.capabilities.map((c) => ({
         agentName: a.name,
@@ -111,8 +149,10 @@ export async function POST(request: NextRequest) {
     .map((c) => `- ${c.agentName} → ${c.capabilityId} (${c.description}) — ${c.price} USDC`)
     .join("\n");
 
-  // Identify orchestrator agents (can delegate to other agents autonomously)
-  const orchestrators = skipOrchestrator ? [] : listHostedAgents().filter((a) => a.canOrchestrate);
+  // Identify orchestrator agents — ONLY use the caller's own orchestrator, never another wallet's
+  const orchestrators = skipOrchestrator || !walletAddress
+    ? []
+    : listHostedAgents().filter((a) => a.canOrchestrate && a.ownerAddress === walletAddress);
   const orchestratorInfo = orchestrators.length > 0
     ? "\n\nORCHESTRATOR AGENTS (these agents can internally call other agents — prefer them for complex multi-step tasks):\n" +
       orchestrators.map((o) => {

@@ -177,24 +177,69 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
       const agentDid = step.agentDid || canonicalAgentDid(hostedConfig.ownerAddress, hostedConfig.agentId);
       logger.info("chain", "orchestrator_step", { chainId: chain.id, step: i + 1, agent: step.agentName });
 
-      try {
-        const orchResult = await orchestrateTask(agentDid, hostedConfig.name, hostedConfig.systemPrompt, stepInput, chain.callerAddress);
+      // Replace orchestrator placeholder step with "planning..." status
+      step.status = "executing";
 
-        // Build rich artifact with sub-task metadata
+      try {
+        const orchResult = await orchestrateTask(agentDid, hostedConfig.name, hostedConfig.systemPrompt, stepInput, chain.callerAddress, (event) => {
+          // Live update chain steps from orchestrator callbacks
+          if (event.type === "planned" && event.steps) {
+            // Replace orchestrator placeholder with real sub-steps
+            const subSteps: ChainStep[] = event.steps.map((s) => ({
+              agentName: s.agentName,
+              agentDid: "",
+              agentEndpoint: "",
+              walletAddress: "",
+              capabilityId: s.capabilityId,
+              capabilityDescription: s.label,
+              estimatedCost: s.estimatedCost.toFixed(2),
+              input: "",
+              inputFromPrev: false,
+              label: s.label,
+              status: "pending",
+            }));
+            // Remove the orchestrator placeholder, insert sub-steps
+            chain.steps.splice(i, 1, ...subSteps);
+          } else if (event.type === "step_start" && event.stepIndex !== undefined) {
+            const realIdx = i + event.stepIndex;
+            if (chain.steps[realIdx]) {
+              chain.steps[realIdx].status = "executing";
+              chain.currentStep = realIdx;
+            }
+          } else if (event.type === "step_done" && event.stepIndex !== undefined) {
+            const realIdx = i + event.stepIndex;
+            if (chain.steps[realIdx]) {
+              chain.steps[realIdx].status = "completed";
+              chain.steps[realIdx].artifact = event.artifact;
+            }
+          } else if (event.type === "step_failed" && event.stepIndex !== undefined) {
+            const realIdx = i + event.stepIndex;
+            if (chain.steps[realIdx]) {
+              chain.steps[realIdx].status = "failed";
+              chain.steps[realIdx].error = event.error;
+            }
+          }
+        });
+
+        totalSpent += orchResult.totalSpent;
+        logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1, subSpent: orchResult.totalSpent });
+
+        // Orchestrator handled all sub-steps — mark chain as completed and exit loop
+        // (sub-steps were already updated via onStep callbacks above)
+        chain.status = "completed";
+        chain.totalSpent = totalSpent.toFixed(2);
+        chain.completedAt = new Date().toISOString();
+
+        // Set final artifact from orchestrator synthesis
         const subTaskInfo = orchResult.subTasks
           .filter((s) => s.status === "completed")
           .map((s) => `${s.agentName} (${s.capabilityId}) — ${s.cost.toFixed(2)} USDC`)
           .join("\n");
-
-        step.artifact = orchResult.answer +
+        chain.finalArtifact = orchResult.answer +
           `\n\n---\n**${hostedConfig.name}** orchestrated ${orchResult.stepsCompleted} agent(s), spent ${orchResult.totalSpent.toFixed(2)} USDC from budget` +
           (subTaskInfo ? `\n${subTaskInfo}` : "");
-        step.status = "completed";
-        step.taskId = `orch_${chain.id}_${i}`;
-        step.estimatedCost = orchResult.totalSpent.toFixed(2);
-        totalSpent += orchResult.totalSpent;
-        logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1, subSpent: orchResult.totalSpent });
-        continue; // Skip normal escrow flow
+
+        return; // Exit loop — orchestrator handled everything
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         step.status = "failed";
@@ -212,9 +257,23 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
     step.taskId = taskId;
     const amount = parseFloat(step.estimatedCost);
 
-    // Non-orchestrator steps: no budget reserve needed
-    // Authority wallet funds escrows directly, budget is only for orchestrator internal delegation
-    const budgetReserved = false;
+    // If budgetAgentDid is set (autonomous mode), reserve from orchestrator budget
+    let budgetReserved = false;
+    if (budgetAgentDid) {
+      try {
+        await reserveBudget(budgetAgentDid, amount, taskId, step.agentDid || "unknown");
+        budgetReserved = true;
+        logger.info("chain", "budget_reserved", { chainId: chain.id, step: i + 1, amount, budgetAgent: budgetAgentDid });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error("chain", "budget_reserve_failed", { chainId: chain.id, step: i + 1, error: msg });
+        step.status = "failed";
+        step.error = `Budget reserve failed: ${msg}`;
+        chain.status = "failed";
+        chain.totalSpent = totalSpent.toFixed(2);
+        return;
+      }
+    }
 
     // 1. Create on-chain escrow for this step
     try {

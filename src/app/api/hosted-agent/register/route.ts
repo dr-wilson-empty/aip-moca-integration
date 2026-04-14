@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     customApiKey,
     capabilities,
     canOrchestrate,
+    isPublic,
   } = body as {
     agentId?: string;
     ownerAddress?: string;
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
     customApiKey?: string;
     capabilities?: HostedAgentConfig["capabilities"];
     canOrchestrate?: boolean;
+    isPublic?: boolean;
   };
 
   // Validation
@@ -102,13 +104,14 @@ export async function POST(request: NextRequest) {
     customApiKey: resolvedTier === "custom" ? customApiKey : undefined,
     capabilities,
     canOrchestrate: canOrchestrate ?? false,
+    isPublic: isPublic ?? true,
     createdAt: new Date().toISOString(),
     active: true,
   };
 
   await registerHostedAgent(config);
 
-  // Also register in agent-card-store for marketplace visibility
+  // Register in agent-card-store for marketplace visibility (only if public)
   const hostedEndpoint = `${getBaseUrl(request)}/api/hosted-agent?agentId=${agentId}`;
   const agentCard: AgentCard = {
     did: canonicalAgentDid(ownerAddress, agentId),
@@ -128,7 +131,9 @@ export async function POST(request: NextRequest) {
     walletAddress: ownerAddress,
   };
 
-  registerCard(agentCard);
+  if (config.isPublic !== false) {
+    registerCard(agentCard);
+  }
 
   return NextResponse.json(
     {

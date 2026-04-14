@@ -30,6 +30,12 @@ export default function WalletSync() {
         setWallet(addr, did);
         updateMyDid(did);
         fetchBalance(addr).catch(() => {});
+        // Ensure default orchestrator agent exists for this wallet
+        fetch("/api/orchestrator/ensure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress: addr }),
+        }).catch(() => {});
       } catch {
         setWallet(addr, "did:key:error");
       }

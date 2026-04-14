@@ -77,7 +77,7 @@ export default function FileUpload({ onFileContent, disabled }: FileUploadProps)
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => !disabled && !uploading && inputRef.current?.click()}
-        className={`border border-dashed rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+        className={`border border-dashed rounded-lg px-3 py-2 cursor-pointer transition-colors flex items-center justify-center ${
           dragOver
             ? "border-accent bg-accent/5"
             : "border-forest-deep/40 hover:border-mint/30"
@@ -91,7 +91,7 @@ export default function FileUpload({ onFileContent, disabled }: FileUploadProps)
           disabled={disabled || uploading}
           className="hidden"
         />
-        <span className="font-mono text-[10px] text-muted">
+        <span className="font-mono text-[10px] text-muted leading-none">
           {uploading ? "Parsing file..." : "Drop file or click (PDF, XLSX, CSV, TXT)"}
         </span>
       </div>

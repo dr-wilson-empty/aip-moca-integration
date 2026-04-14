@@ -92,6 +92,8 @@ export interface MyAgentEntry {
   /** Owner wallet address */
   owner: string;
   registeredAt?: number;
+  /** Marketplace visibility — true = public, false = private */
+  isPublic?: boolean;
 }
 
 export interface ProtocolNode {

@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   title: "AIP — Agent Internet Protocol",
   description:
     "A foundational open protocol for the agentic web. Discover, negotiate, and settle payments between AI agents.",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/aipLogo.png",
+  },
 };
 
 export default function RootLayout({
@@ -21,7 +25,7 @@ export default function RootLayout({
         <WalletProvider>
           <WalletSync />
           <Nav />
-          <main className="pt-14">{children}</main>
+          <main className="pt-14" style={{ paddingTop: 64 }}>{children}</main>
         </WalletProvider>
       </body>
     </html>

@@ -56,16 +56,40 @@ export async function getAllUserMemories(userWallet: string): Promise<AgentMemor
   return data ?? [];
 }
 
+/** Normalize text for deduplication: lowercase, strip filler, extract keywords */
+function normalizeForDedup(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\sçğıöşü]/g, " ")
+    .replace(/\b(user|prefers?|wants?|likes?|responses?|in|the|a|an|is|are|that|this|with|for)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Check if two memory strings are semantically similar enough to be duplicates */
+function isSimilarContent(a: string, b: string): boolean {
+  const na = normalizeForDedup(a);
+  const nb = normalizeForDedup(b);
+
+  // Direct substring match
+  if (na.includes(nb) || nb.includes(na)) return true;
+
+  // Keyword overlap: if 60%+ of keywords match, treat as duplicate
+  const kwA = new Set(na.split(" ").filter(Boolean));
+  const kwB = new Set(nb.split(" ").filter(Boolean));
+  if (kwA.size === 0 || kwB.size === 0) return false;
+  const overlap = Array.from(kwA).filter((w) => kwB.has(w)).length;
+  const smaller = Math.min(kwA.size, kwB.size);
+  return overlap / smaller >= 0.6;
+}
+
 /** Save a memory entry. Deduplicates and enforces FIFO eviction. */
 export async function saveMemory(entry: Omit<AgentMemoryEntry, "id" | "created_at">): Promise<AgentMemoryEntry | null> {
   const sb = getSupabase();
 
   // Deduplicate: skip if similar content already exists
   const existing = await getMemories(entry.agent_did, entry.user_wallet);
-  const isDuplicate = existing.some((m) =>
-    m.content.toLowerCase().includes(entry.content.toLowerCase().slice(0, 40)) ||
-    entry.content.toLowerCase().includes(m.content.toLowerCase().slice(0, 40))
-  );
+  const isDuplicate = existing.some((m) => isSimilarContent(m.content, entry.content));
   if (isDuplicate) return null;
 
   const id = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -77,22 +101,42 @@ export async function saveMemory(entry: Omit<AgentMemoryEntry, "id" | "created_a
   return record;
 }
 
-/** Save multiple memory entries at once */
+/** Save multiple memory entries at once (with deduplication) */
 export async function saveMemories(entries: Omit<AgentMemoryEntry, "id" | "created_at">[]): Promise<void> {
   if (entries.length === 0) return;
   const sb = getSupabase();
 
-  const records = entries.map((e) => ({
+  // Group by agent-user pair and deduplicate against existing + each other
+  const pairArr = Array.from(new Set(entries.map((e) => `${e.agent_did}|${e.user_wallet}`)));
+  const existingMap = new Map<string, AgentMemoryEntry[]>();
+  for (const pair of pairArr) {
+    const [agentDid, userWallet] = pair.split("|");
+    existingMap.set(pair, await getMemories(agentDid, userWallet));
+  }
+
+  const filtered: typeof entries = [];
+  for (const entry of entries) {
+    const key = `${entry.agent_did}|${entry.user_wallet}`;
+    const existing = existingMap.get(key) ?? [];
+    const isDupExisting = existing.some((m) => isSimilarContent(m.content, entry.content));
+    const isDupBatch = filtered.some((f) =>
+      f.agent_did === entry.agent_did &&
+      f.user_wallet === entry.user_wallet &&
+      isSimilarContent(f.content, entry.content)
+    );
+    if (!isDupExisting && !isDupBatch) filtered.push(entry);
+  }
+
+  if (filtered.length === 0) return;
+
+  const records = filtered.map((e) => ({
     ...e,
     id: `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
   }));
 
   await sb.from("agent_memory").insert(records);
 
-  // Evict for each unique agent-user pair
-  const pairs = new Set(entries.map((e) => `${e.agent_did}|${e.user_wallet}`));
-  const pairArray = Array.from(pairs);
-  for (const pair of pairArray) {
+  for (const pair of pairArr) {
     const [agentDid, userWallet] = pair.split("|");
     await evictOldMemories(agentDid, userWallet);
   }

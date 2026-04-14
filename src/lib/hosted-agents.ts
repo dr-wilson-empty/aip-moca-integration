@@ -29,6 +29,8 @@ export interface HostedAgentConfig {
   }>;
   /** When true, agent can autonomously call other agents using its budget */
   canOrchestrate: boolean;
+  /** When true, agent is listed on the public marketplace. Default true. */
+  isPublic: boolean;
   createdAt: string;
   active: boolean;
 }
@@ -60,6 +62,7 @@ interface DbHostedAgent {
   custom_api_key?: string;
   capabilities_json: string;
   can_orchestrate: boolean;
+  is_public: boolean;
   active: boolean;
   created_at?: string;
 }
@@ -87,6 +90,7 @@ function toConfig(row: DbHostedAgent): HostedAgentConfig {
     customApiKey: decryptApiKey(row.custom_api_key),
     capabilities: caps,
     canOrchestrate: row.can_orchestrate ?? false,
+    isPublic: row.is_public ?? true,
     createdAt: row.created_at || new Date().toISOString(),
     active: row.active,
   };
@@ -104,13 +108,14 @@ function toRow(config: HostedAgentConfig): DbHostedAgent {
     custom_api_key: config.customApiKey ? encrypt(config.customApiKey) : undefined,
     capabilities_json: JSON.stringify(config.capabilities),
     can_orchestrate: config.canOrchestrate ?? false,
+    is_public: config.isPublic ?? true,
     active: config.active,
   };
 }
 
 /** Load all hosted agents from Supabase into cache (called once on startup) */
 export async function loadHostedAgentsFromDb(): Promise<void> {
-  if (g.__aip_hosted_loaded) return;
+  if (g.__aip_hosted_loaded && store.size > 0) return;
   try {
     const sb = getSupabase();
     const { data } = await sb.from("hosted_agents").select("*").eq("active", true);

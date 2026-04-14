@@ -3,73 +3,46 @@
 import { useState } from "react";
 import { useLogStore } from "@/store/logStore";
 import TaskDetailModal from "./TaskDetailModal";
-import MonoLabel from "@/components/ui/MonoLabel";
 import type { Task, TaskState } from "@/types/aip";
 
-function StateBadge({ state }: { state: TaskState }) {
-  const map: Record<TaskState, string> = {
-    COMPLETED: "border-accent/40 text-accent bg-accent/10",
-    FAILED: "border-red-800/40 text-red-400 bg-red-900/10",
-    CANCELLED: "border-yellow-800/40 text-yellow-400 bg-yellow-900/10",
-    SUBMITTED: "border-blue-800/40 text-blue-400 bg-blue-900/10",
-    WORKING: "border-blue-800/40 text-blue-400 bg-blue-900/10",
-  };
-  return (
-    <span className={`font-mono text-xs uppercase px-2 py-0.5 border rounded ${map[state]}`}>
-      {state}
-    </span>
-  );
-}
+const DS = {
+  bg: "#e6e5e0",
+  bgHover: "#d9d8d3",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  green: "#7cb342",
+  error: "#c62828",
+  cyan: "#4dd0e1",
+  purple: "#7c3aed",
+  white: "#ffffff",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
 
-function AgentBadge() {
-  return (
-    <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border border-purple-800/40 text-purple-400 bg-purple-900/10 rounded">
-      Agent
-    </span>
-  );
-}
-
-function ChainBadge({ chainId }: { chainId: string }) {
-  return (
-    <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 border border-cyan-800/40 text-cyan-400 bg-cyan-900/10 rounded" title={chainId}>
-      Chain
-    </span>
-  );
-}
+const STATE_COLORS: Record<TaskState, { bg: string }> = {
+  COMPLETED: { bg: DS.green },
+  FAILED: { bg: DS.error },
+  CANCELLED: { bg: "#b8913a" },
+  SUBMITTED: { bg: "#3b6fa0" },
+  WORKING: { bg: "#3b6fa0" },
+};
 
 type SourceFilter = "ALL" | "MY" | "AGENT";
 
-const SOURCE_OPTIONS: Array<{ label: string; value: SourceFilter }> = [
-  { label: "All Tasks", value: "ALL" },
-  { label: "My Tasks", value: "MY" },
-  { label: "Agent Tasks", value: "AGENT" },
-];
-
-const STATE_OPTIONS: Array<{ label: string; value: TaskState | "ALL" }> = [
-  { label: "All", value: "ALL" },
-  { label: "Completed", value: "COMPLETED" },
-  { label: "Failed", value: "FAILED" },
-  { label: "Cancelled", value: "CANCELLED" },
-];
-
-/** Group tasks by chainId for visual grouping */
 function groupByChain(tasks: Task[]): Array<{ chainId?: string; tasks: Task[] }> {
   const groups: Array<{ chainId?: string; tasks: Task[] }> = [];
   const chainMap = new Map<string, Task[]>();
-  const standalone: Task[] = [];
+  const seen = new Set<string>();
 
   for (const t of tasks) {
     if (t.chainId) {
       const existing = chainMap.get(t.chainId);
       if (existing) existing.push(t);
       else chainMap.set(t.chainId, [t]);
-    } else {
-      standalone.push(t);
     }
   }
 
-  // Interleave: chain groups appear at the position of their first task
-  const seen = new Set<string>();
   for (const t of tasks) {
     if (t.chainId && !seen.has(t.chainId)) {
       seen.add(t.chainId);
@@ -78,7 +51,6 @@ function groupByChain(tasks: Task[]): Array<{ chainId?: string; tasks: Task[] }>
       groups.push({ tasks: [t] });
     }
   }
-
   return groups;
 }
 
@@ -90,161 +62,121 @@ export default function TaskTable() {
   const [search, setSearch] = useState("");
 
   const filtered = tasks.filter((t) => {
-    // Source filter
     if (sourceFilter === "AGENT" && !t.isAgentTask) return false;
     if (sourceFilter === "MY" && t.isAgentTask) return false;
-    // State filter
     if (stateFilter !== "ALL" && t.state !== stateFilter) return false;
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
-      if (
-        !t.id.toLowerCase().includes(q) &&
-        !t.counterpartAgent.toLowerCase().includes(q) &&
-        !t.capability.toLowerCase().includes(q) &&
-        !t.input.toLowerCase().includes(q) &&
-        !(t.chainId || "").toLowerCase().includes(q)
-      ) return false;
+      if (!t.id.toLowerCase().includes(q) && !t.counterpartAgent.toLowerCase().includes(q) && !t.capability.toLowerCase().includes(q) && !t.input.toLowerCase().includes(q) && !(t.chainId || "").toLowerCase().includes(q)) return false;
     }
     return true;
   });
 
   const groups = sourceFilter === "AGENT" ? groupByChain(filtered) : filtered.map((t) => ({ chainId: t.chainId, tasks: [t] }));
-
   const agentCount = tasks.filter((t) => t.isAgentTask).length;
   const myCount = tasks.filter((t) => !t.isAgentTask).length;
 
+  const bandLabel: React.CSSProperties = { fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" };
+
   return (
     <>
-      {/* Source tabs */}
-      <div className="flex items-center gap-6 mb-0">
-        <div className="flex gap-0">
-          {SOURCE_OPTIONS.map((opt) => {
-            const count = opt.value === "ALL" ? tasks.length : opt.value === "AGENT" ? agentCount : myCount;
-            return (
-              <button
-                key={opt.value}
-                onClick={() => setSourceFilter(opt.value)}
-                className={`font-mono text-xs uppercase tracking-wider px-3 py-2 border transition-colors ${
-                  sourceFilter === opt.value
-                    ? "border-mint/40 text-mint bg-mint/10"
-                    : "border-forest-deep/60 text-muted hover:text-off-white"
-                } ${opt.value === "ALL" ? "rounded-l-md" : ""} ${opt.value === "AGENT" ? "rounded-r-md" : ""} ${opt.value !== "ALL" ? "border-l-0" : ""}`}
-              >
-                {opt.label} ({count})
-              </button>
-            );
-          })}
-        </div>
+      {/* Filter band */}
+      <div style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${DS.border}`, padding: "0 30px" }}>
+        {/* Source tabs */}
+        {(["ALL", "MY", "AGENT"] as SourceFilter[]).map((v) => {
+          const count = v === "ALL" ? tasks.length : v === "AGENT" ? agentCount : myCount;
+          const label = v === "ALL" ? "ALL TASKS" : v === "MY" ? "MY TASKS" : "AGENT TASKS";
+          return (
+            <button key={v} onClick={() => setSourceFilter(v)} style={{
+              ...bandLabel, padding: "12px 16px", border: "none", cursor: "pointer", backgroundColor: "transparent",
+              borderBottom: sourceFilter === v ? `3px solid ${DS.green}` : "3px solid transparent",
+              color: sourceFilter === v ? DS.text : DS.textMuted,
+            }}>
+              {label} ({count})
+            </button>
+          );
+        })}
 
-        {/* State filter */}
-        <div className="flex gap-0">
-          {STATE_OPTIONS.map((opt) => {
-            const count =
-              opt.value === "ALL"
-                ? filtered.length
-                : filtered.filter((t) => t.state === opt.value).length;
-            return (
-              <button
-                key={opt.value}
-                onClick={() => setStateFilter(opt.value)}
-                className={`font-mono text-xs uppercase tracking-wider px-3 py-2 border transition-colors ${
-                  stateFilter === opt.value
-                    ? "border-accent/40 text-accent bg-accent/10"
-                    : "border-forest-deep/60 text-muted hover:text-off-white"
-                } ${opt.value === "ALL" ? "rounded-l-md" : ""} ${opt.value === "CANCELLED" ? "rounded-r-md" : ""} ${opt.value !== "ALL" ? "border-l-0" : ""}`}
-              >
-                {opt.label} ({count})
-              </button>
-            );
-          })}
-        </div>
+        <div style={{ width: 1, height: 20, backgroundColor: "#ccc", margin: "0 12px" }} />
 
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search tasks..."
-          className="ml-auto bg-forest-deep/30 border border-forest-deep/60 px-3 py-2 rounded-lg font-mono text-sm text-off-white placeholder-muted/50 outline-none focus:border-accent/60 transition-colors w-64"
-        />
+        {/* State tabs */}
+        {(["ALL", "COMPLETED", "FAILED", "CANCELLED"] as Array<TaskState | "ALL">).map((v) => {
+          const count = v === "ALL" ? filtered.length : filtered.filter((t) => t.state === v).length;
+          return (
+            <button key={v} onClick={() => setStateFilter(v)} style={{
+              ...bandLabel, fontSize: "0.7rem", padding: "12px 12px", border: "none", cursor: "pointer", backgroundColor: "transparent",
+              borderBottom: stateFilter === v ? `3px solid ${DS.text}` : "3px solid transparent",
+              color: stateFilter === v ? DS.text : DS.textMuted,
+            }}>
+              {v} ({count})
+            </button>
+          );
+        })}
+
+        {/* Search */}
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SEARCH TASKS..." style={{
+          marginLeft: "auto", fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+          padding: "10px 14px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", outline: "none", color: DS.text, width: 240,
+        }} />
       </div>
 
-      {/* Table */}
-      <div className="border border-forest-deep/60 rounded-xl overflow-hidden">
-        {/* Table header */}
-        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_80px_80px_70px_80px] gap-0 border-b border-forest-deep/60 bg-forest-deep/40 px-4 py-2">
-          {["Task ID", "Agent", "Capability", "Started", "Duration", "State", "USDC", ""].map(
-            (h) => (
-              <MonoLabel key={h} className="py-1">{h}</MonoLabel>
-            )
-          )}
-        </div>
-
-        {/* Rows */}
-        {filtered.length === 0 && (
-          <div className="px-4 py-12 flex flex-col items-center gap-3 text-center">
-            <div className="w-10 h-10 border border-mint/20 rounded-full flex items-center justify-center">
-              <span className="text-mint text-sm">⬡</span>
-            </div>
-            {tasks.length === 0 ? (
-              <>
-                <p className="font-mono text-sm text-mint">No tasks yet</p>
-                <p className="font-mono text-xs text-muted">
-                  Start a task from the Dashboard to see it here.
-                </p>
-              </>
-            ) : (
-              <p className="font-mono text-sm text-muted">No tasks match the current filter.</p>
-            )}
-          </div>
-        )}
-
-        {groups.map((group, gi) => (
-          <div key={gi}>
-            {/* Chain group header */}
-            {group.chainId && group.tasks.length > 1 && (
-              <div className="px-4 py-1.5 bg-cyan-900/10 border-b border-cyan-800/20 flex items-center gap-2">
-                <ChainBadge chainId={group.chainId} />
-                <span className="font-mono text-[10px] text-cyan-400">
-                  {group.chainId} — {group.tasks.length} steps
-                </span>
-                <span className="font-mono text-[10px] text-muted ml-auto">
-                  Total: {group.tasks.reduce((sum, t) => sum + parseFloat(t.usdcSpent || "0"), 0).toFixed(2)} USDC
-                </span>
-              </div>
-            )}
-            {group.tasks.map((task) => (
-              <div
-                key={task.id}
-                className={`grid grid-cols-[1fr_1fr_1fr_1fr_80px_80px_70px_80px] gap-0 border-b border-forest-deep/30 px-4 py-3 hover:bg-forest-deep/30 transition-colors items-center ${group.chainId ? "pl-6" : ""}`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-mono text-sm text-accent truncate">{task.id}</span>
-                  {task.isAgentTask && <AgentBadge />}
-                </div>
-                <span className="font-mono text-sm text-off-white">{task.counterpartAgent}</span>
-                <span className="font-mono text-sm text-muted truncate">{task.capability}</span>
-                <span className="font-mono text-sm text-muted">
-                  {new Date(task.startedAt).toTimeString().slice(0, 8)}
-                </span>
-                <span className="font-mono text-sm text-body">{task.duration}</span>
-                <StateBadge state={task.state} />
-                <span className="font-mono text-sm text-yellow-400">{task.usdcSpent}</span>
-                <button
-                  onClick={() => setSelected(task)}
-                  className="font-mono text-xs text-muted uppercase hover:text-accent transition-colors text-right"
-                >
-                  Detail →
-                </button>
-              </div>
-            ))}
-          </div>
+      {/* Table header */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1.2fr 0.8fr 0.6fr 0.7fr 0.5fr 0.5fr", padding: "10px 30px", borderBottom: `1px solid ${DS.border}`, backgroundColor: "#d5d0c8" }}>
+        {["ID", "AGENT", "CAPABILITY", "STARTED", "DURATION", "STATE", "USDC", ""].map((h) => (
+          <span key={h} style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted }}>{h}</span>
         ))}
       </div>
 
-      {selected && (
-        <TaskDetailModal task={selected} onClose={() => setSelected(null)} />
+      {/* Rows */}
+      {filtered.length === 0 && (
+        <div style={{ padding: "60px 30px", textAlign: "center" }}>
+          {tasks.length === 0 ? (
+            <>
+              <p style={{ ...bandLabel, color: DS.textMuted, marginBottom: 8 }}>NO TASKS YET</p>
+              <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, color: DS.textMuted }}>Start a task from the Dashboard to see it here.</p>
+            </>
+          ) : (
+            <p style={{ ...bandLabel, color: DS.textMuted }}>NO TASKS MATCH THE CURRENT FILTER</p>
+          )}
+        </div>
       )}
+
+      {groups.map((group, gi) => (
+        <div key={gi}>
+          {/* Chain header */}
+          {group.chainId && group.tasks.length > 1 && (
+            <div style={{ padding: "8px 30px", backgroundColor: "#dddcd7", borderBottom: `1px solid ${DS.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "2px 8px", backgroundColor: DS.cyan, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase" }}>CHAIN</span>
+              <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700 }}>{group.chainId} — {group.tasks.length} STEPS</span>
+              <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, marginLeft: "auto" }}>TOTAL: {group.tasks.reduce((sum, t) => sum + parseFloat(t.usdcSpent || "0"), 0).toFixed(2)} USDC</span>
+            </div>
+          )}
+
+          {group.tasks.map((task) => (
+            <div key={task.id} style={{
+              display: "grid", gridTemplateColumns: "1.5fr 1fr 1.2fr 0.8fr 0.6fr 0.7fr 0.5fr 0.5fr",
+              padding: "12px 30px", paddingLeft: group.chainId ? 46 : 30,
+              borderBottom: "1px solid #ccc", alignItems: "center",
+              fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700,
+              cursor: "pointer", transition: "background-color 0.1s",
+            }} onClick={() => setSelected(task)} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = DS.bgHover} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{task.id.split("_").pop()?.toUpperCase() || task.id.slice(-6).toUpperCase()}</span>
+                {task.isAgentTask && <span className="mp-white-text" style={{ fontSize: "0.6rem", padding: "1px 6px", backgroundColor: DS.purple, flexShrink: 0 }}>AGENT</span>}
+              </div>
+              <span>{task.counterpartAgent}</span>
+              <span style={{ color: DS.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.capability}</span>
+              <span style={{ color: DS.textMuted }}>{new Date(task.startedAt).toTimeString().slice(0, 8)}</span>
+              <span>{task.duration}</span>
+              <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "3px 8px", backgroundColor: STATE_COLORS[task.state]?.bg || DS.textMuted, display: "inline-block", width: "fit-content" }}>{task.state}</span>
+              <span style={{ fontWeight: 700 }}>{task.usdcSpent}</span>
+              <span style={{ color: DS.textMuted, textAlign: "right", fontSize: "0.75rem" }}>DETAIL</span>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {selected && <TaskDetailModal task={selected} onClose={() => setSelected(null)} />}
     </>
   );
 }

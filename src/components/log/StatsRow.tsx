@@ -2,6 +2,17 @@
 
 import { useLogStore } from "@/store/logStore";
 
+const DS = {
+  bg: "#e6e5e0",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  green: "#7cb342",
+  error: "#c62828",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
+
 export default function StatsRow() {
   const { tasks } = useLogStore();
 
@@ -9,86 +20,56 @@ export default function StatsRow() {
   const successful = tasks.filter((t) => t.state === "COMPLETED").length;
   const failed = tasks.filter((t) => t.state === "FAILED").length;
   const cancelled = tasks.filter((t) => t.state === "CANCELLED").length;
-  const totalUsdc = tasks
-    .reduce((sum, t) => sum + parseFloat(t.usdcSpent), 0)
-    .toFixed(2);
+  const totalUsdc = tasks.reduce((sum, t) => sum + parseFloat(t.usdcSpent), 0).toFixed(2);
   const successRate = total > 0 ? ((successful / total) * 100).toFixed(0) : "—";
-  const avgDuration =
-    total > 0
-      ? (
-          tasks.reduce((sum, t) => sum + parseFloat(t.duration), 0) / total
-        ).toFixed(1)
-      : "—";
 
   const stats = [
-    { label: "Total Tasks", value: total.toString(), color: "text-off-white" },
-    { label: "Completed", value: successful.toString(), color: "text-accent" },
-    { label: "Failed", value: failed.toString(), color: "text-red-400" },
-    { label: "Cancelled", value: cancelled.toString(), color: "text-yellow-400" },
-    { label: "USDC Spent", value: `${totalUsdc}`, color: "text-accent" },
-    { label: "Success Rate", value: successRate === "—" ? "—" : `${successRate}%`, color: "text-off-white" },
+    { label: "TOTAL", value: total.toString() },
+    { label: "COMPLETED", value: successful.toString(), color: DS.green },
+    { label: "FAILED", value: failed.toString(), color: DS.error },
+    { label: "CANCELLED", value: cancelled.toString(), color: "#b8913a" },
+    { label: "USDC SPENT", value: totalUsdc, color: DS.green },
+    { label: "SUCCESS RATE", value: successRate === "—" ? "—" : `${successRate}%` },
   ];
 
-  // Mini bar chart: last 10 tasks success/fail
   const recentTasks = tasks.slice(0, 10);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-6 gap-3">
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="border border-forest-deep/60 bg-forest-deep/20 p-4 rounded-lg flex flex-col gap-2"
-          >
-            <span className="font-mono text-xs text-muted uppercase tracking-wider">
-              {s.label}
-            </span>
-            <span className={`font-display text-xl uppercase ${s.color}`}>
-              {s.value}
-            </span>
+    <div>
+      {/* Stats band */}
+      <div style={{ display: "flex", borderBottom: `1px solid ${DS.border}` }}>
+        {stats.map((s, i) => (
+          <div key={s.label} style={{ flex: 1, padding: "16px 20px", borderRight: i < stats.length - 1 ? `1px solid ${DS.border}` : "none", textAlign: "center" }}>
+            <span style={{ fontFamily: DS.fontPrimary, fontSize: "1.8rem", fontWeight: 400, display: "block", color: s.color || DS.text }}>{s.value}</span>
+            <span style={{ fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: DS.textMuted }}>{s.label}</span>
           </div>
         ))}
       </div>
 
-      {/* Mini activity bar chart */}
+      {/* Activity bar */}
       {recentTasks.length > 0 && (
-        <div className="border border-forest-deep/60 bg-forest-deep/20 p-4 rounded-lg">
-          <span className="font-mono text-xs text-muted uppercase tracking-wider block mb-3">
-            Recent Activity
-          </span>
-          <div className="flex items-end gap-1 h-12">
+        <div style={{ padding: "16px 30px", borderBottom: `1px solid ${DS.border}` }}>
+          <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: DS.textMuted, display: "block", marginBottom: 10 }}>RECENT ACTIVITY</span>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 48 }}>
             {recentTasks.map((task) => {
               const dur = parseFloat(task.duration) || 1;
               const heightPct = Math.min(100, (dur / 8) * 100);
-              const color =
-                task.state === "COMPLETED"
-                  ? "bg-accent"
-                  : task.state === "FAILED"
-                  ? "bg-red-500"
-                  : "bg-yellow-500";
+              const color = task.state === "COMPLETED" ? DS.green : task.state === "FAILED" ? DS.error : "#b8913a";
               return (
-                <div
-                  key={task.id}
-                  className="flex-1 flex flex-col items-center gap-1"
-                >
-                  <div
-                    className={`w-full ${color} opacity-40 hover:opacity-100 transition-opacity cursor-pointer rounded-sm`}
-                    style={{ height: `${heightPct}%`, minHeight: "4px" }}
-                    title={`${task.counterpartAgent} — ${task.capability} — ${task.duration}`}
-                  />
+                <div key={task.id} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div style={{ width: "100%", backgroundColor: color, height: `${heightPct}%`, minHeight: 4, opacity: 0.6, transition: "opacity 0.15s", cursor: "pointer" }} title={`${task.counterpartAgent} — ${task.capability} — ${task.duration}`} onMouseEnter={(e) => e.currentTarget.style.opacity = "1"} onMouseLeave={(e) => e.currentTarget.style.opacity = "0.6"} />
                 </div>
               );
             })}
-            {/* Fill empty slots */}
             {Array.from({ length: Math.max(0, 10 - recentTasks.length) }).map((_, i) => (
-              <div key={`empty-${i}`} className="flex-1">
-                <div className="w-full bg-forest-deep/40 h-1" />
+              <div key={`empty-${i}`} style={{ flex: 1 }}>
+                <div style={{ width: "100%", backgroundColor: "#ccc", height: 4 }} />
               </div>
             ))}
           </div>
-          <div className="flex justify-between mt-1">
-            <span className="font-mono text-xs text-muted">Latest</span>
-            <span className="font-mono text-xs text-muted">Oldest</span>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            <span style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, color: DS.textMuted }}>LATEST</span>
+            <span style={{ fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, color: DS.textMuted }}>OLDEST</span>
           </div>
         </div>
       )}

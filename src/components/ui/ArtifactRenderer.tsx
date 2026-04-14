@@ -87,7 +87,7 @@ function DownloadButton({ content, filename }: { content: string; filename: stri
     URL.revokeObjectURL(url);
   };
   return (
-    <button onClick={handleDownload} className="font-mono text-[9px] text-muted hover:text-accent border border-forest-deep/40 px-2 py-0.5 rounded transition-colors">
+    <button onClick={handleDownload} className="font-mono text-xs text-muted hover:text-accent border border-forest-deep/40 px-3 py-1.5 rounded transition-colors">
       Download {filename.split(".").pop()?.toUpperCase()}
     </button>
   );

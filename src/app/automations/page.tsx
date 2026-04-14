@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
 import { signedFetch } from "@/lib/auth/signed-fetch";
 import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
-import BtnPrimary from "@/components/ui/BtnPrimary";
-import MonoLabel from "@/components/ui/MonoLabel";
 
+/* ─── Types ─── */
 interface Automation {
   id: string;
   name: string;
@@ -35,6 +34,29 @@ interface AutoResult {
   created_at: string;
 }
 
+/* ─── Design System ─── */
+const DS = {
+  bg: "#e6e5e0",
+  bgHover: "#d9d8d3",
+  border: "#000000",
+  text: "#000000",
+  textMuted: "#666666",
+  dark: "#222222",
+  green: "#7cb342",
+  cyan: "#4dd0e1",
+  error: "#c62828",
+  purple: "#7c3aed",
+  white: "#ffffff",
+  fontPrimary: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  fontMono: '"Courier New", Courier, monospace',
+};
+
+const TRIGGER_COLORS: Record<string, { bg: string; text: string }> = {
+  schedule: { bg: DS.text, text: DS.white },
+  webhook: { bg: DS.green, text: DS.white },
+  onchain: { bg: DS.purple, text: DS.white },
+};
+
 export default function AutomationsPage() {
   const router = useRouter();
   const { address } = useWalletStore();
@@ -45,7 +67,6 @@ export default function AutomationsPage() {
   const [results, setResults] = useState<Record<string, AutoResult[]>>({});
   const [runningId, setRunningId] = useState<string | null>(null);
 
-  // Form state
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [schedule, setSchedule] = useState("daily");
@@ -55,6 +76,55 @@ export default function AutomationsPage() {
   const [watchAddress, setWatchAddress] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [testingWebhook, setTestingWebhook] = useState<string | null>(null);
+
+  /* Theme override */
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.setAttribute("data-auto-theme", "true");
+    style.textContent = `
+      body { background-color: ${DS.bg} !important; color: ${DS.text} !important; }
+      main.pt-14 { padding-top: 56px; }
+      nav[aria-label="Main navigation"] {
+        background-color: ${DS.bg} !important;
+        
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+      }
+      nav[aria-label="Main navigation"] a, nav[aria-label="Main navigation"] span {
+        color: ${DS.text} !important; font-family: ${DS.fontMono} !important;
+      }
+      nav[aria-label="Main navigation"] a:hover { color: ${DS.textMuted} !important; }
+      nav[aria-label="Main navigation"] a[aria-current="page"] { color: ${DS.text} !important; font-weight: 700 !important; }
+      nav[aria-label="Main navigation"] .w-2.h-2 { background-color: ${DS.green} !important; }
+      nav[aria-label="Main navigation"] .w-px { background-color: ${DS.border} !important; opacity: 0.2; }
+      main.pt-14 * { color: #000000 !important; }
+      main.pt-14 input::placeholder { color: #555555 !important; }
+      main.pt-14 .mp-white-text { color: #ffffff !important; }
+      main.pt-14 .ds-accent-text { color: ${DS.green} !important; }
+      main.pt-14 .ds-error-text { color: ${DS.error} !important; }
+      main.pt-14 .ds-muted-text { color: ${DS.textMuted} !important; }
+      main.pt-14 select, main.pt-14 option { color: #000 !important; background-color: ${DS.bg} !important; }
+      ::-webkit-scrollbar-track { background: ${DS.bg} !important; }
+      ::-webkit-scrollbar-thumb { background: ${DS.textMuted} !important; }
+      .auto-card { transition: background-color 0.15s ease; }
+      .auto-card:hover { background-color: ${DS.bgHover} !important; }
+      .auto-hero-header::after {
+        content: "AUTOMATIONS";
+        position: absolute;
+        bottom: -15px;
+        right: -10px;
+        font-size: 12rem;
+        color: #d5d0c8;
+        font-weight: 700;
+        pointer-events: none;
+        line-height: 0.8;
+        z-index: 0;
+        letter-spacing: -0.05em;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
 
   const loadAutomations = useCallback(() => {
     if (!address) return;
@@ -80,13 +150,8 @@ export default function AutomationsPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        walletAddress: address,
-        name: name.trim(),
-        prompt: prompt.trim(),
-        schedule,
-        budgetLimit: parseFloat(budgetLimit),
-        budgetPeriod,
-        triggerType,
+        walletAddress: address, name: name.trim(), prompt: prompt.trim(),
+        schedule, budgetLimit: parseFloat(budgetLimit), budgetPeriod, triggerType,
         watchAddress: triggerType === "onchain" ? watchAddress.trim() : undefined,
       }),
     });
@@ -95,11 +160,7 @@ export default function AutomationsPage() {
   };
 
   const handleToggle = async (id: string, enabled: boolean) => {
-    await signedFetch("/api/automations", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, enabled }),
-    });
+    await signedFetch("/api/automations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, enabled }) });
     loadAutomations();
   };
 
@@ -111,337 +172,258 @@ export default function AutomationsPage() {
   const handleRun = async (id: string) => {
     setRunningId(id);
     try {
-      const res = await signedFetch("/api/automations/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ automationId: id }),
-      });
+      const res = await signedFetch("/api/automations/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ automationId: id }) });
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Run failed");
-      }
+      if (!res.ok) alert(data.error || "Run failed");
       loadAutomations();
       loadResults(id);
       setExpandedId(id);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Run failed");
-    }
+    } catch (err) { alert(err instanceof Error ? err.message : "Run failed"); }
     setRunningId(null);
   };
 
   const toggleExpand = (id: string) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-    } else {
-      setExpandedId(id);
-      if (!results[id]) loadResults(id);
-    }
+    if (expandedId === id) { setExpandedId(null); }
+    else { setExpandedId(id); if (!results[id]) loadResults(id); }
   };
+
+  /* ─── Shared styles ─── */
+  const bandLabel: React.CSSProperties = { fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" };
+  const inputStyle: React.CSSProperties = { width: "100%", fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, padding: "10px 14px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", outline: "none", color: DS.text };
+  const selectStyle: React.CSSProperties = { ...inputStyle, cursor: "pointer", appearance: "none", WebkitAppearance: "none" };
+  const btnDark: React.CSSProperties = { padding: "10px 24px", fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", backgroundColor: DS.dark, color: DS.bg, border: "none", cursor: "pointer" };
+  const btnOutline: React.CSSProperties = { ...btnDark, backgroundColor: "transparent", border: `1px solid ${DS.border}`, color: DS.text };
+  const btnSmall: React.CSSProperties = { fontFamily: DS.fontMono, fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", padding: "6px 14px", border: `1px solid ${DS.border}`, backgroundColor: "transparent", cursor: "pointer", color: DS.text };
 
   if (!address) {
     return (
-      <div className="max-w-[1920px] mx-auto px-10 py-12 flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <span className="font-mono text-sm text-muted">Connect your wallet to use automations.</span>
-        <BtnPrimary onClick={() => router.push("/connect")}>Connect Wallet</BtnPrimary>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16, fontFamily: DS.fontPrimary }}>
+        <p style={{ ...bandLabel, color: DS.textMuted }}>CONNECT YOUR WALLET TO USE AUTOMATIONS</p>
+        <button onClick={() => router.push("/connect")} className="mp-white-text" style={btnDark}>Connect Wallet</button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1920px] mx-auto px-10 py-12">
-      {/* Header */}
-      <div className="mb-10 flex items-end justify-between">
-        <div>
-          <span className="font-mono text-xs text-muted uppercase tracking-wider">Scheduled Tasks</span>
-          <h2 className="font-display text-3xl text-mint uppercase tracking-tight mt-1">Automations</h2>
-          <p className="font-mono text-sm text-muted mt-2 max-w-lg">
-            Create recurring tasks that your Twin executes automatically. Set budgets, schedules, and let AI work for you.
-          </p>
-        </div>
-        <BtnPrimary onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ New Automation"}
-        </BtnPrimary>
-      </div>
+    <div style={{ width: "100%", maxWidth: 1920, margin: "0 auto", padding: "0 0 40px", fontFamily: DS.fontPrimary, WebkitFontSmoothing: "antialiased" }}>
 
-      {/* Create Form */}
+      {/* ═══ Header ═══ */}
+      <header className="auto-hero-header" style={{ padding: "30px 40px 0", borderBottom: `1px solid ${DS.border}`, position: "relative", overflow: "hidden", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <h2 style={{ position: "relative", zIndex: 1, fontSize: "8rem", fontWeight: 300, lineHeight: 0.85, textTransform: "uppercase", letterSpacing: "-0.03em", color: DS.text, fontFamily: DS.fontPrimary, textShadow: "3px 3px 0px #d5d0c8", margin: 0, marginBottom: -6 }}>
+          Auto
+        </h2>
+        <button onClick={() => setShowForm(!showForm)} className={showForm ? "" : "mp-white-text"} style={{ ...showForm ? btnOutline : btnDark, position: "relative", zIndex: 1, marginBottom: 8 }}>
+          {showForm ? "CANCEL" : "+ NEW AUTOMATION"}
+        </button>
+      </header>
+
+      {/* ═══ Create Form ═══ */}
       {showForm && (
-        <div className="border border-mint/20 rounded-xl p-6 mb-8 max-w-2xl">
-          <span className="font-mono text-xs text-mint uppercase block mb-4">New Automation</span>
+        <div style={{ borderBottom: `1px solid ${DS.border}` }}>
+          {/* Form header */}
+          <div style={{ padding: "12px 30px", borderBottom: `1px solid ${DS.border}`, backgroundColor: "#d5d0c8", ...bandLabel }}>
+            NEW AUTOMATION
+          </div>
 
-          <div className="flex flex-col gap-4">
-            <div>
-              <MonoLabel className="mb-1">Name</MonoLabel>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)}
-                placeholder="Daily DeFi Report"
-                className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-4 py-2.5 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none" />
-            </div>
+          {/* Name */}
+          <div style={{ padding: "16px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>NAME</span>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Daily DeFi Report" style={inputStyle} />
+          </div>
 
-            <div>
-              <MonoLabel className="mb-1">Prompt (what should Twin do?)</MonoLabel>
-              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Get a DeFi risk analysis for the top Solana protocols"
-                rows={2}
-                className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-4 py-2.5 font-mono text-sm text-mint placeholder:text-muted/40 focus:border-mint/40 focus:outline-none resize-none" />
-            </div>
+          {/* Prompt */}
+          <div style={{ padding: "16px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>PROMPT (WHAT SHOULD TWIN DO?)</span>
+            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Get a DeFi risk analysis for the top Solana protocols" rows={2} style={{ ...inputStyle, resize: "none" }} />
+          </div>
 
-            {/* Trigger Type */}
-            <div>
-              <MonoLabel className="mb-1">Trigger Type</MonoLabel>
-              <div className="flex gap-2">
-                <button onClick={() => setTriggerType("schedule")}
-                  className={`flex-1 font-mono text-xs px-3 py-2.5 rounded-lg border transition-colors ${
-                    triggerType === "schedule"
-                      ? "border-mint/40 text-mint bg-mint/5"
-                      : "border-forest-deep/40 text-muted hover:border-mint/20"
-                  }`}>
-                  Schedule (cron)
+          {/* Trigger Type */}
+          <div style={{ padding: "16px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>TRIGGER TYPE</span>
+            <div style={{ display: "flex", gap: 0 }}>
+              {(["schedule", "webhook", "onchain"] as const).map((t) => (
+                <button key={t} onClick={() => setTriggerType(t)} className={triggerType === t ? "mp-white-text" : ""} style={{
+                  flex: 1, padding: "10px 16px", fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase",
+                  backgroundColor: triggerType === t ? TRIGGER_COLORS[t].bg : "transparent",
+                  color: triggerType === t ? TRIGGER_COLORS[t].text : DS.textMuted,
+                  border: `1px solid ${DS.border}`, borderRight: t !== "onchain" ? "none" : `1px solid ${DS.border}`, cursor: "pointer",
+                }}>
+                  {t === "schedule" ? "SCHEDULE (CRON)" : t === "webhook" ? "WEBHOOK (EXTERNAL)" : "ON-CHAIN (SOLANA)"}
                 </button>
-                <button onClick={() => setTriggerType("webhook")}
-                  className={`flex-1 font-mono text-xs px-3 py-2.5 rounded-lg border transition-colors ${
-                    triggerType === "webhook"
-                      ? "border-accent/40 text-accent bg-accent/5"
-                      : "border-forest-deep/40 text-muted hover:border-accent/20"
-                  }`}>
-                  Webhook (external)
-                </button>
-                <button onClick={() => setTriggerType("onchain")}
-                  className={`flex-1 font-mono text-xs px-3 py-2.5 rounded-lg border transition-colors ${
-                    triggerType === "onchain"
-                      ? "border-purple-400/40 text-purple-400 bg-purple-900/5"
-                      : "border-forest-deep/40 text-muted hover:border-purple-400/20"
-                  }`}>
-                  On-chain (Solana)
-                </button>
-              </div>
+              ))}
             </div>
+          </div>
 
-            <div className="grid grid-cols-3 gap-3">
+          {/* Config row */}
+          <div style={{ display: "flex", borderBottom: `1px solid ${DS.border}` }}>
+            <div style={{ flex: 1, padding: "16px 30px", borderRight: `1px solid ${DS.border}` }}>
+              <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>
+                {triggerType === "schedule" ? "SCHEDULE" : triggerType === "onchain" ? "WATCH ADDRESS (SOLANA)" : "TRIGGER"}
+              </span>
               {triggerType === "schedule" ? (
-              <div>
-                <MonoLabel className="mb-1">Schedule</MonoLabel>
-                <select value={schedule} onChange={(e) => setSchedule(e.target.value)}
-                  className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-3 py-2.5 font-mono text-sm text-muted focus:border-mint/40 focus:outline-none cursor-pointer">
-                  <option value="1min">Every 1 min (test)</option>
-                  <option value="5min">Every 5 min</option>
-                  <option value="hourly">Hourly</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
+                <select value={schedule} onChange={(e) => setSchedule(e.target.value)} style={selectStyle}>
+                  <option value="2min">EVERY 3 MIN</option>
+                  <option value="5min">EVERY 5 MIN</option>
+                  <option value="hourly">HOURLY</option>
+                  <option value="daily">DAILY</option>
+                  <option value="weekly">WEEKLY</option>
                 </select>
-              </div>
               ) : triggerType === "onchain" ? (
-              <div>
-                <MonoLabel className="mb-1">Watch Address (Solana)</MonoLabel>
-                <input type="text" value={watchAddress} onChange={(e) => setWatchAddress(e.target.value)}
-                  placeholder="33qU3JFk..."
-                  className="w-full bg-forest-deep/30 border border-purple-400/20 rounded-lg px-3 py-2.5 font-mono text-xs text-purple-400 placeholder:text-muted/40 focus:border-purple-400/40 focus:outline-none" />
-              </div>
+                <input type="text" value={watchAddress} onChange={(e) => setWatchAddress(e.target.value)} placeholder="33qU3JFk..." style={inputStyle} />
               ) : (
-              <div>
-                <MonoLabel className="mb-1">Trigger</MonoLabel>
-                <div className="w-full bg-forest-deep/30 border border-accent/20 rounded-lg px-3 py-2.5 font-mono text-xs text-accent">
-                  Webhook URL will be generated
-                </div>
-              </div>
+                <div style={{ ...inputStyle, border: "none", color: DS.textMuted, fontSize: "0.75rem" }}>Webhook URL will be generated</div>
               )}
-              <div>
-                <MonoLabel className="mb-1">Budget Limit (USDC)</MonoLabel>
-                <input type="number" step="0.1" min="0.1" value={budgetLimit}
-                  onChange={(e) => setBudgetLimit(e.target.value)}
-                  className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-3 py-2.5 font-mono text-sm text-accent focus:border-mint/40 focus:outline-none" />
-              </div>
-              <div>
-                <MonoLabel className="mb-1">Budget Period</MonoLabel>
-                <select value={budgetPeriod} onChange={(e) => setBudgetPeriod(e.target.value)}
-                  className="w-full bg-forest-deep/30 border border-mint/20 rounded-lg px-3 py-2.5 font-mono text-sm text-muted focus:border-mint/40 focus:outline-none cursor-pointer">
-                  <option value="daily">Per Day</option>
-                  <option value="weekly">Per Week</option>
-                  <option value="monthly">Per Month</option>
-                </select>
-              </div>
             </div>
+            <div style={{ flex: 1, padding: "16px 30px", borderRight: `1px solid ${DS.border}` }}>
+              <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>BUDGET LIMIT (USDC)</span>
+              <input type="number" step="0.1" min="0.1" value={budgetLimit} onChange={(e) => setBudgetLimit(e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ flex: 1, padding: "16px 30px" }}>
+              <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>BUDGET PERIOD</span>
+              <select value={budgetPeriod} onChange={(e) => setBudgetPeriod(e.target.value)} style={selectStyle}>
+                <option value="daily">PER DAY</option>
+                <option value="weekly">PER WEEK</option>
+                <option value="monthly">PER MONTH</option>
+              </select>
+            </div>
+          </div>
 
-            <BtnPrimary onClick={handleCreate} disabled={!name.trim() || !prompt.trim()}>
-              Create Automation
-            </BtnPrimary>
+          {/* Create button */}
+          <div style={{ padding: "16px 30px", borderBottom: `1px solid ${DS.border}` }}>
+            <button onClick={handleCreate} disabled={!name.trim() || !prompt.trim()} className="mp-white-text" style={{ ...btnDark, opacity: !name.trim() || !prompt.trim() ? 0.4 : 1, cursor: !name.trim() || !prompt.trim() ? "not-allowed" : "pointer" }}>
+              CREATE AUTOMATION
+            </button>
           </div>
         </div>
       )}
 
-      {/* Automations List */}
+      {/* ═══ Automations List ═══ */}
       {loading ? (
-        <span className="font-mono text-sm text-muted animate-pulse">Loading automations...</span>
+        <div style={{ padding: "60px 30px", textAlign: "center" }}>
+          <span style={{ ...bandLabel, color: DS.textMuted }}>LOADING AUTOMATIONS...</span>
+        </div>
       ) : automations.length === 0 && !showForm ? (
-        <div className="border border-forest-deep/40 rounded-xl p-10 text-center">
-          <p className="font-mono text-sm text-muted mb-4">No automations yet.</p>
-          <BtnPrimary onClick={() => setShowForm(true)}>Create Your First Automation</BtnPrimary>
+        <div style={{ padding: "80px 30px", textAlign: "center" }}>
+          <p style={{ ...bandLabel, color: DS.textMuted, marginBottom: 20 }}>NO AUTOMATIONS YET</p>
+          <button onClick={() => setShowForm(true)} className="mp-white-text" style={btnDark}>CREATE YOUR FIRST AUTOMATION</button>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {automations.map((auto) => (
-            <div key={auto.id} className="border border-mint/10 rounded-xl overflow-hidden">
-              {/* Header */}
-              <div className="p-5 flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleExpand(auto.id)}>
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className={`w-2 h-2 rounded-full ${auto.enabled ? "bg-accent" : "bg-muted"}`} />
-                    <h3 className="font-display text-lg text-off-white uppercase tracking-wider">{auto.name}</h3>
-                    {auto.trigger_type === "webhook" ? (
-                      <span className="font-mono text-[10px] text-accent uppercase px-2 py-0.5 border border-accent/30 rounded bg-accent/5">
-                        webhook
+        <div>
+          {automations.map((auto) => {
+            const tc = TRIGGER_COLORS[auto.trigger_type] || TRIGGER_COLORS.schedule;
+            return (
+              <div key={auto.id} style={{ borderBottom: `1px solid ${DS.border}` }}>
+                {/* ── Automation Header Row ── */}
+                <div className="auto-card" style={{ padding: "16px 30px", display: "flex", alignItems: "flex-start", gap: 16 }}>
+                  <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => toggleExpand(auto.id)}>
+                    {/* Name + badges */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: auto.enabled ? DS.green : "#bbb", display: "inline-block", flexShrink: 0 }} />
+                      <h3 style={{ fontFamily: DS.fontPrimary, fontSize: "1.4rem", fontWeight: 400, textTransform: "uppercase", color: DS.text }}>{auto.name}</h3>
+                      <span className="mp-white-text" style={{ fontSize: "0.6rem", padding: "3px 10px", backgroundColor: tc.bg, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>
+                        {auto.trigger_type === "webhook" ? "WEBHOOK" : auto.trigger_type === "onchain" ? "ON-CHAIN" : auto.schedule}
                       </span>
-                    ) : auto.trigger_type === "onchain" ? (
-                      <span className="font-mono text-[10px] text-purple-400 uppercase px-2 py-0.5 border border-purple-800/30 rounded bg-purple-900/5">
-                        on-chain
-                      </span>
-                    ) : (
-                      <span className="font-mono text-[10px] text-muted uppercase px-2 py-0.5 border border-forest-deep/40 rounded">
-                        {auto.schedule}
-                      </span>
-                    )}
-                  </div>
-                  <p className="font-mono text-sm text-muted truncate">{auto.prompt}</p>
-                  {auto.trigger_type === "webhook" && (
-                    <div className="mt-1.5 flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] text-muted/60">URL:</span>
-                        <code className="font-mono text-[10px] text-accent/80 bg-accent/5 px-1.5 py-0.5 rounded">
-                          {typeof window !== "undefined" ? window.location.origin : ""}/api/trigger/{auto.id}
-                        </code>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(`${window.location.origin}/api/trigger/${auto.id}`);
-                            setCopiedId(auto.id + "_url");
-                            setTimeout(() => setCopiedId(null), 2000);
-                          }}
-                          className="font-mono text-[9px] text-muted hover:text-mint transition-colors"
-                        >
-                          {copiedId === auto.id + "_url" ? "copied!" : "copy"}
-                        </button>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            setTestingWebhook(auto.id);
-                            try {
-                              const crypto = await import("crypto");
-                              const payload = JSON.stringify({ test: true, timestamp: new Date().toISOString() });
-                              const sig = crypto.createHmac("sha256", auto.webhook_secret || "").update(payload).digest("hex");
-                              await fetch(`/api/trigger/${auto.id}`, {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                  "X-Webhook-Signature": `sha256=${sig}`,
-                                },
-                                body: payload,
-                              });
-                              loadAutomations();
-                            } catch { /* ignore */ }
-                            setTestingWebhook(null);
-                          }}
-                          className="font-mono text-[9px] text-accent border border-accent/30 px-2 py-0.5 rounded hover:bg-accent/10 transition-colors"
-                        >
-                          {testingWebhook === auto.id ? "testing..." : "Test Webhook"}
-                        </button>
-                      </div>
-                      {auto.webhook_secret && (
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[10px] text-muted/60">Secret:</span>
-                          <code className="font-mono text-[10px] text-muted/50 bg-forest-deep/30 px-1.5 py-0.5 rounded">
-                            {auto.webhook_secret.slice(0, 12)}...
+                    </div>
+
+                    {/* Prompt */}
+                    <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, color: DS.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{auto.prompt}</p>
+
+                    {/* Webhook info */}
+                    {auto.trigger_type === "webhook" && (
+                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted }}>URL:</span>
+                          <code style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, backgroundColor: "#d5d0c8", padding: "3px 8px" }}>
+                            {typeof window !== "undefined" ? window.location.origin : ""}/api/trigger/{auto.id}
                           </code>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigator.clipboard.writeText(auto.webhook_secret!);
-                              setCopiedId(auto.id + "_secret");
-                              setTimeout(() => setCopiedId(null), 2000);
-                            }}
-                            className="font-mono text-[9px] text-muted hover:text-mint transition-colors"
-                          >
-                            {copiedId === auto.id + "_secret" ? "copied!" : "copy secret"}
+                          <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/api/trigger/${auto.id}`); setCopiedId(auto.id + "_url"); setTimeout(() => setCopiedId(null), 2000); }} style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                            {copiedId === auto.id + "_url" ? "COPIED" : "COPY"}
+                          </button>
+                          <button onClick={async (e) => { e.stopPropagation(); setTestingWebhook(auto.id); try { const crypto = await import("crypto"); const payload = JSON.stringify({ test: true, timestamp: new Date().toISOString() }); const sig = crypto.createHmac("sha256", auto.webhook_secret || "").update(payload).digest("hex"); await fetch(`/api/trigger/${auto.id}`, { method: "POST", headers: { "Content-Type": "application/json", "X-Webhook-Signature": `sha256=${sig}` }, body: payload }); loadAutomations(); } catch {} setTestingWebhook(null); }} className="ds-accent-text" style={btnSmall}>
+                            {testingWebhook === auto.id ? "TESTING..." : "TEST"}
                           </button>
                         </div>
-                      )}
-                    </div>
-                  )}
-                  {auto.trigger_type === "onchain" && auto.watch_address && (
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-muted/60">Watching:</span>
-                      <code className="font-mono text-[10px] text-purple-400/80 bg-purple-900/10 px-1.5 py-0.5 rounded">
-                        {auto.watch_address.slice(0, 8)}...{auto.watch_address.slice(-6)}
-                      </code>
-                      <span className="font-mono text-[9px] text-muted/40">USDC transfers</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className="font-mono text-xs text-muted">
-                      Budget: <span className="text-accent">{auto.total_spent.toFixed(2)}</span> / {auto.budget_limit.toFixed(2)} USDC
-                    </span>
-                    <span className="font-mono text-xs text-muted">
-                      Runs: <span className="text-mint">{auto.run_count}</span>
-                    </span>
-                    {auto.last_run && (
-                      <span className="font-mono text-xs text-muted">
-                        Last: {new Date(auto.last_run).toLocaleString()}
-                      </span>
+                        {auto.webhook_secret && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted }}>SECRET:</span>
+                            <code style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", color: DS.textMuted, backgroundColor: "#d5d0c8", padding: "3px 8px" }}>
+                              {auto.webhook_secret.slice(0, 12)}...
+                            </code>
+                            <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(auto.webhook_secret!); setCopiedId(auto.id + "_secret"); setTimeout(() => setCopiedId(null), 2000); }} style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                              {copiedId === auto.id + "_secret" ? "COPIED" : "COPY"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
+
+                    {/* On-chain watch */}
+                    {auto.trigger_type === "onchain" && auto.watch_address && (
+                      <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted }}>WATCHING:</span>
+                        <code style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, backgroundColor: "#d5d0c8", padding: "3px 8px" }}>
+                          {auto.watch_address.slice(0, 8)}...{auto.watch_address.slice(-6)}
+                        </code>
+                        <span style={{ ...bandLabel, fontSize: "0.65rem", color: DS.textMuted, fontWeight: 400 }}>USDC TRANSFERS</span>
+                      </div>
+                    )}
+
+                    {/* Stats */}
+                    <div style={{ display: "flex", gap: 24, marginTop: 10, ...bandLabel, fontSize: "0.8rem", color: DS.textMuted, fontWeight: 400 }}>
+                      <span>BUDGET: <strong style={{ fontWeight: 700 }}>{auto.total_spent.toFixed(2)}</strong> / {auto.budget_limit.toFixed(2)} USDC</span>
+                      <span>RUNS: <strong style={{ fontWeight: 700 }}>{auto.run_count}</strong></span>
+                      {auto.last_run && <span>LAST: {new Date(auto.last_run).toLocaleString()}</span>}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => handleRun(auto.id)} disabled={runningId === auto.id || !auto.enabled} className="mp-white-text" style={{ ...btnSmall, backgroundColor: DS.dark, color: DS.bg, border: "none", opacity: runningId === auto.id || !auto.enabled ? 0.4 : 1, cursor: runningId === auto.id || !auto.enabled ? "not-allowed" : "pointer" }}>
+                      {runningId === auto.id ? "RUNNING..." : "RUN NOW"}
+                    </button>
+                    <button onClick={() => handleToggle(auto.id, !auto.enabled)} className={auto.enabled ? "ds-accent-text" : ""} style={{ ...btnSmall, borderColor: auto.enabled ? DS.green : "#bbb" }}>
+                      {auto.enabled ? "ENABLED" : "DISABLED"}
+                    </button>
+                    <button onClick={() => handleDelete(auto.id)} className="ds-error-text" style={{ ...btnSmall, borderColor: DS.error }}>
+                      DELETE
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <BtnPrimary variant="secondary" onClick={() => handleRun(auto.id)}
-                    disabled={runningId === auto.id || !auto.enabled}
-                    className="text-[10px] px-3 py-1.5">
-                    {runningId === auto.id ? "Running..." : "Run Now"}
-                  </BtnPrimary>
-                  <button onClick={() => handleToggle(auto.id, !auto.enabled)}
-                    className={`font-mono text-[10px] px-3 py-1.5 border rounded-lg transition-colors ${
-                      auto.enabled
-                        ? "text-accent border-accent/30 hover:bg-accent/10"
-                        : "text-muted border-forest-deep/40 hover:text-mint"
-                    }`}>
-                    {auto.enabled ? "Enabled" : "Disabled"}
-                  </button>
-                  <button onClick={() => handleDelete(auto.id)}
-                    className="font-mono text-[10px] text-red-400 border border-red-800/30 px-3 py-1.5 rounded-lg hover:bg-red-900/10 transition-colors">
-                    Delete
-                  </button>
-                </div>
-              </div>
-
-              {/* Expanded: Results */}
-              {expandedId === auto.id && (
-                <div className="border-t border-forest-deep/30 p-5 bg-forest-deep/10">
-                  <span className="font-mono text-xs text-muted uppercase block mb-3">Recent Results</span>
-                  {!results[auto.id] || results[auto.id].length === 0 ? (
-                    <p className="font-mono text-xs text-muted">No results yet. Click "Run Now" to execute.</p>
-                  ) : (
-                    <div className="flex flex-col gap-3">
-                      {results[auto.id].map((r) => (
-                        <div key={r.id} className="border border-forest-deep/30 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-1.5 h-1.5 rounded-full ${r.status === "completed" ? "bg-accent" : "bg-red-400"}`} />
-                              <span className="font-mono text-sm text-mint">{r.agent_name} — {r.capability}</span>
+                {/* ── Expanded Results ── */}
+                {expandedId === auto.id && (
+                  <div style={{ borderTop: `1px solid ${DS.border}`, padding: "16px 30px", backgroundColor: "#dddcd7" }}>
+                    <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 12 }}>RECENT RESULTS</span>
+                    {!results[auto.id] || results[auto.id].length === 0 ? (
+                      <p style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, color: DS.textMuted }}>No results yet. Click RUN NOW to execute.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {results[auto.id].map((r) => (
+                          <div key={r.id} style={{ border: `1px solid ${DS.border}`, borderRadius: 8, backgroundColor: DS.bg, overflow: "hidden" }}>
+                            <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: r.artifact ? `1px solid ${DS.border}` : "none" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: r.status === "completed" ? DS.green : DS.error, display: "inline-block" }} />
+                                <span style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700 }}>{r.agent_name} — {r.capability}</span>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <span style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700 }}>{r.estimated_cost} USDC</span>
+                                <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.7rem" }}>{new Date(r.created_at).toLocaleString()}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className="font-mono text-sm text-accent">{r.estimated_cost} USDC</span>
-                              <span className="font-mono text-xs text-muted">{new Date(r.created_at).toLocaleString()}</span>
-                            </div>
+                            {r.artifact && (
+                              <div style={{ padding: "16px", maxHeight: 300, overflowY: "auto", fontSize: "0.95rem", lineHeight: 1.6 }}>
+                                <ArtifactRenderer artifact={parseArtifact(r.artifact)} />
+                              </div>
+                            )}
                           </div>
-                          {r.artifact && (
-                            <div className="mt-2 max-h-[300px] overflow-y-auto">
-                              <ArtifactRenderer artifact={parseArtifact(r.artifact)} />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

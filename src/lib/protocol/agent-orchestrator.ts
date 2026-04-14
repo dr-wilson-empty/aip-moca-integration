@@ -26,6 +26,9 @@ import { logger } from "@/lib/logger";
 
 const USDC_DECIMALS = 6;
 
+/** Platform fee per orchestrated step — covers Claude API planning/synthesis cost */
+const ORCHESTRATION_FEE_PER_STEP = 0.05;
+
 interface OrchestrationStep {
   agentName: string;
   agentDid: string;
@@ -58,6 +61,15 @@ export interface OrchestrationResult {
   }>;
 }
 
+/** Callback fired when orchestrator plans or updates a sub-step */
+export type OnOrchestratorStep = (event: {
+  type: "planned" | "step_start" | "step_done" | "step_failed";
+  steps?: Array<{ agentName: string; capabilityId: string; estimatedCost: number; label: string }>;
+  stepIndex?: number;
+  artifact?: string;
+  error?: string;
+}) => void;
+
 function getAuthorityKeypair(): Keypair {
   const key = process.env.ESCROW_PRIVATE_KEY;
   if (!key) throw new Error("ESCROW_PRIVATE_KEY not set");
@@ -79,6 +91,7 @@ export async function orchestrateTask(
   systemPrompt: string,
   userInput: string,
   callerAddress?: string,
+  onStep?: OnOrchestratorStep,
 ): Promise<OrchestrationResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
@@ -208,6 +221,19 @@ export async function orchestrateTask(
     throw new Error("No valid agents found for the planned steps");
   }
 
+  // Notify UI of planned steps
+  if (onStep) {
+    onStep({
+      type: "planned",
+      steps: resolvedSteps.map((s) => ({
+        agentName: s.agentName,
+        capabilityId: s.capabilityId,
+        estimatedCost: s.estimatedCost,
+        label: `${s.agentName}: ${s.capabilityId}`,
+      })),
+    });
+  }
+
   logger.info("orchestrator", "executing", {
     callerAgentDid,
     steps: resolvedSteps.length,
@@ -229,6 +255,8 @@ export async function orchestrateTask(
     if (step.inputFromPrev && i > 0 && results[i - 1]?.artifact) {
       stepInput = results[i - 1].artifact!;
     }
+
+    if (onStep) onStep({ type: "step_start", stepIndex: i });
 
     logger.info("orchestrator", "step_start", {
       callerAgentDid,
@@ -307,7 +335,18 @@ export async function orchestrateTask(
 
       if (result.status === "COMPLETED" && result.artifact) {
         await releaseEscrow(taskId);
-        results.push({ status: "completed", artifact: result.artifact, cost: step.estimatedCost, agentName: step.agentName, capabilityId: step.capabilityId });
+
+        // Charge per-step orchestration fee from budget
+        const stepTotalCost = step.estimatedCost + ORCHESTRATION_FEE_PER_STEP;
+        try {
+          await reserveBudget(callerAgentDid, ORCHESTRATION_FEE_PER_STEP, `${taskId}_fee`, "platform-orchestration-fee");
+          logger.info("orchestrator", "fee_charged", { callerAgentDid, fee: ORCHESTRATION_FEE_PER_STEP, taskId });
+        } catch {
+          logger.warn("orchestrator", "fee_charge_failed", { callerAgentDid, taskId });
+          // Don't fail the step if fee charge fails — agent cost was already paid
+        }
+
+        results.push({ status: "completed", artifact: result.artifact, cost: stepTotalCost, agentName: step.agentName, capabilityId: step.capabilityId });
 
         // Extract memory hints (async, non-blocking)
         if (callerAddress && result.artifact) {
@@ -323,6 +362,8 @@ export async function orchestrateTask(
           }).catch(() => {});
         }
 
+        if (onStep) onStep({ type: "step_done", stepIndex: i, artifact: result.artifact });
+
         logger.info("orchestrator", "step_completed", {
           callerAgentDid,
           step: i + 1,
@@ -332,6 +373,7 @@ export async function orchestrateTask(
         await refundEscrow(taskId).catch(() => {});
         await refundBudget(callerAgentDid, step.estimatedCost, taskId).catch(() => {});
         results.push({ status: "failed", error: result.error || "Agent failed", cost: 0 });
+        if (onStep) onStep({ type: "step_failed", stepIndex: i, error: result.error || "Agent failed" });
         break;
       }
     } catch (err) {
