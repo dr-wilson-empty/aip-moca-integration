@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCardByEndpoint } from "@/lib/protocol/agent-card-store";
+import { getCardByEndpoint, registerCard } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
+import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+import { getAppUrl } from "@/lib/config/app-url";
 import { buildPaymentRequirements } from "@/lib/payment/x402";
 
 seedDemoAgents();
@@ -12,6 +15,24 @@ seedDemoAgents();
  */
 export async function POST(request: NextRequest) {
   seedDemoAgents();
+  // Ensure all hosted agents (including user-created) are in card store
+  await loadHostedAgentsFromDb();
+  const base = getAppUrl();
+  for (const ha of listHostedAgents()) {
+    registerCard({
+      did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
+      name: ha.name,
+      version: "1.0.0",
+      endpoint: `${base}/api/hosted-agent?agentId=${ha.agentId}`,
+      type: "Task",
+      walletAddress: ha.ownerAddress,
+      capabilities: ha.capabilities.map((c) => ({
+        id: c.id,
+        description: c.description,
+        pricing: { amount: c.pricing.amount, token: "USDC" as const, network: "solana" as const },
+      })),
+    });
+  }
 
   let body: Record<string, unknown>;
   try {

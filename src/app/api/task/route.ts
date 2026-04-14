@@ -4,6 +4,10 @@ import { createTask, listTasks, getTask } from "@/lib/protocol/task-machine";
 import { createEscrowRecord, releaseEscrow, refundEscrow, getAuthorityAddress } from "@/lib/payment/escrow";
 import { getCardByEndpoint } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
+import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
+import { registerCard } from "@/lib/protocol/agent-card-store";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+import { getAppUrl } from "@/lib/config/app-url";
 import { dispatchToAgent } from "@/lib/protocol/a2a-dispatcher";
 import { dbTrackTask } from "@/lib/supabase/preferences";
 import {
@@ -61,6 +65,20 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   seedDemoAgents();
+  await loadHostedAgentsFromDb();
+  const base = getAppUrl();
+  for (const ha of listHostedAgents()) {
+    registerCard({
+      did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
+      name: ha.name, version: "1.0.0",
+      endpoint: `${base}/api/hosted-agent?agentId=${ha.agentId}`,
+      type: "Task", walletAddress: ha.ownerAddress,
+      capabilities: ha.capabilities.map((c) => ({
+        id: c.id, description: c.description,
+        pricing: { amount: c.pricing.amount, token: "USDC" as const, network: "solana" as const },
+      })),
+    });
+  }
 
   let body: Record<string, unknown>;
   try {
