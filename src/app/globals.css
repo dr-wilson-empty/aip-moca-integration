@@ -130,9 +130,9 @@ body {
 .wallet-adapter-modal-container *,
 .wallet-adapter-modal-wrapper,
 .wallet-adapter-modal-wrapper * {
-  color: #E7FFEF !important;
+  color: #000000 !important;
 }
 
 .wallet-adapter-modal-wrapper .wallet-adapter-button {
-  color: #E7FFEF !important;
+  color: #000000 !important;
 }
