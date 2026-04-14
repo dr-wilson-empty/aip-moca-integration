@@ -5,6 +5,7 @@ import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import { getCurrentDateString } from "@/lib/web/realtime-enrichment";
 import { dbGetPreferences } from "@/lib/supabase/preferences";
+import { getAppUrl } from "@/lib/config/app-url";
 
 seedDemoAgents();
 
@@ -18,7 +19,7 @@ async function ensureHostedAgentCards(callerWallet?: string) {
       did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
       name: ha.name,
       version: "1.0.0",
-      endpoint: `http://localhost:3000/api/hosted-agent?agentId=${ha.agentId}`,
+      endpoint: `${getAppUrl()}/api/hosted-agent?agentId=${ha.agentId}`,
       type: "Task",
       walletAddress: ha.ownerAddress,
       capabilities: ha.capabilities.map((c) => ({

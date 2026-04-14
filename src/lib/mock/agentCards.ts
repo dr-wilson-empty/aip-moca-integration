@@ -1,4 +1,14 @@
 import type { AgentCard } from "@/types/aip";
+import { getAppUrl } from "@/lib/config/app-url";
+import { getAuthorityAddress } from "@/lib/payment/escrow";
+
+let _authority: string | null = null;
+function authorityWallet(): string {
+  if (!_authority) {
+    try { _authority = getAuthorityAddress(); } catch { _authority = ""; }
+  }
+  return _authority;
+}
 
 export const MY_AGENT_CARD: AgentCard = {
   did: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
@@ -26,13 +36,32 @@ export const MY_AGENT_CARD: AgentCard = {
 };
 
 /** Platform-hosted Web Search Agent — uses Tavily API */
+export function getWebSearchAgent(): AgentCard {
+  return {
+    did: "did:aip:platform:web-search",
+    name: "Web Search Agent",
+    version: "1.0.0",
+    endpoint: `${getAppUrl()}/api/web/agent`,
+    type: "Task",
+    walletAddress: authorityWallet(),
+    capabilities: [
+      {
+        id: "web.search",
+        description: "Web Search",
+        pricing: { amount: "0.02", token: "USDC", network: "solana" },
+      },
+    ],
+  };
+}
+
+/** Legacy export for backward compat — use getWebSearchAgent() instead */
 export const WEB_SEARCH_AGENT: AgentCard = {
   did: "did:aip:platform:web-search",
   name: "Web Search Agent",
   version: "1.0.0",
-  endpoint: "http://localhost:3000/api/web/agent",
+  endpoint: "/api/web/agent",
   type: "Task",
-  walletAddress: "7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX",
+  walletAddress: "",
   capabilities: [
     {
       id: "web.search",
@@ -42,60 +71,68 @@ export const WEB_SEARCH_AGENT: AgentCard = {
   ],
 };
 
-export const COUNTERPART_AGENT_CARDS: Record<string, AgentCard> = {
-  "http://localhost:4001/a2a": {
-    did: "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuias8siQUmpwds8Q9",
-    name: "Summary Agent",
-    version: "1.2.0",
-    endpoint: "http://localhost:4001/a2a",
-    type: "Task",
-    walletAddress: "4LRAyGnJv2DwxiWVg6RDtYsfCjx2Ha3d3A19fsogCopG",
-    capabilities: [
-      {
-        id: "text.summarize",
-        description: "Summarize Text",
-        pricing: { amount: "0.10", token: "USDC", network: "solana" },
-      },
-      {
-        id: "text.classify",
-        description: "Classify Text",
-        pricing: { amount: "0.05", token: "USDC", network: "solana" },
-      },
-    ],
-  },
-  "http://localhost:4002/a2a": {
-    did: "did:key:z6Mkf5rGuvnarjzeLBttGYMsxnQkDBUHkNMWwGFbhEHfJLGi",
-    name: "Data Agent",
-    version: "2.0.1",
-    endpoint: "http://localhost:4002/a2a",
-    type: "Task",
-    walletAddress: "Auo6b8cQvuBJxcKUuhWuNSeE4Yzm4dPL93CjGES6NF1E",
-    capabilities: [
-      {
-        id: "data.retrieve",
-        description: "Retrieve Data",
-        pricing: { amount: "0.25", token: "USDC", network: "solana" },
-      },
-    ],
-  },
-  "http://localhost:4003/a2a": {
-    did: "did:key:z6MkqR4Tve8gJzNAiHbG7FupLvTRExkNbcQVjg2QBFM3pKat",
-    name: "Audit Agent",
-    version: "1.0.3",
-    endpoint: "http://localhost:4003/a2a",
-    type: "Execution",
-    walletAddress: "J53oVBJG87JNYok3cVyscgAMxhx5D8yfvGZ7hpGMeNXA",
-    capabilities: [
-      {
-        id: "code.audit",
-        description: "Smart Contract Audit",
-        pricing: { amount: "0.75", token: "USDC", network: "solana" },
-      },
-      {
-        id: "defi.analyze",
-        description: "DeFi Risk Analysis",
-        pricing: { amount: "0.40", token: "USDC", network: "solana" },
-      },
-    ],
-  },
-};
+/** Platform demo agents — all hosted on the app, all use authority wallet */
+export function getDemoAgentCards(): Record<string, AgentCard> {
+  const base = getAppUrl();
+  const wallet = authorityWallet();
+  return {
+    "summary-agent": {
+      did: "did:aip:platform:summary-agent",
+      name: "Summary Agent",
+      version: "1.2.0",
+      endpoint: `${base}/api/hosted-agent?agentId=summary-agent`,
+      type: "Task",
+      walletAddress: wallet,
+      capabilities: [
+        {
+          id: "text.summarize",
+          description: "Summarize Text",
+          pricing: { amount: "0.10", token: "USDC", network: "solana" },
+        },
+        {
+          id: "text.classify",
+          description: "Classify Text",
+          pricing: { amount: "0.05", token: "USDC", network: "solana" },
+        },
+      ],
+    },
+    "data-agent": {
+      did: "did:aip:platform:data-agent",
+      name: "Data Agent",
+      version: "2.0.1",
+      endpoint: `${base}/api/hosted-agent?agentId=data-agent`,
+      type: "Task",
+      walletAddress: wallet,
+      capabilities: [
+        {
+          id: "data.retrieve",
+          description: "Retrieve Data",
+          pricing: { amount: "0.25", token: "USDC", network: "solana" },
+        },
+      ],
+    },
+    "audit-agent": {
+      did: "did:aip:platform:audit-agent",
+      name: "Audit Agent",
+      version: "1.0.3",
+      endpoint: `${base}/api/hosted-agent?agentId=audit-agent`,
+      type: "Execution",
+      walletAddress: wallet,
+      capabilities: [
+        {
+          id: "code.audit",
+          description: "Smart Contract Audit",
+          pricing: { amount: "0.75", token: "USDC", network: "solana" },
+        },
+        {
+          id: "defi.analyze",
+          description: "DeFi Risk Analysis",
+          pricing: { amount: "0.40", token: "USDC", network: "solana" },
+        },
+      ],
+    },
+  };
+}
+
+/** @deprecated Use getDemoAgentCards() */
+export const COUNTERPART_AGENT_CARDS = {} as Record<string, AgentCard>;

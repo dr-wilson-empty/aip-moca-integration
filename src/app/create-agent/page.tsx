@@ -25,8 +25,10 @@ const DS = {
 
 /* ─── Templates ─── */
 const TEMPLATES = [
+  { key: "researcher", label: "Web Researcher", prompt: "You are a web research agent. Search the internet for current, accurate information on any topic. Compile findings into a clear, well-sourced report. Always cite your sources.", capId: "web.search", capDesc: "Web Search", price: "0.05" },
   { key: "translator", label: "Translator", prompt: "You are a professional translator. Translate the given text accurately while preserving tone and meaning. If no target language is specified, translate to English.", capId: "text.translate", capDesc: "Translate Text", price: "0.05" },
   { key: "summarizer", label: "Summarizer", prompt: "You are a summarization expert. Provide clear, concise summaries that capture the key points. Keep summaries to 2-3 paragraphs unless asked otherwise.", capId: "text.summarize", capDesc: "Summarize Text", price: "0.05" },
+  { key: "defi-analyst", label: "DeFi Analyst", prompt: "You are a DeFi risk analyst. Analyze decentralized finance protocols, yield strategies, liquidity pools, and token economics. Assess risks, identify vulnerabilities, and provide data-driven recommendations.", capId: "defi.analyze", capDesc: "DeFi Risk Analysis", price: "0.15" },
   { key: "code-reviewer", label: "Code Reviewer", prompt: "You are a senior software engineer. Review the given code for bugs, performance issues, security vulnerabilities, and best practice violations. Provide actionable feedback.", capId: "code.review", capDesc: "Code Review", price: "0.15" },
   { key: "data-analyst", label: "Data Analyst", prompt: "You are a data analyst. Analyze the given data or question, provide insights, identify patterns, and present findings clearly with actionable recommendations.", capId: "data.analyze", capDesc: "Analyze Data", price: "0.10" },
   { key: "writer", label: "Content Writer", prompt: "You are a skilled content writer. Create engaging, well-structured content based on the given topic or brief. Adapt your tone to match the requested style.", capId: "text.write", capDesc: "Write Content", price: "0.10" },
@@ -183,7 +185,7 @@ export default function CreateAgentPage() {
           systemPrompt: store.systemPrompt.trim(), tier: store.tier, provider: store.provider,
           customApiKey: store.tier === "custom" ? store.customApiKey : undefined,
           capabilities: store.capabilities.map((c) => ({ id: c.id.trim(), description: c.description.trim(), pricing: { amount: c.amount, token: "USDC", network: "solana" } })),
-          canOrchestrate: store.canOrchestrate,
+          canOrchestrate: false,
           isPublic: store.isPublic,
         }),
       });
@@ -241,6 +243,9 @@ export default function CreateAgentPage() {
                   {tpl.key === "custom" && <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem" }}>BLANK CANVAS</span>}
                 </button>
               ))}
+              {TEMPLATES.length % 3 !== 0 && Array.from({ length: 3 - (TEMPLATES.length % 3) }).map((_, i) => (
+                <div key={`fill-${i}`} style={{ backgroundColor: DS.bg }} />
+              ))}
             </div>
           </div>
 
@@ -265,19 +270,6 @@ export default function CreateAgentPage() {
             </span>
             <textarea value={store.systemPrompt} onChange={(e) => store.setSystemPrompt(e.target.value)} placeholder="You are a helpful assistant that..." rows={8} maxLength={2000} style={{ ...inputStyle, resize: "vertical" }} />
             <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", display: "block", marginTop: 4, textAlign: "right" }}>{store.systemPrompt.length}/2000</span>
-          </div>
-
-          {/* Orchestration */}
-          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}`, borderLeft: `4px solid ${DS.purple}` }}>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
-              <input type="checkbox" checked={store.canOrchestrate} onChange={(e) => store.setCanOrchestrate(e.target.checked)} style={{ marginTop: 4, width: 18, height: 18, accentColor: DS.purple }} />
-              <div>
-                <span style={{ fontFamily: DS.fontPrimary, fontSize: "1rem", fontWeight: 400, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Agent-to-Agent Delegation</span>
-                <span className="ds-muted-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem" }}>
-                  Enable this agent to autonomously call other agents from the marketplace using its budget.
-                </span>
-              </div>
-            </label>
           </div>
 
           {/* Prompt Tips */}

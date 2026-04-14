@@ -1196,7 +1196,7 @@ export default function MarketplacePage() {
             />
           ))}
           {filtered.length % 2 !== 0 && (
-            <div style={{ backgroundColor: DS.bg }} />
+            <div style={{ backgroundColor: DS.bg, minHeight: 200 }} />
           )}
         </section>
       )}

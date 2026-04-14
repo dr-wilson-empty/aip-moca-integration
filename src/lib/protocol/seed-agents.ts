@@ -1,10 +1,9 @@
-import { Keypair } from "@solana/web3.js";
-import bs58 from "bs58";
-import { COUNTERPART_AGENT_CARDS, WEB_SEARCH_AGENT } from "@/lib/mock/agentCards";
+import { getDemoAgentCards, getWebSearchAgent } from "@/lib/mock/agentCards";
 import { registerCard, syncFromChain } from "./agent-card-store";
-import { registerAgentOnChain, isAgentOnChain } from "@/lib/solana/registry-program";
-import { loadHostedAgentsFromDb, listHostedAgents } from "@/lib/hosted-agents";
+import { loadHostedAgentsFromDb, listHostedAgents, registerHostedAgent, getHostedAgent } from "@/lib/hosted-agents";
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+import { getAppUrl } from "@/lib/config/app-url";
+import { getAuthorityAddress } from "@/lib/payment/escrow";
 
 const gs = globalThis as typeof globalThis & {
   __aip_seeded?: boolean;
@@ -12,37 +11,64 @@ const gs = globalThis as typeof globalThis & {
 };
 let seeded = gs.__aip_seeded ?? false;
 
-const AGENT_IDS: Record<string, string> = {
-  "http://localhost:4001/a2a": "summary-agent",
-  "http://localhost:4002/a2a": "data-agent",
-  "http://localhost:4003/a2a": "audit-agent",
-};
-
 /**
- * Seed demo agents.
- * First registers in-memory (fast), then syncs from on-chain in background.
- * On-chain versions replace in-memory ones when sync completes.
+ * Seed platform agents + hosted agents from Supabase.
+ * Demo agents (Summary, Data, Audit) are registered as hosted agents
+ * so they run through the same /api/hosted-agent endpoint.
  */
 export function seedDemoAgents(): void {
   if (seeded) return;
   seeded = true;
   gs.__aip_seeded = true;
 
-  // In-memory seed for immediate availability
-  for (const card of Object.values(COUNTERPART_AGENT_CARDS)) {
-    registerCard(card);
-  }
-  // Platform-hosted Web Search Agent (uses Tavily API, no external process needed)
-  registerCard(WEB_SEARCH_AGENT);
+  // Register Web Search Agent (platform built-in, separate route)
+  registerCard(getWebSearchAgent());
 
-  // Load hosted agents from Supabase and register their cards (only public ones)
+  // Register demo agents as hosted agents + card store
+  const demoAgents = getDemoAgentCards();
+  let authority = "";
+  try { authority = getAuthorityAddress(); } catch { /* no key */ }
+
+  for (const [agentId, card] of Object.entries(demoAgents)) {
+    registerCard(card);
+
+    // Ensure hosted agent config exists in Supabase (so /api/hosted-agent can serve them)
+    if (authority && !getHostedAgent(agentId)) {
+      const DEMO_PROMPTS: Record<string, string> = {
+        "summary-agent": "You are a text processing agent. Summarize, classify, or transform text as requested. Be concise and accurate.",
+        "data-agent": "You are a data retrieval agent. Fetch and analyze blockchain data, DeFi protocols, and on-chain metrics. Provide structured, factual responses.",
+        "audit-agent": "You are a smart contract security auditor and DeFi risk analyst. Analyze code for vulnerabilities and assess protocol risks. Be thorough and technical.",
+      };
+      registerHostedAgent({
+        agentId,
+        ownerAddress: authority,
+        name: card.name,
+        description: card.capabilities.map((c) => c.description).join(", "),
+        systemPrompt: DEMO_PROMPTS[agentId] || "You are a helpful AI agent.",
+        tier: "platform",
+        provider: "anthropic",
+        capabilities: card.capabilities.map((c) => ({
+          id: c.id,
+          description: c.description,
+          pricing: { amount: c.pricing.amount, token: "USDC", network: "solana" },
+        })),
+        canOrchestrate: false,
+        isPublic: true,
+        createdAt: new Date().toISOString(),
+        active: true,
+      }).catch(() => {});
+    }
+  }
+
+  // Load user-created hosted agents from Supabase
   loadHostedAgentsFromDb().then(() => {
+    const base = getAppUrl();
     for (const ha of listHostedAgents().filter((a) => a.isPublic !== false)) {
       registerCard({
         did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
         name: ha.name,
         version: "1.0.0",
-        endpoint: `http://localhost:3000/api/hosted-agent?agentId=${ha.agentId}`,
+        endpoint: `${base}/api/hosted-agent?agentId=${ha.agentId}`,
         type: "Task",
         walletAddress: ha.ownerAddress,
         capabilities: ha.capabilities.map((c) => ({
@@ -54,43 +80,9 @@ export function seedDemoAgents(): void {
     }
   }).catch(() => {});
 
-  // On-chain registration + sync (background)
+  // Sync from on-chain registry (background)
   if (!gs.__aip_chain_registered) {
     gs.__aip_chain_registered = true;
-    registerAndSync().catch(() => {});
+    syncFromChain().catch(() => {});
   }
-}
-
-async function registerAndSync(): Promise<void> {
-  const key = process.env.ESCROW_PRIVATE_KEY;
-  if (!key) return;
-
-  let ownerKeypair: Keypair;
-  try {
-    ownerKeypair = Keypair.fromSecretKey(bs58.decode(key));
-  } catch {
-    return;
-  }
-
-  // Register demo agents on-chain if not already
-  for (const card of Object.values(COUNTERPART_AGENT_CARDS)) {
-    const agentId = AGENT_IDS[card.endpoint];
-    if (!agentId) continue;
-
-    try {
-      const onChain = await isAgentOnChain(ownerKeypair.publicKey.toBase58(), agentId);
-      if (!onChain) {
-        const sig = await registerAgentOnChain(ownerKeypair, agentId, card);
-        console.log(`[registry] Registered ${card.name} (${agentId}): ${sig.slice(0, 16)}...`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.includes("already in use")) {
-        console.error(`[registry] Failed to register ${card.name}:`, msg.slice(0, 80));
-      }
-    }
-  }
-
-  // Sync from chain — on-chain versions override in-memory
-  await syncFromChain();
 }

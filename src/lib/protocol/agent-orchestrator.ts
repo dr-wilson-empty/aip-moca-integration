@@ -26,6 +26,9 @@ import { logger } from "@/lib/logger";
 
 const USDC_DECIMALS = 6;
 
+/** Platform fee per orchestrated step — covers Claude API planning/synthesis cost */
+const ORCHESTRATION_FEE_PER_STEP = 0.05;
+
 interface OrchestrationStep {
   agentName: string;
   agentDid: string;
@@ -332,7 +335,18 @@ export async function orchestrateTask(
 
       if (result.status === "COMPLETED" && result.artifact) {
         await releaseEscrow(taskId);
-        results.push({ status: "completed", artifact: result.artifact, cost: step.estimatedCost, agentName: step.agentName, capabilityId: step.capabilityId });
+
+        // Charge per-step orchestration fee from budget
+        const stepTotalCost = step.estimatedCost + ORCHESTRATION_FEE_PER_STEP;
+        try {
+          await reserveBudget(callerAgentDid, ORCHESTRATION_FEE_PER_STEP, `${taskId}_fee`, "platform-orchestration-fee");
+          logger.info("orchestrator", "fee_charged", { callerAgentDid, fee: ORCHESTRATION_FEE_PER_STEP, taskId });
+        } catch {
+          logger.warn("orchestrator", "fee_charge_failed", { callerAgentDid, taskId });
+          // Don't fail the step if fee charge fails — agent cost was already paid
+        }
+
+        results.push({ status: "completed", artifact: result.artifact, cost: stepTotalCost, agentName: step.agentName, capabilityId: step.capabilityId });
 
         // Extract memory hints (async, non-blocking)
         if (callerAddress && result.artifact) {
