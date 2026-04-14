@@ -122,7 +122,7 @@ export default function TaskTable() {
 
       {/* Table header */}
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1.2fr 0.8fr 0.6fr 0.7fr 0.5fr 0.5fr", padding: "10px 30px", borderBottom: `1px solid ${DS.border}`, backgroundColor: "#d5d0c8" }}>
-        {["TASK ID", "AGENT", "CAPABILITY", "STARTED", "DURATION", "STATE", "USDC", ""].map((h) => (
+        {["ID", "AGENT", "CAPABILITY", "STARTED", "DURATION", "STATE", "USDC", ""].map((h) => (
           <span key={h} style={{ ...bandLabel, fontSize: "0.7rem", color: DS.textMuted }}>{h}</span>
         ))}
       </div>
@@ -161,7 +161,7 @@ export default function TaskTable() {
               cursor: "pointer", transition: "background-color 0.1s",
             }} onClick={() => setSelected(task)} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = DS.bgHover} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.id}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{task.id.split("_").pop()?.toUpperCase() || task.id.slice(-6).toUpperCase()}</span>
                 {task.isAgentTask && <span className="mp-white-text" style={{ fontSize: "0.6rem", padding: "1px 6px", backgroundColor: DS.purple, flexShrink: 0 }}>AGENT</span>}
               </div>
               <span>{task.counterpartAgent}</span>
