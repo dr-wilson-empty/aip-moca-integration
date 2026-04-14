@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase/client";
 
+/** Force dynamic — prevents static prerender during build */
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/leaderboard
  * Returns top users by task count and USDC spent.
