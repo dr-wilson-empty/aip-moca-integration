@@ -217,7 +217,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
                   </div>
 
                   <AgentAnalytics did={agent.did} />
-                  <AgentBudget agentDid={agent.did} />
+                  {isOrch && <AgentBudget agentDid={agent.did} />}
                 </div>
 
                 {/* Actions */}

@@ -121,6 +121,12 @@ export default function CreateAgentPage() {
     return () => { document.head.removeChild(style); };
   }, []);
 
+  // Reset builder on page enter and leave — always fresh start
+  useEffect(() => {
+    store.resetBuilder();
+    return () => { store.resetBuilder(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!mounted) return null;
 
   if (!address) {

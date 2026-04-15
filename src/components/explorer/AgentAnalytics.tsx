@@ -17,11 +17,12 @@ interface Analytics {
   totalTasks: number;
   completedTasks: number;
   failedTasks: number;
-  totalRevenue: string;
+  totalRevenue: string | null;
   totalSpent: string;
   avgRating: string;
   ratingCount: number;
   dailyActivity: Array<{ date: string; count: number }>;
+  isOrchestrator?: boolean;
 }
 
 export default function AgentAnalytics({ did }: { did: string }) {
@@ -51,11 +52,11 @@ export default function AgentAnalytics({ did }: { did: string }) {
               {/* Stats */}
               <div style={{ display: "flex", gap: 0 }}>
                 {[
-                  { value: data.completedTasks, label: "TASKS", color: DS.text },
+                  { value: data.completedTasks, label: data.isOrchestrator ? "ORCHESTRATIONS" : "TASKS", color: DS.text },
                   { value: data.failedTasks, label: "FAILED", color: DS.error },
-                  { value: data.totalRevenue, label: "EARNED", color: DS.green },
-                  { value: data.totalSpent, label: "SPENT", color: DS.error },
-                  { value: parseFloat(data.avgRating) > 0 ? `${data.avgRating}★` : "—", label: `${data.ratingCount} RATINGS`, color: "#b8913a" },
+                  ...(data.totalRevenue !== null ? [{ value: data.totalRevenue, label: "EARNED", color: DS.green }] : []),
+                  ...(data.isOrchestrator ? [{ value: data.totalSpent, label: "SPENT", color: DS.error }] : []),
+                  ...(!data.isOrchestrator ? [{ value: parseFloat(data.avgRating) > 0 ? `${data.avgRating}★` : "—", label: `${data.ratingCount} RATINGS`, color: "#b8913a" }] : []),
                 ].map((s, i) => (
                   <div key={i} style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRight: i < 4 ? `1px solid #ccc` : "none" }}>
                     <span style={{ fontFamily: DS.fontPrimary, fontSize: "1.1rem", fontWeight: 400, display: "block", color: s.color }}>{s.value}</span>

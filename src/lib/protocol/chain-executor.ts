@@ -204,6 +204,7 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
             const realIdx = i + event.stepIndex;
             if (chain.steps[realIdx]) {
               chain.steps[realIdx].status = "executing";
+              chain.steps[realIdx].taskId = event.taskId;
               chain.currentStep = realIdx;
             }
           } else if (event.type === "step_done" && event.stepIndex !== undefined) {
@@ -211,6 +212,8 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
             if (chain.steps[realIdx]) {
               chain.steps[realIdx].status = "completed";
               chain.steps[realIdx].artifact = event.artifact;
+              chain.steps[realIdx].taskId = event.taskId;
+              chain.steps[realIdx].escrowTxHash = event.escrowTxHash;
             }
           } else if (event.type === "step_failed" && event.stepIndex !== undefined) {
             const realIdx = i + event.stepIndex;

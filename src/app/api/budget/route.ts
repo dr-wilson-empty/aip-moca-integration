@@ -78,6 +78,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Amount must be positive" }, { status: 400 });
   }
 
+  // Only orchestrator agents can receive budget deposits
+  if (!agentDid.includes("orch-")) {
+    return NextResponse.json({ error: "Budget deposits are only available for Orchestrator Agents" }, { status: 400 });
+  }
+
   try {
     const budget = await verifyAndCreditDeposit(agentDid, ownerWallet, txHash, amount);
     return NextResponse.json({ ok: true, budget }, { status: 201 });
