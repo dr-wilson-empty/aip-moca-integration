@@ -39,7 +39,6 @@ export default function TaskDetailModal({ task, onClose }: { task: Task; onClose
           {[
             { label: "AGENT", value: task.counterpartAgent },
             { label: "CAPABILITY", value: task.capability },
-            { label: "INPUT", value: task.input },
             { label: "USDC SPENT", value: `${task.usdcSpent} USDC` },
             ...(task.isAgentTask ? [{ label: "SOURCE", value: "AGENT TASK (AUTONOMOUS)" }] : []),
             ...(task.chainId ? [{ label: "CHAIN", value: task.chainId }] : []),
@@ -50,6 +49,16 @@ export default function TaskDetailModal({ task, onClose }: { task: Task; onClose
             </div>
           ))}
         </div>
+
+        {/* Input (rendered as markdown) */}
+        {task.input && (
+          <div style={{ padding: "16px 24px", borderBottom: `1px solid ${DS.border}`, maxHeight: 200, overflowY: "auto" }}>
+            <span style={{ ...bandLabel, fontSize: "0.65rem", color: DS.textMuted, display: "block", marginBottom: 8 }}>INPUT</span>
+            <div style={{ fontSize: "0.85rem", lineHeight: 1.6 }}>
+              <ArtifactRenderer artifact={parseArtifact(task.input)} />
+            </div>
+          </div>
+        )}
 
         {/* Artifact */}
         {task.artifact && (
