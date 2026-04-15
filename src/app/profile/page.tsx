@@ -216,8 +216,6 @@ export default function ProfilePage() {
         <div style={{ display: "flex", flexDirection: "column" }}>
           {[
             { label: "MY AGENTS", sub: `${myAgentCount} registered on-chain`, onClick: () => router.push("/my-agents") },
-            { label: "MARKETPLACE", onClick: () => router.push("/marketplace") },
-            { label: "TASK HISTORY", onClick: () => router.push("/log") },
           ].map((link) => (
             <button key={link.label} onClick={link.onClick} style={{ textAlign: "left", padding: "14px 0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottom: "1px solid #ccc", cursor: "pointer", fontFamily: DS.fontMono, fontSize: "0.9rem", fontWeight: 700 }}>
               <div>
@@ -244,9 +242,24 @@ export default function ProfilePage() {
 /* ─── Agent Memories ─── */
 interface MemoryEntry { id: string; agent_did: string; memory_type: string; content: string; created_at?: string; }
 
+/** Extract readable agent name from DID */
+function agentNameFromDid(did: string): string {
+  // did:aip:platform:summary-agent → Summary Agent
+  // did:aip:XXXX:boycott-agent → Boycott Agent
+  // did:key:z6Mk... → Unknown Agent
+  const parts = did.split(":");
+  const lastPart = parts[parts.length - 1];
+  if (lastPart && lastPart.includes("-")) {
+    return lastPart.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+  if (did.length > 30) return did.slice(0, 16) + "...";
+  return did;
+}
+
 function AgentMemories({ wallet }: { wallet: string }) {
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedDids, setExpandedDids] = useState<Set<string>>(new Set());
 
   const loadMemories = useCallback(() => {
     setLoading(true);
@@ -277,26 +290,40 @@ function AgentMemories({ wallet }: { wallet: string }) {
         <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, color: DS.textMuted }}>No memories yet. Agents learn about your preferences as you interact.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {Object.entries(grouped).map(([agentDid, entries]) => (
-            <div key={agentDid} style={{ border: `1px solid ${DS.border}` }}>
-              <div style={{ padding: "10px 16px", backgroundColor: "#d5d0c8", borderBottom: `1px solid ${DS.border}`, fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>
-                {agentDid.length > 30 ? agentDid.slice(0, 20) + "..." : agentDid}
-              </div>
-              <div style={{ padding: "12px 16px", maxHeight: 200, overflowY: "auto" }}>
-                {entries.map((m) => (
-                  <div key={m.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid #ddd" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 }}>
-                      <span className="mp-white-text" style={{ fontSize: "0.6rem", padding: "2px 6px", backgroundColor: memoryColors[m.memory_type] || DS.textMuted, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>{m.memory_type}</span>
-                      <span style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, lineHeight: 1.4 }}>{m.content}</span>
-                    </div>
-                    <button onClick={() => handleDelete(m.id)} className="ds-error-text" style={{ fontFamily: DS.fontMono, fontSize: "0.6rem", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", opacity: 0.4, flexShrink: 0 }} onMouseEnter={(e) => e.currentTarget.style.opacity = "1"} onMouseLeave={(e) => e.currentTarget.style.opacity = "0.4"}>
-                      DELETE
-                    </button>
+          {Object.entries(grouped).map(([agentDid, entries]) => {
+            const isOpen = expandedDids.has(agentDid);
+            return (
+              <div key={agentDid} style={{ border: `1px solid ${DS.border}` }}>
+                <div
+                  onClick={() => setExpandedDids((prev) => { const next = new Set(prev); if (next.has(agentDid)) next.delete(agentDid); else next.add(agentDid); return next; })}
+                  style={{ padding: "10px 16px", backgroundColor: "#d5d0c8", borderBottom: isOpen ? `1px solid ${DS.border}` : "none", fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "background-color 0.1s" }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#ccc8bf"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#d5d0c8"}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: "0.7rem", color: DS.textMuted }}>{isOpen ? "▼" : "▶"}</span>
+                    <span>{agentNameFromDid(agentDid)}</span>
                   </div>
-                ))}
+                  <span style={{ fontSize: "0.65rem", color: DS.textMuted }}>{entries.length} {entries.length === 1 ? "memory" : "memories"}</span>
+                </div>
+                {isOpen && (
+                  <div style={{ padding: "12px 16px", maxHeight: 200, overflowY: "auto" }}>
+                    {entries.map((m) => (
+                      <div key={m.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid #ddd" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 }}>
+                          <span className="mp-white-text" style={{ fontSize: "0.6rem", padding: "2px 6px", backgroundColor: memoryColors[m.memory_type] || DS.textMuted, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>{m.memory_type}</span>
+                          <span style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, lineHeight: 1.4 }}>{m.content}</span>
+                        </div>
+                        <button onClick={() => handleDelete(m.id)} className="ds-error-text" style={{ fontFamily: DS.fontMono, fontSize: "0.6rem", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", opacity: 0.4, flexShrink: 0 }} onMouseEnter={(e) => e.currentTarget.style.opacity = "1"} onMouseLeave={(e) => e.currentTarget.style.opacity = "0.4"}>
+                          DELETE
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

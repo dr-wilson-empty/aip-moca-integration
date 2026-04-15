@@ -221,7 +221,23 @@ export async function orchestrateTask(
   }
 
   if (resolvedSteps.length === 0) {
-    throw new Error("No valid agents found for the planned steps");
+    // No agents needed — answer directly using Claude
+    logger.info("orchestrator", "direct_answer", { callerAgentDid });
+    const { default: AnthropicDirect } = await import("@anthropic-ai/sdk");
+    const directClient = new AnthropicDirect({ apiKey });
+    const directRes = await directClient.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userInput }],
+    });
+    const directText = directRes.content.find((b) => b.type === "text");
+    return {
+      answer: directText?.text ?? "No response",
+      totalSpent: 0,
+      stepsCompleted: 0,
+      subTasks: [],
+    };
   }
 
   // Notify UI of planned steps
@@ -269,11 +285,13 @@ export async function orchestrateTask(
     });
 
     // Reserve budget
+    const totalStepCost = step.estimatedCost + ORCHESTRATION_FEE_PER_STEP;
     try {
       await reserveBudget(callerAgentDid, step.estimatedCost, taskId, step.agentDid);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      results.push({ status: "failed", error: `Budget: ${msg}`, cost: 0 });
+      const currentBudget = await getAgentBudget(callerAgentDid);
+      const bal = currentBudget?.balance ?? 0;
+      results.push({ status: "failed", error: `Insufficient budget: need ${totalStepCost.toFixed(2)} USDC (${step.estimatedCost.toFixed(2)} agent + ${ORCHESTRATION_FEE_PER_STEP} fee), have ${bal.toFixed(2)} USDC. Deposit more to your Orchestrator budget.`, cost: 0 });
       break;
     }
 
@@ -334,7 +352,7 @@ export async function orchestrateTask(
     } catch (err) {
       await refundBudget(callerAgentDid, step.estimatedCost, taskId).catch(() => {});
       const msg = err instanceof Error ? err.message : String(err);
-      results.push({ status: "failed", error: `Escrow: ${msg}`, cost: 0 });
+      results.push({ status: "failed", error: `Escrow creation failed for ${step.agentName}: ${msg}`, cost: 0 });
       break;
     }
 

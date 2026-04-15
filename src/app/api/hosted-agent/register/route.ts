@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
   const agentCard: AgentCard = {
     did: canonicalAgentDid(ownerAddress, agentId),
     name,
+    description: description || undefined,
     version: "1.0.0",
     endpoint: hostedEndpoint,
     type: "Task",

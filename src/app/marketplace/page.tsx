@@ -412,7 +412,9 @@ function AgentFeatureCard({
               lineHeight: 1.3,
             }}
           >
-            {agent.type === "Execution"
+            {agent.description
+              ? (agent.description.length > 150 ? agent.description.slice(0, 150) + "..." : agent.description)
+              : agent.type === "Execution"
               ? `Autonomous execution agent with ${agent.capabilities.length} on-chain ${agent.capabilities.length > 1 ? "capabilities" : "capability"}.`
               : agent.type === "LLM"
               ? `AI-powered language agent offering ${agent.capabilities.length} intelligent ${agent.capabilities.length > 1 ? "services" : "service"}.`

@@ -245,10 +245,16 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
         return; // Exit loop — orchestrator handled everything
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        step.status = "failed";
-        step.error = msg;
+        // Mark all current chain steps as failed with the error
+        for (const s of chain.steps) {
+          if (s.status === "pending" || s.status === "executing") {
+            s.status = "failed";
+            s.error = msg;
+          }
+        }
         chain.status = "failed";
         chain.totalSpent = totalSpent.toFixed(2);
+        chain.finalArtifact = msg;
         logger.error("chain", "orchestrator_failed", { chainId: chain.id, step: i + 1, error: msg });
         return;
       }
