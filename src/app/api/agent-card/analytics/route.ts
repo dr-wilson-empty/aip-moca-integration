@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
   const allTasks = tasks ?? [];
   const budgetSpends = (budgetTasks ?? []).filter((t) => t.type === "spend");
   const completed = allTasks.filter((t) => t.state === "COMPLETED");
-  const totalRevenue = completed.reduce((sum, t) => sum + parseFloat(t.amount || "0"), 0);
+  const grossRevenue = completed.reduce((sum, t) => sum + parseFloat(t.amount || "0"), 0);
+  const totalRevenue = grossRevenue * 0.8; // Net after 20% platform commission
   const totalBudgetSpent = budgetSpends.reduce((sum, t) => sum + parseFloat(String(t.amount || "0")), 0);
 
   // Daily activity (last 7 days) — deduplicate by date, don't double-count
