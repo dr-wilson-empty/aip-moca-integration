@@ -22,6 +22,7 @@ export interface Capability {
 export interface AgentCard {
   did: string;
   name: string;
+  description?: string; // Short description for marketplace display
   version: string;
   endpoint: string;
   type: AgentType;

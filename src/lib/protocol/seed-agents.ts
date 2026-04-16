@@ -67,6 +67,7 @@ export function seedDemoAgents(): void {
       registerCard({
         did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
         name: ha.name,
+        description: ha.description || undefined,
         version: "1.0.0",
         endpoint: `${base}/api/hosted-agent?agentId=${ha.agentId}`,
         type: "Task",

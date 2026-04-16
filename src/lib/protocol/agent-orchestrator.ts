@@ -22,6 +22,7 @@ import { getCurrentDateString } from "@/lib/web/realtime-enrichment";
 import { buildMemoryContext, extractMemoryHints, saveMemories } from "@/lib/memory/agent-memory";
 import { listCards } from "./agent-card-store";
 import { executeTask } from "./a2a-client";
+import { createTask, acceptTask, completeTask, failTask } from "./task-machine";
 import { logger } from "@/lib/logger";
 
 const USDC_DECIMALS = 6;
@@ -68,6 +69,8 @@ export type OnOrchestratorStep = (event: {
   stepIndex?: number;
   artifact?: string;
   error?: string;
+  taskId?: string;
+  escrowTxHash?: string;
 }) => void;
 
 function getAuthorityKeypair(): Keypair {
@@ -218,7 +221,23 @@ export async function orchestrateTask(
   }
 
   if (resolvedSteps.length === 0) {
-    throw new Error("No valid agents found for the planned steps");
+    // No agents needed — answer directly using Claude
+    logger.info("orchestrator", "direct_answer", { callerAgentDid });
+    const { default: AnthropicDirect } = await import("@anthropic-ai/sdk");
+    const directClient = new AnthropicDirect({ apiKey });
+    const directRes = await directClient.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userInput }],
+    });
+    const directText = directRes.content.find((b) => b.type === "text");
+    return {
+      answer: directText?.text ?? "No response",
+      totalSpent: 0,
+      stepsCompleted: 0,
+      subTasks: [],
+    };
   }
 
   // Notify UI of planned steps
@@ -256,7 +275,7 @@ export async function orchestrateTask(
       stepInput = results[i - 1].artifact!;
     }
 
-    if (onStep) onStep({ type: "step_start", stepIndex: i });
+    if (onStep) onStep({ type: "step_start", stepIndex: i, taskId });
 
     logger.info("orchestrator", "step_start", {
       callerAgentDid,
@@ -266,11 +285,13 @@ export async function orchestrateTask(
     });
 
     // Reserve budget
+    const totalStepCost = step.estimatedCost + ORCHESTRATION_FEE_PER_STEP;
     try {
       await reserveBudget(callerAgentDid, step.estimatedCost, taskId, step.agentDid);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      results.push({ status: "failed", error: `Budget: ${msg}`, cost: 0 });
+      const currentBudget = await getAgentBudget(callerAgentDid);
+      const bal = currentBudget?.balance ?? 0;
+      results.push({ status: "failed", error: `Insufficient budget: need ${totalStepCost.toFixed(2)} USDC (${step.estimatedCost.toFixed(2)} agent + ${ORCHESTRATION_FEE_PER_STEP} fee), have ${bal.toFixed(2)} USDC. Deposit more to your Orchestrator budget.`, cost: 0 });
       break;
     }
 
@@ -312,10 +333,26 @@ export async function orchestrateTask(
         escrowTxHash,
         agentEndpoint: step.agentEndpoint,
       });
+
+      // Record task in Supabase for history tracking
+      createTask({
+        id: taskId,
+        callerDid: callerAgentDid,
+        callerAddress: callerAddress || "platform-authority",
+        agentDid: step.agentDid,
+        agentName: step.agentName,
+        agentAddress: step.agentEndpoint,
+        capability: step.capabilityId,
+        input: stepInput,
+        amount: step.estimatedCost.toFixed(2),
+        escrowTxHash,
+        delegatedBy: callerAgentDid,
+        isAgentTask: true,
+      });
     } catch (err) {
       await refundBudget(callerAgentDid, step.estimatedCost, taskId).catch(() => {});
       const msg = err instanceof Error ? err.message : String(err);
-      results.push({ status: "failed", error: `Escrow: ${msg}`, cost: 0 });
+      results.push({ status: "failed", error: `Escrow creation failed for ${step.agentName}: ${msg}`, cost: 0 });
       break;
     }
 
@@ -334,7 +371,10 @@ export async function orchestrateTask(
       const result = await executeTask(step.agentEndpoint, step.capabilityId, enrichedInput, taskId, 500, 60);
 
       if (result.status === "COMPLETED" && result.artifact) {
+        // Mark task as completed in Supabase
+        try { acceptTask(taskId); } catch { /* may already be accepted */ }
         await releaseEscrow(taskId);
+        try { completeTask(taskId, result.artifact); } catch { /* state edge case */ }
 
         // Charge per-step orchestration fee from budget
         const stepTotalCost = step.estimatedCost + ORCHESTRATION_FEE_PER_STEP;
@@ -362,7 +402,7 @@ export async function orchestrateTask(
           }).catch(() => {});
         }
 
-        if (onStep) onStep({ type: "step_done", stepIndex: i, artifact: result.artifact });
+        if (onStep) onStep({ type: "step_done", stepIndex: i, artifact: result.artifact, taskId, escrowTxHash });
 
         logger.info("orchestrator", "step_completed", {
           callerAgentDid,
@@ -370,16 +410,20 @@ export async function orchestrateTask(
           target: step.agentName,
         });
       } else {
+        try { acceptTask(taskId); } catch { /* state edge case */ }
         await refundEscrow(taskId).catch(() => {});
         await refundBudget(callerAgentDid, step.estimatedCost, taskId).catch(() => {});
+        try { failTask(taskId, result.error || "Agent failed"); } catch { /* state edge case */ }
         results.push({ status: "failed", error: result.error || "Agent failed", cost: 0 });
         if (onStep) onStep({ type: "step_failed", stepIndex: i, error: result.error || "Agent failed" });
         break;
       }
     } catch (err) {
+      try { acceptTask(taskId); } catch { /* state edge case */ }
       await refundEscrow(taskId).catch(() => {});
       await refundBudget(callerAgentDid, step.estimatedCost, taskId).catch(() => {});
       const msg = err instanceof Error ? err.message : String(err);
+      try { failTask(taskId, msg); } catch { /* state edge case */ }
       results.push({ status: "failed", error: msg, cost: 0 });
       break;
     }

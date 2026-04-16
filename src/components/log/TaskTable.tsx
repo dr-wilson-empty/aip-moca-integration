@@ -59,6 +59,7 @@ export default function TaskTable() {
   const [selected, setSelected] = useState<Task | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("ALL");
   const [stateFilter, setStateFilter] = useState<TaskState | "ALL">("ALL");
+  const [expandedOrch, setExpandedOrch] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
   const filtered = tasks.filter((t) => {
@@ -141,40 +142,115 @@ export default function TaskTable() {
         </div>
       )}
 
-      {groups.map((group, gi) => (
-        <div key={gi}>
-          {/* Chain header */}
-          {group.chainId && group.tasks.length > 1 && (
-            <div style={{ padding: "8px 30px", backgroundColor: "#dddcd7", borderBottom: `1px solid ${DS.border}`, display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "2px 8px", backgroundColor: DS.cyan, fontFamily: DS.fontMono, fontWeight: 700, textTransform: "uppercase" }}>CHAIN</span>
-              <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700 }}>{group.chainId} — {group.tasks.length} STEPS</span>
-              <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, marginLeft: "auto" }}>TOTAL: {group.tasks.reduce((sum, t) => sum + parseFloat(t.usdcSpent || "0"), 0).toFixed(2)} USDC</span>
-            </div>
-          )}
+      {(() => {
+        // Group orchestrator sub-tasks: tasks with id starting with "orch_" and same delegatedBy
+        const orchGroups = new Map<string, Task[]>();
+        const standalone: Task[] = [];
+        for (const t of filtered) {
+          if (t.id.startsWith("orch_") && t.delegatedBy) {
+            const key = t.chainId || t.delegatedBy || t.id; // group by chainId or orchestrator DID
+            const existing = orchGroups.get(key);
+            if (existing) existing.push(t);
+            else orchGroups.set(key, [t]);
+          } else {
+            standalone.push(t);
+          }
+        }
 
-          {group.tasks.map((task) => (
-            <div key={task.id} style={{
-              display: "grid", gridTemplateColumns: "1.5fr 1fr 1.2fr 0.8fr 0.6fr 0.7fr 0.5fr 0.5fr",
-              padding: "12px 30px", paddingLeft: group.chainId ? 46 : 30,
-              borderBottom: "1px solid #ccc", alignItems: "center",
-              fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700,
-              cursor: "pointer", transition: "background-color 0.1s",
-            }} onClick={() => setSelected(task)} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = DS.bgHover} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{task.id.split("_").pop()?.toUpperCase() || task.id.slice(-6).toUpperCase()}</span>
-                {task.isAgentTask && <span className="mp-white-text" style={{ fontSize: "0.6rem", padding: "1px 6px", backgroundColor: DS.purple, flexShrink: 0 }}>AGENT</span>}
+        // Build display rows: standalone tasks + collapsed orchestration rows
+        const displayRows: Array<{ type: "task"; task: Task } | { type: "orch"; tasks: Task[]; key: string }> = [];
+        const orchKeysUsed = new Set<string>();
+
+        for (const t of filtered) {
+          if (t.id.startsWith("orch_") && t.delegatedBy) {
+            const key = t.chainId || t.delegatedBy || t.id;
+            if (!orchKeysUsed.has(key)) {
+              orchKeysUsed.add(key);
+              displayRows.push({ type: "orch", tasks: orchGroups.get(key)!, key });
+            }
+          } else {
+            displayRows.push({ type: "task", task: t });
+          }
+        }
+
+        return displayRows.map((row, ri) => {
+          if (row.type === "task") {
+            const task = row.task;
+            return (
+              <div key={task.id} style={{
+                display: "grid", gridTemplateColumns: "1.5fr 1fr 1.2fr 0.8fr 0.6fr 0.7fr 0.5fr 0.5fr",
+                padding: "12px 30px", borderBottom: "1px solid #ccc", alignItems: "center",
+                fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700,
+                cursor: "pointer", transition: "background-color 0.1s",
+              }} onClick={() => setSelected(task)} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = DS.bgHover} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{task.id.split("_").pop()?.toUpperCase() || task.id.slice(-6).toUpperCase()}</span>
+                </div>
+                <span>{task.counterpartAgent}</span>
+                <span style={{ color: DS.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.capability}</span>
+                <span style={{ color: DS.textMuted }}>{new Date(task.startedAt).toTimeString().slice(0, 8)}</span>
+                <span>{task.duration}</span>
+                <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "3px 8px", backgroundColor: STATE_COLORS[task.state]?.bg || DS.textMuted, display: "inline-block", width: "fit-content" }}>{task.state}</span>
+                <span style={{ fontWeight: 700 }}>{task.usdcSpent}</span>
+                <span style={{ color: DS.textMuted, textAlign: "right", fontSize: "0.75rem" }}>DETAIL</span>
               </div>
-              <span>{task.counterpartAgent}</span>
-              <span style={{ color: DS.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.capability}</span>
-              <span style={{ color: DS.textMuted }}>{new Date(task.startedAt).toTimeString().slice(0, 8)}</span>
-              <span>{task.duration}</span>
-              <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "3px 8px", backgroundColor: STATE_COLORS[task.state]?.bg || DS.textMuted, display: "inline-block", width: "fit-content" }}>{task.state}</span>
-              <span style={{ fontWeight: 700 }}>{task.usdcSpent}</span>
-              <span style={{ color: DS.textMuted, textAlign: "right", fontSize: "0.75rem" }}>DETAIL</span>
+            );
+          }
+
+          // Orchestration group row
+          const { tasks: orchTasks, key } = row;
+          const totalCost = orchTasks.reduce((sum, t) => sum + parseFloat(t.usdcSpent || "0"), 0);
+          const allCompleted = orchTasks.every((t) => t.state === "COMPLETED");
+          const anyFailed = orchTasks.some((t) => t.state === "FAILED");
+          const orchState: TaskState = anyFailed ? "FAILED" : allCompleted ? "COMPLETED" : "WORKING";
+          const firstTask = orchTasks[0];
+
+          return (
+            <div key={key}>
+              {/* Orchestration summary row */}
+              <div style={{
+                display: "grid", gridTemplateColumns: "1.5fr 1fr 1.2fr 0.8fr 0.6fr 0.7fr 0.5fr 0.5fr",
+                padding: "12px 30px", borderBottom: "1px solid #ccc", alignItems: "center",
+                fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700,
+                backgroundColor: "#dddcd7", cursor: "pointer", transition: "background-color 0.1s",
+              }} onClick={() => setExpandedOrch((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; })}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#d0cfc9"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#dddcd7"}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: "0.7rem", color: DS.textMuted }}>{expandedOrch.has(key) ? "▼" : "▶"}</span>
+                  <span className="mp-white-text" style={{ fontSize: "0.6rem", padding: "1px 6px", backgroundColor: DS.purple, flexShrink: 0 }}>ORCH</span>
+                  <span>{orchTasks.length} steps</span>
+                </div>
+                <span>Orchestrator Agent</span>
+                <span style={{ color: DS.textMuted }}>orchestrate.task</span>
+                <span style={{ color: DS.textMuted }}>{new Date(firstTask.startedAt).toTimeString().slice(0, 8)}</span>
+                <span>—</span>
+                <span className="mp-white-text" style={{ fontSize: "0.65rem", padding: "3px 8px", backgroundColor: STATE_COLORS[orchState]?.bg || DS.textMuted, display: "inline-block", width: "fit-content" }}>{orchState}</span>
+                <span style={{ fontWeight: 700 }}>{totalCost.toFixed(2)}</span>
+                <span />
+              </div>
+              {/* Sub-steps (collapsible) */}
+              {expandedOrch.has(key) && orchTasks.map((task) => (
+                <div key={task.id} style={{
+                  display: "grid", gridTemplateColumns: "1.5fr 1fr 1.2fr 0.8fr 0.6fr 0.7fr 0.5fr 0.5fr",
+                  padding: "8px 30px", paddingLeft: 50, borderBottom: "1px solid #e0dfda", alignItems: "center",
+                  fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 700, color: DS.textMuted,
+                  cursor: "pointer", transition: "background-color 0.1s",
+                }} onClick={() => setSelected(task)} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = DS.bgHover} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
+                  <span style={{ fontSize: "0.7rem" }}>↳ #{task.id.split("_").pop()?.toUpperCase()}</span>
+                  <span>{task.counterpartAgent}</span>
+                  <span>{task.capability}</span>
+                  <span>{new Date(task.startedAt).toTimeString().slice(0, 8)}</span>
+                  <span>{task.duration}</span>
+                  <span className="mp-white-text" style={{ fontSize: "0.6rem", padding: "2px 6px", backgroundColor: STATE_COLORS[task.state]?.bg || DS.textMuted, display: "inline-block", width: "fit-content" }}>{task.state}</span>
+                  <span>{task.usdcSpent}</span>
+                  <span style={{ textAlign: "right", fontSize: "0.7rem" }}>DETAIL</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ))}
+          );
+        });
+      })()}
 
       {selected && <TaskDetailModal task={selected} onClose={() => setSelected(null)} />}
     </>

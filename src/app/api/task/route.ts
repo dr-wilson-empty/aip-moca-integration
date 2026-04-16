@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   for (const ha of listHostedAgents()) {
     registerCard({
       did: canonicalAgentDid(ha.ownerAddress, ha.agentId),
-      name: ha.name, version: "1.0.0",
+      name: ha.name, description: ha.description || undefined, version: "1.0.0",
       endpoint: `${base}/api/hosted-agent?agentId=${ha.agentId}`,
       type: "Task", walletAddress: ha.ownerAddress,
       capabilities: ha.capabilities.map((c) => ({

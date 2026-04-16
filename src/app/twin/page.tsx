@@ -430,7 +430,7 @@ export default function TwinPage() {
 
       if (!res.ok) {
         const err = await res.json();
-        updateMessage(msgId, { state: "failed", content: `Chain failed: ${err.error || "Unknown error"}` });
+        updateMessage(msgId, { state: "failed", content: err.error || "Failed to start pipeline. Check your Orchestrator budget." });
         setProcessing(false);
         return;
       }
@@ -512,7 +512,8 @@ export default function TwinPage() {
                 addTask({ id: step.taskId, counterpartAgent: step.agentName, capability: step.capabilityId || step.capabilityDescription, input: step.input || "", startedAt: updated.createdAt || new Date().toISOString(), duration: "—", state: step.status === "completed" ? "COMPLETED" : "FAILED", usdcSpent: step.status === "completed" ? step.estimatedCost : "0.00", artifact: step.artifact, escrowTxHash: step.escrowTxHash, settlementTxHash: step.settlementTxHash, log: [], isAgentTask: true, delegatedBy: did || undefined, chainId: chain.id });
               }
             }
-            updateMessage(msgId, { state: "failed", content: `Pipeline failed at step ${updated.currentStep + 1}: ${failedStep?.error || "Unknown error"}` });
+            const errorMsg = failedStep?.error || updated.finalArtifact || "Task execution failed. Check your Orchestrator budget and try again.";
+            updateMessage(msgId, { state: "failed", content: errorMsg });
             setProcessing(false);
             if (address) fetchBalance(address);
           }

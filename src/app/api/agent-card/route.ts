@@ -49,7 +49,18 @@ export async function GET(request: NextRequest) {
     const privateAgentIds = new Set(
       listHostedAgents().filter((a) => a.isPublic === false).map((a) => a.agentId)
     );
-    const all = Array.from(byName.values()).filter((card) => {
+    // Enrich cards with hosted agent descriptions
+    const hostedMap = new Map(listHostedAgents().map((h) => [h.agentId, h]));
+    const all = Array.from(byName.values()).map((card) => {
+      const m = card.endpoint.match(/[?&]agentId=([^&]+)/);
+      if (m && hostedMap.has(m[1])) {
+        const hosted = hostedMap.get(m[1])!;
+        if (hosted.description && !card.description) {
+          return { ...card, description: hosted.description };
+        }
+      }
+      return card;
+    }).filter((card) => {
       const match = card.endpoint.match(/[?&]agentId=([^&]+)/);
       if (match) {
         const agentId = match[1];

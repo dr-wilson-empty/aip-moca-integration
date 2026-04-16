@@ -10,6 +10,7 @@ import type { AgentType, Capability } from "@/types/aip";
 interface AgentDetail {
   did: string;
   name: string;
+  description?: string;
   version: string;
   endpoint: string;
   type: AgentType;
@@ -208,6 +209,9 @@ export default function AgentDetailPage() {
         {/* Left: Agent Info */}
         <div style={{ borderRight: `1px solid ${DS.border}`, padding: "24px 30px" }}>
           <span style={{ ...bandLabel, color: DS.textMuted, display: "block", marginBottom: 8 }}>AGENT INFORMATION</span>
+          {agent.description && (
+            <p style={{ fontFamily: DS.fontPrimary, fontSize: "0.95rem", lineHeight: 1.5, color: DS.text, marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid #ccc" }}>{agent.description}</p>
+          )}
           <InfoRow label="DID" value={agent.did} copyable />
           <InfoRow label="Endpoint" value={agent.endpoint} copyable />
           {agent.walletAddress && <InfoRow label="Payment Wallet" value={agent.walletAddress} copyable />}
