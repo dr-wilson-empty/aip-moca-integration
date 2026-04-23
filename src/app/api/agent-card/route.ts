@@ -55,11 +55,13 @@ export async function GET(request: NextRequest) {
       const m = card.endpoint.match(/[?&]agentId=([^&]+)/);
       if (m && hostedMap.has(m[1])) {
         const hosted = hostedMap.get(m[1])!;
-        if (hosted.description && !card.description) {
-          return { ...card, description: hosted.description };
-        }
+        return {
+          ...card,
+          description: (hosted.description && !card.description) ? hosted.description : card.description,
+          hasMcp: hosted.mcpServers && hosted.mcpServers.length > 0,
+        };
       }
-      return card;
+      return { ...card, hasMcp: false };
     }).filter((card) => {
       const match = card.endpoint.match(/[?&]agentId=([^&]+)/);
       if (match) {

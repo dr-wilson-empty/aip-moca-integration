@@ -54,6 +54,7 @@ export function seedDemoAgents(): void {
         })),
         canOrchestrate: false,
         isPublic: true,
+        mcpServers: [],
         createdAt: new Date().toISOString(),
         active: true,
       }).catch(() => {});

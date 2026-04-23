@@ -78,6 +78,7 @@ export async function ensureDefaultOrchestrator(
     capabilities: DEFAULT_CAPABILITIES,
     canOrchestrate: true,
     isPublic: false,
+    mcpServers: [],
     createdAt: new Date().toISOString(),
     active: true,
   };

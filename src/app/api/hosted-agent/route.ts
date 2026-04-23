@@ -3,6 +3,7 @@ import { getHostedAgent, loadHostedAgentsFromDb } from "@/lib/hosted-agents";
 import { orchestrateTask } from "@/lib/protocol/agent-orchestrator";
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import { autoEnrichWithWebData, getCurrentDateString } from "@/lib/web/realtime-enrichment";
+import { executeWithMcpTools } from "@/lib/mcp/tool-executor";
 import Anthropic from "@anthropic-ai/sdk";
 
 /**
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
     capabilities: config.capabilities,
     walletAddress: config.ownerAddress,
     hosted: true,
+    hasMcp: config.mcpServers && config.mcpServers.length > 0,
   });
 }
 
@@ -176,7 +178,7 @@ async function processHostedTask(
     // Orchestration mode: agent autonomously delegates to other agents
     if (config.canOrchestrate) {
       const agentDid = canonicalAgentDid(config.ownerAddress, config.agentId);
-      const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input, config.ownerAddress);
+      const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input, config.ownerAddress, undefined, config.mcpServers);
 
       const subTaskInfo = orchResult.subTasks
         .filter((s) => s.status === "completed")
@@ -186,6 +188,13 @@ async function processHostedTask(
       result = orchResult.answer +
         `\n\n---\n**${config.name}** orchestrated ${orchResult.stepsCompleted} agent(s), spent ${orchResult.totalSpent.toFixed(2)} USDC from budget` +
         (subTaskInfo ? `\n${subTaskInfo}` : "");
+    } else if (config.mcpServers && config.mcpServers.length > 0) {
+      // MCP-enabled agent: use tool calling loop
+      const mcpResult = await executeWithMcpTools(config, input);
+      const toolInfo = mcpResult.toolCalls.length > 0
+        ? `\n\n---\n*Used ${mcpResult.toolCalls.length} MCP tool call(s) in ${mcpResult.iterationsUsed} iteration(s): ${mcpResult.toolCalls.map((t) => t.toolName).join(", ")}*`
+        : "";
+      result = mcpResult.text + toolInfo;
     } else if (config.provider === "anthropic") {
       result = await callAnthropic(config, input);
     } else if (config.provider === "openai") {

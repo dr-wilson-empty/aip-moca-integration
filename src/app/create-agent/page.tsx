@@ -193,6 +193,7 @@ export default function CreateAgentPage() {
           capabilities: store.capabilities.map((c) => ({ id: c.id.trim(), description: c.description.trim(), pricing: { amount: c.amount, token: "USDC", network: "solana" } })),
           canOrchestrate: false,
           isPublic: store.isPublic,
+          mcpServers: store.mcpServers.filter((s) => s.name.trim() && s.url.trim()).map((s) => ({ name: s.name.trim(), url: s.url.trim() })),
         }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to register hosted agent"); }
@@ -386,6 +387,50 @@ export default function CreateAgentPage() {
               </div>
             ))}
             <button onClick={store.addCapability} className="ds-accent-text" style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", marginTop: 4 }}>+ ADD CAPABILITY</button>
+          </div>
+
+          {/* MCP Servers (Optional) */}
+          <div style={{ padding: "20px 30px", borderBottom: `1px solid ${DS.border}`, backgroundColor: store.mcpServers.length > 0 ? "#e8e4da" : undefined }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ ...bandLabel, color: DS.text }}>MCP TOOLS</span>
+                <span style={{ fontFamily: DS.fontMono, fontSize: "0.7rem", fontWeight: 600, color: "#b45309", backgroundColor: "#fef3c7", padding: "2px 8px", letterSpacing: "0.05em", textTransform: "uppercase" }}>OPTIONAL</span>
+              </div>
+              {store.mcpServers.length === 0 && (
+                <button onClick={store.addMcpServer} style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, padding: "8px 16px", backgroundColor: "transparent", color: DS.text, border: `1px solid ${DS.border}`, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.05em" }}>+ CONNECT MCP SERVER</button>
+              )}
+            </div>
+            {store.mcpServers.length === 0 ? (
+              <div style={{ border: `1px dashed ${DS.textMuted}`, padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
+                <span style={{ fontSize: "1.5rem" }}>&#9881;</span>
+                <div>
+                  <p style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, color: DS.text, margin: "0 0 4px 0" }}>Give your agent superpowers with MCP</p>
+                  <p style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", color: DS.textMuted, margin: 0 }}>Connect external tools (databases, APIs, browsers, etc). Your agent will use them automatically when needed. MCP agents can do more — price accordingly.</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {store.mcpServers.map((srv, idx) => (
+                  <div key={idx} style={{ border: `1px solid ${DS.border}`, marginBottom: 8, backgroundColor: DS.bg }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 0 }}>
+                      <div style={{ padding: "12px 14px", borderRight: `1px solid ${DS.border}`, borderBottom: `1px solid ${DS.border}` }}>
+                        <span style={{ ...bandLabel, fontSize: "0.8rem", color: DS.textMuted, display: "block", marginBottom: 6 }}>SERVER NAME</span>
+                        <input type="text" value={srv.name} onChange={(e) => store.updateMcpServer(idx, "name", e.target.value)} placeholder="my-tools" style={{ ...inputStyle, padding: "8px 10px", fontSize: "0.9rem" }} />
+                      </div>
+                      <div style={{ padding: "12px 14px", borderBottom: `1px solid ${DS.border}` }}>
+                        <span style={{ ...bandLabel, fontSize: "0.8rem", color: DS.textMuted, display: "block", marginBottom: 6 }}>ENDPOINT URL</span>
+                        <input type="url" value={srv.url} onChange={(e) => store.updateMcpServer(idx, "url", e.target.value)} placeholder="https://my-mcp-server.com/mcp" style={{ ...inputStyle, padding: "8px 10px", fontSize: "0.9rem" }} />
+                      </div>
+                    </div>
+                    <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontFamily: DS.fontMono, fontSize: "0.75rem", fontWeight: 600, color: "#b45309", backgroundColor: "#fef3c7", padding: "2px 8px" }}>STREAMABLE HTTP</span>
+                      <button onClick={() => store.removeMcpServer(idx)} className="ds-error-text" style={{ fontFamily: DS.fontMono, fontSize: "0.85rem", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase" }}>REMOVE</button>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={store.addMcpServer} style={{ fontFamily: DS.fontMono, fontSize: "0.8rem", fontWeight: 700, padding: "8px 16px", backgroundColor: DS.dark, color: DS.bg, border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 4 }}>+ ADD ANOTHER SERVER</button>
+              </>
+            )}
           </div>
 
           {/* Visibility */}

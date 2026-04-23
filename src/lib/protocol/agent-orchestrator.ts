@@ -20,6 +20,8 @@ import { createEscrowRecord, releaseEscrow, refundEscrow } from "@/lib/payment/e
 import { reserveBudget, refundBudget, getAgentBudget } from "@/lib/payment/agent-budget";
 import { getCurrentDateString } from "@/lib/web/realtime-enrichment";
 import { buildMemoryContext, extractMemoryHints, saveMemories } from "@/lib/memory/agent-memory";
+import { connectAndDiscoverTools, callMcpTool } from "@/lib/mcp/client-manager";
+import type { McpServerConfig, McpToolInfo } from "@/lib/mcp/types";
 import { listCards } from "./agent-card-store";
 import { executeTask } from "./a2a-client";
 import { createTask, acceptTask, completeTask, failTask } from "./task-machine";
@@ -39,6 +41,20 @@ interface OrchestrationStep {
   input: string;
   inputFromPrev: boolean;
   estimatedCost: number;
+}
+
+interface McpOrchestrationStep {
+  type: "mcp_tool";
+  toolName: string;
+  serverName: string;
+  arguments: Record<string, unknown>;
+  input: string;
+  inputFromPrev: boolean;
+  estimatedCost: 0;
+}
+
+function isAgentStep(step: OrchestrationStep | McpOrchestrationStep): step is OrchestrationStep {
+  return !("type" in step) || step.type !== "mcp_tool";
 }
 
 interface StepResult {
@@ -95,6 +111,7 @@ export async function orchestrateTask(
   userInput: string,
   callerAddress?: string,
   onStep?: OnOrchestratorStep,
+  mcpServers?: McpServerConfig[],
 ): Promise<OrchestrationResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
@@ -103,6 +120,25 @@ export async function orchestrateTask(
   const budget = await getAgentBudget(callerAgentDid);
   if (!budget || budget.balance <= 0) {
     throw new Error(`No budget available for ${callerAgentName}. Deposit USDC in My Agents first.`);
+  }
+
+  // Discover MCP tools if agent has MCP servers
+  let mcpTools: McpToolInfo[] = [];
+  if (mcpServers && mcpServers.length > 0) {
+    try {
+      mcpTools = await connectAndDiscoverTools(mcpServers);
+      logger.info("orchestrator", "mcp_tools_discovered", {
+        callerAgentDid,
+        toolCount: mcpTools.length,
+        servers: mcpServers.map((s) => s.name),
+      });
+    } catch (err) {
+      logger.warn("orchestrator", "mcp_discovery_failed", {
+        callerAgentDid,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Continue without MCP tools — agent delegation still works
+    }
   }
 
   // Get available agents (exclude self to prevent recursion)
@@ -119,13 +155,18 @@ export async function orchestrateTask(
     }))
   );
 
-  if (capabilityList.length === 0) {
-    throw new Error("No agents available to delegate to.");
+  if (capabilityList.length === 0 && mcpTools.length === 0) {
+    throw new Error("No agents or MCP tools available to delegate to.");
   }
 
   const availableStr = capabilityList
     .map((c) => `- ${c.agentName} → ${c.capabilityId} (${c.description}) — ${c.price} USDC`)
     .join("\n");
+
+  const mcpToolsStr = mcpTools.length > 0
+    ? "\n\nYou also have MCP tools available (free, no USDC cost):\n" +
+      mcpTools.map((t) => `- [MCP] ${t.name} (${t.description}) — FREE`).join("\n")
+    : "";
 
   logger.info("orchestrator", "planning", {
     callerAgentDid,
@@ -135,6 +176,11 @@ export async function orchestrateTask(
 
   // Step 1: Plan — ask Claude which agents to call
   const client = new Anthropic({ apiKey });
+  const mcpPlanRules = mcpTools.length > 0
+    ? `- For MCP tool steps, set "type":"mcp_tool", "toolName":"<name>", "arguments":{...}\n` +
+      `- MCP tools are FREE (no USDC cost) — prefer them when they can do the job\n`
+    : "";
+
   const planResponse = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
@@ -143,24 +189,34 @@ export async function orchestrateTask(
       `You are an AI orchestrator for the agent "${callerAgentName}". ` +
       `Your agent's system prompt: "${systemPrompt}"\n\n` +
       `You have a budget of ${budget.balance.toFixed(2)} USDC to spend on other agents.\n\n` +
-      `Available agents you can delegate to:\n${availableStr}\n\n` +
+      `Available agents you can delegate to:\n${availableStr}${mcpToolsStr}\n\n` +
       `RULES:\n` +
-      `- Analyze the user's request and decide which agents to call\n` +
+      `- Analyze the user's request and decide which agents/tools to call\n` +
       `- If the task is simple and can be answered directly, return {"steps":[]}\n` +
       `- **IMPORTANT**: If the user asks about current prices, news, events, or any time-sensitive information, you MUST include a web.search step FIRST to get up-to-date data. Never rely on training data for current facts.\n` +
-      `- For each step, specify the agent, capability, and input\n` +
-      `- Total cost must not exceed budget (${budget.balance.toFixed(2)} USDC)\n` +
+      `- For agent steps, specify the agent, capability, and input\n` +
+      mcpPlanRules +
+      `- Total agent cost must not exceed budget (${budget.balance.toFixed(2)} USDC)\n` +
       `- Step 2+ can use previous step's output: set inputFromPrev=true\n` +
       `- Maximum 4 steps\n` +
       `- ALWAYS respond with valid JSON only:\n` +
-      `{"steps":[{"agentName":"...","capabilityId":"...","input":"...","inputFromPrev":false}]}\n`,
+      `{"steps":[{"agentName":"...","capabilityId":"...","input":"...","inputFromPrev":false}]}\n` +
+      (mcpTools.length > 0 ? `For MCP tools: {"steps":[{"type":"mcp_tool","toolName":"...","arguments":{...},"inputFromPrev":false}]}\n` : ""),
     messages: [{ role: "user", content: userInput }],
   });
 
   const planText = planResponse.content[0];
   if (planText.type !== "text") throw new Error("No plan from model");
 
-  let plan: { steps: Array<{ agentName: string; capabilityId: string; input?: string; inputFromPrev?: boolean }> };
+  let plan: { steps: Array<{
+    type?: "mcp_tool";
+    agentName?: string;
+    capabilityId?: string;
+    toolName?: string;
+    arguments?: Record<string, unknown>;
+    input?: string;
+    inputFromPrev?: boolean;
+  }> };
   try {
     const match = planText.text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("No JSON");
@@ -187,11 +243,28 @@ export async function orchestrateTask(
     };
   }
 
-  // Resolve steps to actual agents
-  const resolvedSteps: OrchestrationStep[] = [];
+  // Resolve steps to actual agents or MCP tools
+  const resolvedSteps: (OrchestrationStep | McpOrchestrationStep)[] = [];
   let totalCost = 0;
 
   for (const step of plan.steps) {
+    // MCP tool step — no cost, no agent
+    if (step.type === "mcp_tool" && step.toolName && mcpTools.length > 0) {
+      const tool = mcpTools.find((t) => t.name === step.toolName);
+      if (!tool) continue;
+      resolvedSteps.push({
+        type: "mcp_tool" as const,
+        toolName: step.toolName,
+        serverName: tool.serverName,
+        arguments: step.arguments || {},
+        input: step.input || userInput,
+        inputFromPrev: step.inputFromPrev || false,
+        estimatedCost: 0,
+      });
+      continue;
+    }
+
+    // Agent delegation step
     const match = capabilityList.find(
       (c) => c.capabilityId === step.capabilityId && c.agentName === step.agentName
     ) || capabilityList.find(
@@ -244,12 +317,22 @@ export async function orchestrateTask(
   if (onStep) {
     onStep({
       type: "planned",
-      steps: resolvedSteps.map((s) => ({
-        agentName: s.agentName,
-        capabilityId: s.capabilityId,
-        estimatedCost: s.estimatedCost,
-        label: `${s.agentName}: ${s.capabilityId}`,
-      })),
+      steps: resolvedSteps.map((s) => {
+        if (isAgentStep(s)) {
+          return {
+            agentName: s.agentName,
+            capabilityId: s.capabilityId,
+            estimatedCost: s.estimatedCost,
+            label: `${s.agentName}: ${s.capabilityId}`,
+          };
+        }
+        return {
+          agentName: `[MCP] ${s.serverName}`,
+          capabilityId: s.toolName,
+          estimatedCost: 0,
+          label: `[MCP] ${s.toolName}`,
+        };
+      }),
     });
   }
 
@@ -273,6 +356,46 @@ export async function orchestrateTask(
     let stepInput = step.input;
     if (step.inputFromPrev && i > 0 && results[i - 1]?.artifact) {
       stepInput = results[i - 1].artifact!;
+    }
+
+    // MCP tool step — direct execution, no escrow/budget
+    if (!isAgentStep(step)) {
+      if (onStep) onStep({ type: "step_start", stepIndex: i, taskId });
+      logger.info("orchestrator", "mcp_tool_step", {
+        callerAgentDid,
+        step: i + 1,
+        tool: step.toolName,
+      });
+
+      try {
+        const mcpResult = await callMcpTool(mcpServers || [], step.toolName, step.arguments);
+        if (mcpResult.success) {
+          results.push({
+            status: "completed",
+            artifact: mcpResult.content,
+            cost: 0,
+            agentName: `[MCP] ${step.serverName}`,
+            capabilityId: step.toolName,
+          });
+          if (onStep) onStep({ type: "step_done", stepIndex: i, artifact: mcpResult.content, taskId });
+        } else {
+          results.push({
+            status: "failed",
+            error: mcpResult.errorMessage || "MCP tool call failed",
+            cost: 0,
+            agentName: `[MCP] ${step.serverName}`,
+            capabilityId: step.toolName,
+          });
+          if (onStep) onStep({ type: "step_failed", stepIndex: i, error: mcpResult.errorMessage });
+          break;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results.push({ status: "failed", error: msg, cost: 0 });
+        if (onStep) onStep({ type: "step_failed", stepIndex: i, error: msg });
+        break;
+      }
+      continue;
     }
 
     if (onStep) onStep({ type: "step_start", stepIndex: i, taskId });

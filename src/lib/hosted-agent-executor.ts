@@ -5,6 +5,7 @@
 import { orchestrateTask } from "@/lib/protocol/agent-orchestrator";
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import { autoEnrichWithWebData, getCurrentDateString } from "@/lib/web/realtime-enrichment";
+import { executeWithMcpTools } from "@/lib/mcp/tool-executor";
 import type { HostedAgentConfig } from "@/lib/hosted-agents";
 
 /**
@@ -20,7 +21,7 @@ export async function executeHostedAgentDirect(
 
     if (config.canOrchestrate) {
       const agentDid = canonicalAgentDid(config.ownerAddress, config.agentId);
-      const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input, config.ownerAddress);
+      const orchResult = await orchestrateTask(agentDid, config.name, config.systemPrompt, input, config.ownerAddress, undefined, config.mcpServers);
       const subTaskInfo = orchResult.subTasks
         .filter((s) => s.status === "completed")
         .map((s) => `${s.agentName} (${s.capabilityId}) — ${s.cost.toFixed(2)} USDC`)
@@ -28,6 +29,9 @@ export async function executeHostedAgentDirect(
       result = orchResult.answer +
         `\n\n---\n**${config.name}** orchestrated ${orchResult.stepsCompleted} agent(s), spent ${orchResult.totalSpent.toFixed(2)} USDC from budget` +
         (subTaskInfo ? `\n${subTaskInfo}` : "");
+    } else if (config.mcpServers && config.mcpServers.length > 0) {
+      const mcpResult = await executeWithMcpTools(config, input);
+      result = mcpResult.text;
     } else if (config.provider === "openai") {
       result = await callOpenAI(config, input);
     } else {
