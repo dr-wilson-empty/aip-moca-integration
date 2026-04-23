@@ -222,7 +222,7 @@ async function runChain(chain: TaskChain, budgetAgentDid?: string): Promise<void
               chain.steps[realIdx].error = event.error;
             }
           }
-        });
+        }, hostedConfig.mcpServers);
 
         totalSpent += orchResult.totalSpent;
         logger.info("chain", "orchestrator_completed", { chainId: chain.id, step: i + 1, subSpent: orchResult.totalSpent });

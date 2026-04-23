@@ -55,7 +55,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
   const { publicKey } = useWallet();
   const router = useRouter();
   const { register, update, deregister, loading, error } = useAgentRegistry();
-  const { myAgents, myAgentsLoading, syncFromChain } = useAgentStore();
+  const { myAgents, myAgentsLoading, syncFromChain, setCounterpart } = useAgentStore();
 
   const [view, setView] = useState<View>("list");
   const [editAgent, setEditAgent] = useState<MyAgentEntry | null>(null);
@@ -222,6 +222,22 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
 
                 {/* Actions */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                  {!isOrch && (
+                    <button onClick={() => {
+                      setCounterpart({
+                        did: agent.did,
+                        name: agent.name,
+                        version: agent.version,
+                        endpoint: agent.endpoint,
+                        type: agent.type,
+                        capabilities: agent.capabilities,
+                        walletAddress: agent.walletAddress,
+                      });
+                      router.push("/dashboard");
+                    }} className="mp-white-text" style={{ ...btnSmall, backgroundColor: DS.green, border: "none" }}>
+                      SEND TASK
+                    </button>
+                  )}
                   {agent.registrationSource !== "hosted" && (
                     <button onClick={() => startEdit(agent)} style={btnSmall}>
                       {agent.registrationSource === "external" ? "CLAIM" : "EDIT"}

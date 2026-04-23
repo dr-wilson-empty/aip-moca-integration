@@ -12,6 +12,7 @@ interface AgentWithMeta extends AgentCard {
   avgRating?: number;
   ratingCount?: number;
   registeredAt?: number;
+  hasMcp?: boolean;
 }
 
 interface Category {
@@ -295,6 +296,7 @@ function AgentFeatureCard({
           <span style={{ fontWeight: 600, color: DS.text }}>{config.label}</span>
           {agent.onChain && <StatusTag label="ON-CHAIN" bg="#7c3aed" />}
           {isHosted && <StatusTag label="HOSTED" bg="#0e7490" />}
+          {agent.hasMcp && <StatusTag label="MCP" bg="#b45309" />}
           <span
             style={{
               width: 6,

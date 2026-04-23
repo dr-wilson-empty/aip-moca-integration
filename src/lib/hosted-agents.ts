@@ -9,6 +9,7 @@
  */
 import { getSupabase } from "./supabase/client";
 import { encrypt, decrypt, isEncrypted } from "./auth/encrypt";
+import type { McpServerConfig } from "./mcp/types";
 
 export type AIProvider = "anthropic" | "openai" | "google";
 export type AITier = "platform" | "custom";
@@ -31,6 +32,8 @@ export interface HostedAgentConfig {
   canOrchestrate: boolean;
   /** When true, agent is listed on the public marketplace. Default true. */
   isPublic: boolean;
+  /** Optional MCP server connections — empty array means no MCP (default) */
+  mcpServers: McpServerConfig[];
   createdAt: string;
   active: boolean;
 }
@@ -63,6 +66,7 @@ interface DbHostedAgent {
   capabilities_json: string;
   can_orchestrate: boolean;
   is_public: boolean;
+  mcp_servers?: string; // JSONB — '[]' default
   active: boolean;
   created_at?: string;
 }
@@ -79,6 +83,8 @@ function decryptApiKey(raw: string | undefined): string | undefined {
 function toConfig(row: DbHostedAgent): HostedAgentConfig {
   let caps: HostedAgentConfig["capabilities"] = [];
   try { caps = JSON.parse(row.capabilities_json); } catch { /* ignore */ }
+  let mcpServers: McpServerConfig[] = [];
+  try { if (row.mcp_servers) mcpServers = JSON.parse(row.mcp_servers); } catch { /* ignore */ }
   return {
     agentId: row.agent_id,
     ownerAddress: row.owner_address,
@@ -91,6 +97,7 @@ function toConfig(row: DbHostedAgent): HostedAgentConfig {
     capabilities: caps,
     canOrchestrate: row.can_orchestrate ?? false,
     isPublic: row.is_public ?? true,
+    mcpServers,
     createdAt: row.created_at || new Date().toISOString(),
     active: row.active,
   };
@@ -109,6 +116,7 @@ function toRow(config: HostedAgentConfig): DbHostedAgent {
     capabilities_json: JSON.stringify(config.capabilities),
     can_orchestrate: config.canOrchestrate ?? false,
     is_public: config.isPublic ?? true,
+    mcp_servers: JSON.stringify(config.mcpServers || []),
     active: config.active,
   };
 }

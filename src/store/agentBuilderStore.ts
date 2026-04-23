@@ -13,6 +13,11 @@ export interface BuilderCapability {
   amount: string;
 }
 
+export interface BuilderMcpServer {
+  name: string;
+  url: string;
+}
+
 interface AgentBuilderState {
   // Wizard step
   step: BuilderStep;
@@ -31,6 +36,7 @@ interface AgentBuilderState {
   provider: AIProvider;
   customApiKey: string;
   capabilities: BuilderCapability[];
+  mcpServers: BuilderMcpServer[];
   isPublic: boolean;
 
   // Status
@@ -54,6 +60,10 @@ interface AgentBuilderState {
   addCapability: () => void;
   removeCapability: (idx: number) => void;
   updateCapability: (idx: number, field: keyof BuilderCapability, value: string) => void;
+  setMcpServers: (servers: BuilderMcpServer[]) => void;
+  addMcpServer: () => void;
+  removeMcpServer: (idx: number) => void;
+  updateMcpServer: (idx: number, field: keyof BuilderMcpServer, value: string) => void;
   setPublishing: (v: boolean) => void;
   setPublished: (txHash: string) => void;
   setError: (error: string | null) => void;
@@ -71,6 +81,7 @@ const INITIAL_STATE = {
   provider: "anthropic" as AIProvider,
   customApiKey: "",
   capabilities: [{ id: "", description: "", amount: "0.10" }] as BuilderCapability[],
+  mcpServers: [] as BuilderMcpServer[],
   isPublic: true,
   publishing: false,
   published: false,
@@ -112,6 +123,25 @@ export const useAgentBuilderStore = create<AgentBuilderState>()(
           return { capabilities: caps };
         }),
 
+      setMcpServers: (mcpServers) => set({ mcpServers }),
+
+      addMcpServer: () =>
+        set((s) => ({
+          mcpServers: [...s.mcpServers, { name: "", url: "" }],
+        })),
+
+      removeMcpServer: (idx) =>
+        set((s) => ({
+          mcpServers: s.mcpServers.filter((_, i) => i !== idx),
+        })),
+
+      updateMcpServer: (idx, field, value) =>
+        set((s) => {
+          const servers = [...s.mcpServers];
+          servers[idx] = { ...servers[idx], [field]: value };
+          return { mcpServers: servers };
+        }),
+
       setPublishing: (publishing) => set({ publishing, error: null }),
       setPublished: (txHash) => set({ published: true, publishing: false, txHash }),
       setError: (error) => set({ error, publishing: false }),
@@ -129,6 +159,7 @@ export const useAgentBuilderStore = create<AgentBuilderState>()(
         tier: state.tier,
         provider: state.provider,
         capabilities: state.capabilities,
+        mcpServers: state.mcpServers,
         isPublic: state.isPublic,
       }),
     }

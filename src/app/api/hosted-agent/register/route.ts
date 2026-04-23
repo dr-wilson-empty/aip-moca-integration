@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     capabilities,
     canOrchestrate,
     isPublic,
+    mcpServers,
   } = body as {
     agentId?: string;
     ownerAddress?: string;
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
     capabilities?: HostedAgentConfig["capabilities"];
     canOrchestrate?: boolean;
     isPublic?: boolean;
+    mcpServers?: Array<{ name: string; url: string; headers?: Record<string, string> }>;
   };
 
   // Validation
@@ -92,6 +94,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Validate MCP server URLs if provided
+  if (mcpServers && mcpServers.length > 0) {
+    for (const server of mcpServers) {
+      if (!server.name || !server.url) {
+        return NextResponse.json(
+          { error: "Each MCP server must have a name and url" },
+          { status: 400 }
+        );
+      }
+      try {
+        const parsed = new URL(server.url);
+        if (!["http:", "https:"].includes(parsed.protocol)) {
+          return NextResponse.json(
+            { error: `MCP server URL must use http or https: ${server.url}` },
+            { status: 400 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: `Invalid MCP server URL: ${server.url}` },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   // Build hosted agent config
   const config: HostedAgentConfig = {
     agentId,
@@ -105,6 +133,7 @@ export async function POST(request: NextRequest) {
     capabilities,
     canOrchestrate: canOrchestrate ?? false,
     isPublic: isPublic ?? true,
+    mcpServers: mcpServers || [],
     createdAt: new Date().toISOString(),
     active: true,
   };
