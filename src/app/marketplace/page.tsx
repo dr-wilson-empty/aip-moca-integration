@@ -143,13 +143,28 @@ function DitherWave({ color, alive }: { color: string; alive: boolean }) {
       return bayerMatrix[y % 4][x % 4] / 16 - 0.5;
     }
 
+    let running = true;
+    let drawnStatic = false;
+
     function draw() {
+      if (!running) return;
+
+      const isAlive = aliveRef.current;
+
+      // Offline agents: draw once, then skip rendering (keep loop for transition detection)
+      if (!isAlive && drawnStatic) {
+        animRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
       const w = parent!.clientWidth;
       const h = parent!.clientHeight;
       if (canvas!.width !== w || canvas!.height !== h) {
         canvas!.width = w;
         canvas!.height = h;
       }
+
+      const drawColor = isAlive ? color : "#555";
 
       ctx!.fillStyle = DS.dark;
       ctx!.fillRect(0, 0, w, h);
@@ -174,7 +189,7 @@ function DitherWave({ color, alive }: { color: string; alive: boolean }) {
           intensity += (Math.random() - 0.5) * 0.08;
           const threshold = getThreshold(x, y);
           if (intensity + threshold > 0.5) {
-            ctx!.fillStyle = color;
+            ctx!.fillStyle = drawColor;
             ctx!.fillRect(
               x * gridSize,
               y * gridSize,
@@ -185,18 +200,23 @@ function DitherWave({ color, alive }: { color: string; alive: boolean }) {
         }
       }
 
-      if (aliveRef.current) {
+      if (isAlive) {
         timeRef.current += speed;
-        animRef.current = requestAnimationFrame(draw);
+        drawnStatic = false;
+      } else {
+        drawnStatic = true;
       }
+
+      animRef.current = requestAnimationFrame(draw);
     }
 
     draw();
 
     return () => {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
+      running = false;
+      cancelAnimationFrame(animRef.current);
     };
-  }, [color, alive]);
+  }, [color]);
 
   return (
     <canvas

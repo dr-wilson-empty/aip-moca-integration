@@ -124,84 +124,13 @@ function isPublicRoute(pathname: string): boolean {
 /*  Middleware                                                          */
 /* ------------------------------------------------------------------ */
 
-/* ------------------------------------------------------------------ */
-/*  Site Password Protection                                           */
-/* ------------------------------------------------------------------ */
-
-const SITE_PASSWORD_HASH = "86b679817e5f5879137a0c5b3a4e2ebe";
-const AUTH_COOKIE = "aip-auth";
-const AUTH_MAX_AGE = 86400; // 24 hours
-
-function verifyAuth(request: NextRequest): boolean {
-  const cookie = request.cookies.get(AUTH_COOKIE);
-  return cookie?.value === SITE_PASSWORD_HASH;
-}
-
-// Brute force protection: max 5 attempts per minute per IP
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-function checkLoginRate(ip: string): boolean {
-  const now = Date.now();
-  const entry = loginAttempts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-  entry.count++;
-  return entry.count <= 5;
-}
-
-function renderLoginPage(error?: string): Response {
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>AIP — Access</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #e6e5e0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .card { width: 100%; max-width: 400px; border: 1px solid #000; background: #e6e5e0; }
-    .header { padding: 30px 28px 0; border-bottom: 1px solid #000; position: relative; overflow: hidden; }
-    .header h1 { font-size: 3.5rem; font-weight: 300; line-height: 0.85; text-transform: uppercase; letter-spacing: -0.03em; position: relative; z-index: 1; margin-bottom: -4px; text-shadow: 2px 2px 0px #d5d0c8; }
-    .header span { position: absolute; bottom: -8px; right: -5px; font-size: 5rem; font-weight: 700; color: #d5d0c8; line-height: 0.8; letter-spacing: -0.05em; z-index: 0; pointer-events: none; }
-    .sub { padding: 10px 28px; border-bottom: 1px solid #000; font-family: 'Courier New', monospace; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; }
-    .body { padding: 28px; }
-    .error { background: #f5e6e6; padding: 10px 28px; border-bottom: 1px solid #000; font-family: 'Courier New', monospace; font-size: 0.8rem; color: #c62828; font-weight: 700; }
-    input { width: 100%; font-family: 'Courier New', monospace; font-size: 0.9rem; font-weight: 700; padding: 12px 14px; border: 1px solid #000; background: transparent; outline: none; margin-bottom: 16px; }
-    button { width: 100%; padding: 14px; font-family: 'Courier New', monospace; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #222; color: #e6e5e0; border: none; cursor: pointer; }
-    button:hover { background: #444; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="header">
-      <h1>AIP</h1>
-      <span>ACCESS</span>
-    </div>
-    <div class="sub">DEVNET BETA — RESTRICTED ACCESS</div>
-    ${error ? `<div class="error">${error}</div>` : ""}
-    <form class="body" method="POST" action="/api/auth/login">
-      <input type="password" name="password" placeholder="Enter password" autofocus required />
-      <button type="submit">ENTER</button>
-    </form>
-  </div>
-</body>
-</html>`;
-  return new Response(html, { status: 401, headers: { "Content-Type": "text/html; charset=utf-8" } });
-}
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
-  // Skip auth for login API and static assets
-  if (pathname === "/api/auth/login" || pathname.startsWith("/_next/") || pathname === "/favicon.ico" || pathname === "/aipLogo.png") {
+  // Skip static assets
+  if (pathname.startsWith("/_next/") || pathname === "/favicon.ico" || pathname === "/aipLogo.png") {
     return NextResponse.next();
-  }
-
-  // Check site password
-  if (!verifyAuth(request)) {
-    return renderLoginPage();
   }
 
   // Rate limiting for API routes (exclude high-frequency polling endpoints)
