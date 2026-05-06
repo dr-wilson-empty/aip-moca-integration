@@ -60,7 +60,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
   }
 
-  const agents = listCards();
+  // Filter: only platform agents (demo/web-search) and the automation owner's own agents.
+  // Prevents cross-wallet orchestrator leakage where the planner could pick another user's
+  // orchestrator and trigger a budget lookup against a wallet that has no funds.
+  const agents = listCards().filter(
+    (a) => a.did.startsWith("did:aip:platform:") || a.walletAddress === auto.wallet_address
+  );
   const capabilityList = agents.flatMap((a) =>
     a.capabilities.map((c) => ({
       agentName: a.name,

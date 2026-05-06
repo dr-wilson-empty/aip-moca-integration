@@ -192,7 +192,11 @@ async function runAutomation(
   }
 
   // 2. Plan which agent to call
-  const agents = listCards();
+  // Filter: only platform agents (demo/web-search) and the automation owner's own agents.
+  // Prevents cross-wallet orchestrator leakage during scheduled runs.
+  const agents = listCards().filter(
+    (a) => a.did.startsWith("did:aip:platform:") || a.walletAddress === auto.wallet_address
+  );
   const capabilityList = agents.flatMap((a) =>
     a.capabilities.map((c) => ({
       agentName: a.name,
