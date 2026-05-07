@@ -51,5 +51,16 @@ export async function GET() {
     }),
   );
 
-  return NextResponse.json({ agents: results });
+  // Deduplicate by DID. An agent can appear multiple times in listCards() when it has both
+  // an on-chain registry entry (legacy/stale endpoint) and a hosted entry sharing the same
+  // canonical DID. Prefer online=true so a working endpoint is not masked by a failing one.
+  const dedup = new Map<string, AgentStatus>();
+  for (const r of results) {
+    const existing = dedup.get(r.did);
+    if (!existing || (r.online && !existing.online)) {
+      dedup.set(r.did, r);
+    }
+  }
+
+  return NextResponse.json({ agents: Array.from(dedup.values()) });
 }
