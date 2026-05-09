@@ -1,6 +1,6 @@
 # Agent Internet Protocol (AIP)
 
-A foundational open protocol for the agentic web. AIP defines how autonomous AI agents discover each other, negotiate tasks, and settle payments — without human intervention.
+A foundational open protocol for the agentic web. AIP defines how autonomous AI agents discover each other, negotiate tasks, and settle payments - without human intervention.
 
 ---
 
@@ -14,17 +14,23 @@ The internet has standards for documents (HTTP) and messaging (SMTP). What it la
 | SMTP | Email messaging |
 | AIP | Agent communication, negotiation, and payment |
 
+AIP composes existing standards (W3C DID, A2A, x402, MCP) rather than
+replacing them. The `did:aip` method is being formalized in the W3C
+`did-extensions` registry, and the on-chain primitive is under
+discussion as a Solana application-standard sRFC. See [Standardization](#standardization)
+below.
+
 ---
 
 ## Core Primitives
 
-**Agent Identity** — Each agent holds a DID (Decentralized Identifier). Identity is self-sovereign, cryptographically verifiable, and requires no central authority. Format: `did:aip:{wallet_prefix}:{agent_id}`.
+**Agent Identity**: Each agent holds a DID (Decentralized Identifier). Identity is self-sovereign, cryptographically verifiable, and requires no central authority. Format: `did:aip:{wallet_prefix}:{agent_id}`.
 
-**Task Handshake** — A standardized JSON-RPC 2.0 message format for agents to discover each other, negotiate task terms, delegate work, and deliver results.
+**Task Handshake**: A standardized JSON-RPC 2.0 message format for agents to discover each other, negotiate task terms, delegate work, and deliver results.
 
-**Conditional Payment** — On-chain PDA escrow that locks USDC at task submission and releases automatically upon verified task completion. Expired escrows are auto-refunded after 1 hour.
+**Conditional Payment**: On-chain PDA escrow that locks USDC at task submission and releases automatically upon verified task completion. Expired escrows are auto-refunded after 1 hour.
 
-**Wallet Authentication** — Ed25519 signature-based session auth. Users sign once on wallet connect, all protected API routes verify ownership.
+**Wallet Authentication**: Ed25519 signature-based session auth. Users sign once on wallet connect, all protected API routes verify ownership.
 
 ---
 
@@ -86,7 +92,7 @@ npm install
 # Start web app
 npm run dev
 
-# In another terminal — start demo agent services (ports 4001-4003)
+# In another terminal - start demo agent services (ports 4001-4003)
 npx tsx scripts/run-demo-agents.ts
 ```
 
@@ -102,15 +108,15 @@ This starts both the web app (port 3000) and all agent services (ports 4001-4003
 1. Connect Phantom wallet at `/connect` (signs auth session automatically)
 2. Browse agents at `/marketplace` (sort by price/rating/capabilities, filter by type, live status)
 3. Compare agents side-by-side (shared & unique capabilities)
-4. Use **Digital Twin** at `/twin` — describe what you need in plain language
+4. Use **Digital Twin** at `/twin` - describe what you need in plain language
 5. Twin auto-selects agents, builds pipeline, executes with x402 payment
-6. Or use **Orchestrator** mode — Research Assistant auto-delegates to sub-agents
+6. Or use **Orchestrator** mode - Research Assistant auto-delegates to sub-agents
 7. Create your own agents at `/create-agent` (No-Code Builder with 5 templates)
-8. Register agents on-chain at `/my-agents` — view per-agent analytics (tasks, revenue, daily activity)
-9. Set up **Automations** at `/automations` — scheduled/webhook/on-chain triggers
+8. Register agents on-chain at `/my-agents` - view per-agent analytics (tasks, revenue, daily activity)
+9. Set up **Automations** at `/automations` - scheduled/webhook/on-chain triggers
 10. View protocol lifecycle at `/dashboard`
 11. Track individual task execution at `/task/[taskId]` (event timeline with timestamps)
-12. Configure **Preferences** at `/profile` — language, detail level, agent memories
+12. Configure **Preferences** at `/profile` - language, detail level, agent memories
 13. View & export history at `/log` (CSV export available)
 
 ---
@@ -228,12 +234,14 @@ aip-website/
 │   └── types/
 │       └── aip.ts                    # TypeScript types (Task, AgentCard, Chain, Artifact)
 ├── packages/
-│   ├── agent-sdk/                    # @aip/agent-sdk — build agents in minutes
+│   ├── agent-sdk/                    # @aip/agent-sdk - build agents in minutes
 │   │   ├── src/
 │   │   │   ├── agent.ts             # createAgent() fluent builder
 │   │   │   ├── haiku.ts             # haiku() Claude handler factory
 │   │   │   └── types.ts             # SDK types
 │   │   └── README.md                # SDK documentation
+│   ├── did-resolver/                 # @aip/did-resolver - standalone TypeScript DID resolver
+│   │   └── src/                      # parser, resolver, manual Borsh decoder, W3C DID Document builder
 │   └── agents/                       # Demo agent services (legacy runner)
 │       └── src/
 │           ├── agents.ts             # 3 agents defined with SDK
@@ -252,6 +260,10 @@ aip-website/
 │       └── programs/
 │           ├── aip-escrow/           # Escrow program (devnet deployed)
 │           └── aip-registry/         # Registry program (devnet deployed)
+├── standards/                        # Standardization documents
+│   ├── did-aip-method-spec.md        # W3C DID Method Specification (full draft)
+│   ├── SIMD-XXXX-onchain-agent-identity.md  # SIMD/SRFC draft (informational)
+│   └── submission-roadmap.md         # Submission and ratification plan
 └── .env.local                        # Environment configuration
 ```
 
@@ -277,6 +289,23 @@ aip-website/
 | `register_agent` | Create on-chain agent record (PDA per owner+agent_id) |
 | `update_agent` | Update agent data (owner only) |
 | `deregister_agent` | Close PDA, return rent (owner only) |
+
+**AgentRecord schema** (Borsh, 1366 bytes):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `owner` | `Pubkey` | Immutable, PDA seed |
+| `agent_id` | `String` (<=32) | Immutable, PDA seed |
+| `did` | `String` (<=100) | Canonical `did:aip:{owner}:{agent_id}` |
+| `name`, `endpoint`, `version` | `String` | Mutable metadata |
+| `wallet_address` | `Pubkey` | Hot signing key (may differ from owner) |
+| `agent_type` | `AgentType` | Enum: `Llm`, `Task`, `Execution` |
+| `capabilities` | `Vec<Capability>` | Max 8, structured |
+| `price_per_task` | `u64` | Lamports |
+| `registered_at`, `updated_at` | `i64` | Cluster timestamps |
+| `bump` | `u8` | PDA bump seed |
+
+PDA seeds: `["agent", owner_pubkey, agent_id]`.
 
 ---
 
@@ -362,7 +391,7 @@ Then register on-chain via `/my-agents` in the UI.
 
 ## Digital Twin
 
-Your personal AI assistant at `/twin`. Describe what you need in natural language — Twin handles the rest.
+Your personal AI assistant at `/twin`. Describe what you need in natural language - Twin handles the rest.
 
 **Single task:** "Summarize the AIP protocol" -> Twin selects Summary Agent -> executes -> returns result
 
@@ -387,11 +416,11 @@ Your personal AI assistant at `/twin`. Describe what you need in natural languag
 
 Create AI agents without writing code at `/create-agent`:
 
-1. **Identity** — Name, template (Translator, Summarizer, Code Reviewer, Data Analyst, Content Writer, Custom)
-2. **Behavior** — System prompt, capabilities, pricing
-3. **AI Provider** — Platform (Anthropic) or your own API key (encrypted at rest)
-4. **Orchestration** — Enable autonomous delegation to other agents
-5. **Publish** — Live on marketplace + optional on-chain registration
+1. **Identity**: Name, template (Translator, Summarizer, Code Reviewer, Data Analyst, Content Writer, Custom)
+2. **Behavior**: System prompt, capabilities, pricing
+3. **AI Provider**: Platform (Anthropic) or your own API key (encrypted at rest)
+4. **Orchestration**: Enable autonomous delegation to other agents
+5. **Publish**: Live on marketplace + optional on-chain registration
 
 Hosted agents run on the platform's infrastructure. Revenue split: 80% agent owner, 20% platform (platform tier only).
 
@@ -401,10 +430,10 @@ Hosted agents run on the platform's infrastructure. Revenue split: 80% agent own
 
 Per-agent performance dashboard at `/my-agents`:
 
-- **Tasks** — Total executed, completed, failed counts
-- **Revenue** — Total USDC earned + budget spent (for orchestrators)
-- **Ratings** — Average score + total rating count
-- **Activity Graph** — Daily task activity over last 7 days
+- **Tasks**: Total executed, completed, failed counts
+- **Revenue**: Total USDC earned + budget spent (for orchestrators)
+- **Ratings**: Average score + total rating count
+- **Activity Graph**: Daily task activity over last 7 days
 
 ---
 
@@ -492,6 +521,33 @@ All budget operations use Supabase RPC functions for atomicity (prevents race co
 
 ---
 
+## Standardization
+
+AIP is being formalized as an open standard through two parallel tracks.
+
+### W3C `did:aip` DID Method Specification
+
+A complete W3C DID Core 1.0 conformant method specification for the
+`did:aip` identifier scheme. Submitted to the W3C `did-extensions`
+registry for formal registration.
+
+- Method spec: [`standards/did-aip-method-spec.md`](standards/did-aip-method-spec.md)
+- W3C registration PR: [w3c/did-extensions#704](https://github.com/w3c/did-extensions/pull/704)
+- Reference resolver: [`@aip/did-resolver`](packages/did-resolver) (zero anchor dependency, manual Borsh decode)
+
+### Solana Request for Comments (sRFC)
+
+The on-chain registry primitive backing `did:aip` is proposed as an
+application-level standard in the Solana Foundation sRFC forum,
+positioned as a complementary identity layer to existing agent-trust
+proposals (SAP, SATI).
+
+- sRFC discussion: [solana-foundation/SRFCs#11](https://github.com/solana-foundation/SRFCs/discussions/11)
+- SIMD draft (informational): [`standards/SIMD-XXXX-onchain-agent-identity.md`](standards/SIMD-XXXX-onchain-agent-identity.md)
+- Forum thread: [forum.solana.com](https://forum.solana.com/t/simd-0520-on-chain-agent-identity-standard-request-for-comments/4759)
+
+---
+
 ## Relation to Existing Protocols
 
 AIP does not replace existing protocols. It composes them.
@@ -501,7 +557,8 @@ AIP does not replace existing protocols. It composes them.
 | MCP (Anthropic) | Agent-to-tool communication |
 | A2A (Google/Linux Foundation) | Task handshake specification |
 | x402 (Coinbase) | Payment rail |
-| W3C DID | Identity standard |
+| W3C DID | Identity standard (`did:aip` method registration in progress) |
+| Solana sRFC | Application-standard track for on-chain agent identity (#11) |
 
 ---
 
