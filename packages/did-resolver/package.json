@@ -1,0 +1,42 @@
+{
+  "name": "@aip/did-resolver",
+  "version": "0.1.0",
+  "description": "Reference resolver for the did:aip W3C DID method (Solana-anchored agent identity)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "src", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/*.test.ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": ["did", "did-resolver", "solana", "aip", "agent-identity", "w3c"],
+  "homepage": "https://github.com/dr-wilson-empty/aip-website/tree/main/packages/did-resolver",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dr-wilson-empty/aip-website.git",
+    "directory": "packages/did-resolver"
+  },
+  "bugs": {
+    "url": "https://github.com/dr-wilson-empty/aip-website/issues"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^5.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
