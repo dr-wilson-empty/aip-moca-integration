@@ -11,9 +11,9 @@
 |--|--|
 | **Branch** | `feat/cli` |
 | **PR** | [aip-beta#17](https://github.com/dr-wilson-empty/aip-beta/pull/17) (ready for review) |
-| **Aktif faz** | Faz 5b — `aip chat` REPL (sırada) |
-| **Aktif iş** | — (Faz 5a `task submit/status/stream` tamamlandı) |
-| **Son commit** | `9dce7ce` — feat(cli): Phase 4 |
+| **Aktif faz** | Faz 6 — `aip init/dev` (sırada) |
+| **Aktif iş** | — (Faz 5b `chat` REPL tamamlandı) |
+| **Son commit** | `23ade4f` — feat(cli): Phase 5a |
 
 ---
 
@@ -27,8 +27,8 @@
 | 3 | `aip login` / `whoami` / `logout` | ✅ Tamam |
 | 4 | `aip agents ls` / `show` | ✅ Tamam |
 | 5a | `aip task submit` / `status` / `stream` (x402 + SSE) | ✅ Tamam |
-| 5b | `aip chat` REPL | 🟡 Sırada |
-| 6 | `aip init` / `dev` | ⚪ Bekliyor |
+| 5b | `aip chat` REPL | ✅ Tamam |
+| 6 | `aip init` / `dev` | 🟡 Sırada |
 | 7 | `aip register` / `budget` / `explorer` / `listen` | ⚪ Bekliyor |
 | 8 | `aip mcp` / `tui` / `try` | ⚪ Bekliyor |
 | 9 | Polish, npm publish, launch | ⚪ Bekliyor |
@@ -93,13 +93,24 @@
 - [x] Smoke test: hata yolları (geçersiz task ID → 70, eksik input → 65, keystore yok → 70, SSE 404 → temiz error)
 - [x] Bilinen: `bigint-buffer` native binding warning'i — spl-token transitive, pure JS fallback çalışıyor, sustur etmek için `npm rebuild` veya Faz 9 polish
 
-## Faz 5b — Sıradaki iş (sıralı)
+## Faz 5b — Tamamlanan iş
 
-- [ ] `src/commands/chat.ts` — interaktif REPL: `aip chat <did>` veya `aip chat` (agent seç)
-- [ ] Multi-turn history (in-memory + opsiyonel `~/.aip/history/<agent>-<timestamp>.json`)
-- [ ] Slash komutları: `/exit`, `/clear`, `/save`, `/agent` (agent değiştir), `/cost` (oturum gideri)
-- [ ] Her turda otomatik x402 ödeme akışı (Faz 5a `submitTaskWithPayment` reuse)
-- [ ] Test: slash komut parser, history persistence
+- [x] `src/commands/chat.ts` — `aip chat [did]` (DID verilmezse clack `select` ile agent seç)
+- [x] Multi-turn REPL (Node `readline`, history opt-out `--no-history`)
+- [x] Slash: `/help`, `/cost`, `/clear`, `/save [path]`, `/exit` (Ctrl+D de kapatır)
+- [x] Her turda otomatik x402 ödeme + SSE stream — Faz 5a `submitTaskWithPayment` re-use
+- [x] In-line spinner ("thinking" → "Fetching quote" → "Building escrow" → ...) — yan etkili readline'la uyumlu
+- [x] Otomatik transcript: `~/.aip/history/{agent}-{timestamp}.json` (0600), `--no-history` ile devre dışı
+- [x] Slash `/save <path>` ile manuel export, `/cost` ile toplam USDC, `/clear` ekranı temizler ve header'ı yeniden yazar
+- [x] Non-TTY çağrı reddediliyor (script kullanıcılarını `aip task submit`'e yönlendirir)
+
+## Faz 6 — Sıradaki iş (sıralı)
+
+- [ ] `src/commands/init.ts` — `aip init <name>` template seç (translator/summarizer/custom) → klasör + package.json + minimal SDK kullanan src/index.ts
+- [ ] Template'ler `@aip/agent-sdk`'yı kullansın (parent monorepo'daki paket); copy değil reference
+- [ ] `src/commands/dev.ts` — `aip dev` local agent'ı tunnel ile expose et (localtunnel veya cloudflared)
+- [ ] AgentCard linter: scaffold sonrası `/.well-known/agent.json` cevabını doğrula
+- [ ] Test: scaffold template validity, dev tunnel mock
 
 ---
 
