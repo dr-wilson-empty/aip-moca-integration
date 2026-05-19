@@ -1,6 +1,7 @@
 import type { AgentCard } from "@/types/aip";
 import { getAppUrl } from "@/lib/config/app-url";
 import { getAuthorityAddress } from "@/lib/payment/escrow";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 
 let _authority: string | null = null;
 function authorityWallet(): string {
@@ -8,6 +9,13 @@ function authorityWallet(): string {
     try { _authority = getAuthorityAddress(); } catch { _authority = ""; }
   }
   return _authority;
+}
+
+/** Compose a canonical did:aip DID for a hosted agent owned by the platform authority. */
+function platformDid(agentId: string): string {
+  const auth = authorityWallet();
+  if (!auth) return `did:aip:platform:${agentId}`; // fallback only when authority is unavailable (e.g. tests)
+  return canonicalAgentDid(auth, agentId);
 }
 
 export const MY_AGENT_CARD: AgentCard = {
@@ -38,7 +46,7 @@ export const MY_AGENT_CARD: AgentCard = {
 /** Platform-hosted Web Search Agent — uses Tavily API */
 export function getWebSearchAgent(): AgentCard {
   return {
-    did: "did:aip:platform:web-search",
+    did: platformDid("web-search"),
     name: "Web Search Agent",
     version: "1.0.0",
     endpoint: `${getAppUrl()}/api/web/agent`,
@@ -77,7 +85,7 @@ export function getDemoAgentCards(): Record<string, AgentCard> {
   const wallet = authorityWallet();
   return {
     "summary-agent": {
-      did: "did:aip:platform:summary-agent",
+      did: platformDid("summary-agent"),
       name: "Summary Agent",
       version: "1.2.0",
       endpoint: `${base}/api/hosted-agent?agentId=summary-agent`,
@@ -97,7 +105,7 @@ export function getDemoAgentCards(): Record<string, AgentCard> {
       ],
     },
     "data-agent": {
-      did: "did:aip:platform:data-agent",
+      did: platformDid("data-agent"),
       name: "Data Agent",
       version: "2.0.1",
       endpoint: `${base}/api/hosted-agent?agentId=data-agent`,
@@ -112,7 +120,7 @@ export function getDemoAgentCards(): Record<string, AgentCard> {
       ],
     },
     "audit-agent": {
-      did: "did:aip:platform:audit-agent",
+      did: platformDid("audit-agent"),
       name: "Audit Agent",
       version: "1.0.3",
       endpoint: `${base}/api/hosted-agent?agentId=audit-agent`,
