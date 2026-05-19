@@ -11,9 +11,9 @@
 |--|--|
 | **Branch** | `feat/cli` |
 | **PR** | [aip-beta#17](https://github.com/dr-wilson-empty/aip-beta/pull/17) (ready for review) |
-| **Aktif faz** | Faz 3 — Wallet (sırada) |
-| **Aktif iş** | — (Faz 2 tamamlandı, commit bekleniyor) |
-| **Son commit** | `f3b358d` — feat(cli): Phase 1 |
+| **Aktif faz** | Faz 4 — Marketplace listeleme (sırada) |
+| **Aktif iş** | — (Faz 3 tamamlandı) |
+| **Son commit** | `129d0d7` — feat(cli): Phase 2 |
 
 ---
 
@@ -23,9 +23,9 @@
 |----:|--------|-------|
 | 0 | Roadmap & branch | ✅ Tamam |
 | 1 | Foundation (package, build, config, API client) | ✅ Tamam |
-| 2 | `aip whois` | ✅ Tamam (commit bekleniyor) |
-| 3 | `aip login` / `whoami` / `logout` | 🟡 Sırada |
-| 4 | `aip agents ls` / `show` | ⚪ Bekliyor |
+| 2 | `aip whois` | ✅ Tamam |
+| 3 | `aip login` / `whoami` / `logout` | ✅ Tamam |
+| 4 | `aip agents ls` / `show` | 🟡 Sırada |
 | 5 | `aip chat` / `task submit` / `stream` | ⚪ Bekliyor |
 | 6 | `aip init` / `dev` | ⚪ Bekliyor |
 | 7 | `aip register` / `budget` / `explorer` / `listen` | ⚪ Bekliyor |
@@ -58,15 +58,24 @@
 - [x] `test/whois.test.ts` — 15 unit test (input classifier + AgentCard schema validation)
 - [x] `vitest.config.ts` — yerel test config (parent React config'i bypass)
 
-## Faz 3 — Sıradaki iş (sıralı)
+## Faz 3 — Tamamlanan iş
 
-- [ ] `src/core/wallet.ts` — Ed25519 keypair generate/import, AES-256-GCM keystore yazımı
-- [ ] `src/core/session.ts` — session imzalama (`auth-message-{nonce}` payload), 24h TTL
-- [ ] `src/commands/login.ts` — yeni keypair oluştur **veya** mevcut base58 ile import et, passphrase ile şifrele
-- [ ] `src/commands/whoami.ts` — aktif cüzdan + ağ + network'ten bakiye
-- [ ] `src/commands/logout.ts` — session sil (`--purge` ile keystore da sil)
-- [ ] API client'a `withWalletAuth(session)` helper
-- [ ] Smoke + 5+ unit test
+- [x] `bs58` dep + `src/core/wallet.ts` — Keypair generate / base58 import / Solana CLI JSON import; AES-256-GCM + scrypt (N=2^17) keystore encrypt/decrypt; atomic 0600 disk yazımı
+- [x] `src/core/solana.ts` — RPC defaults, TOKEN_PROGRAM_ID, USDC mint sabitleri (devnet+mainnet), `getBalances(SOL+USDC)`
+- [x] `src/commands/login.ts` — interaktif (clack): generate / base58 paste / Solana CLI dosya import; passphrase iki kez (8+ char); overwrite koruması
+- [x] `src/commands/whoami.ts` — pubkey + keystore path + ağ + SOL/USDC bakiye; `--no-balance`, `--rpc`, `--network`, `--json`
+- [x] `src/commands/logout.ts` — varsayılan no-op + info; `--purge` "delete" type-confirmation ister; `--yes` ile bypass
+- [x] `src/ui/wallet-report.ts` — markalı wallet kartı + login success ekranı
+- [x] `test/wallet.test.ts` — 20 test: generate, import (base58 + JSON), encrypt/decrypt round-trip, wrong passphrase, tamper detection, unique salt/IV, disk I/O round-trip, 0600 perms, NotFound, idempotent delete
+
+## Faz 4 — Sıradaki iş (sıralı)
+
+- [ ] `src/core/api-client.ts`'a list/show metodları (typed)
+- [ ] `src/core/agent-types.ts` — backend list response için zod şeması (canonicalAgentDid, hosted vs on-chain)
+- [ ] `src/commands/agents.ts` — `aip agents ls` (table) + `aip agents show <did>` (rich card)
+- [ ] Filtreler: `--type Task|LLM|Execution`, `--max-price`, `--online-only`, `--limit N`
+- [ ] Cache: `~/.aip/cache/agents.json` TTL 60s (offline-friendly)
+- [ ] Test: list response parsing, filtre fonksiyonu, JSON output
 
 ---
 
@@ -86,6 +95,11 @@
 | Probe yolu | `/.well-known/agent.json` → `/agent.json` → URL'in kendisi (3 fallback) |
 | Probe limit | 256 KB body, 8s timeout — DoS koruması |
 | URL probe başarısız çıktı kodu | `0` — komut başarılı, sonuç negatif. Scripting için `--json` |
+| Keystore KDF | scrypt N=2^17 r=8 p=1 (OWASP'a uygun, ~600ms/derive) |
+| Keystore cipher | AES-256-GCM (auth tag ile tamper detection) |
+| Keystore yolu | `~/.aip/keystore.json` (0600) |
+| Logout default davranışı | Hiçbir şey silmez — `--purge` gerekli + interaktif onay |
+| `aip login` passphrase | min 8 char, iki kez girilir, `--passphrase` flag yok (shell history güvenliği) |
 
 ---
 
