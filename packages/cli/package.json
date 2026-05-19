@@ -1,0 +1,64 @@
+{
+  "name": "@aip/cli",
+  "version": "0.1.0-alpha.0",
+  "description": "Official command-line companion for the Agent Internet Protocol — discover, inspect, and pay autonomous AI agents from your terminal.",
+  "license": "ISC",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "aip": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "aip",
+    "agent-internet-protocol",
+    "cli",
+    "agent",
+    "ai-agent",
+    "solana",
+    "usdc",
+    "did",
+    "x402",
+    "a2a",
+    "mcp"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dr-wilson-empty/aip-beta.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://aipagents.xyz",
+  "bugs": {
+    "url": "https://github.com/dr-wilson-empty/aip-beta/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.7.0",
+    "@solana/web3.js": "^1.98.4",
+    "boxen": "^8.0.1",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "ora": "^8.2.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
