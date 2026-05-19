@@ -4,7 +4,7 @@ import { loadConfig } from "../core/config.js";
 import { buildResolver, classifyIdentityInput } from "../core/resolver.js";
 import { probeAgentCard } from "../core/agent-card.js";
 import { ApiClient } from "../core/api-client.js";
-import { resolveAgent } from "../core/agent-resolver.js";
+import { resolveAgent, isCanonicalAipDid, findMarketplaceAgent } from "../core/agent-resolver.js";
 import { NotFoundError, ValidationError } from "../core/errors.js";
 import { log } from "../core/logger.js";
 import { c } from "../core/theme.js";
@@ -98,10 +98,31 @@ async function runWhois(identifier: string, opts: WhoisOptions): Promise<Identit
   return await resolveAipDid(classified.did, opts);
 }
 
+async function tryMarketplaceFallback(
+  did: string,
+  reason: "non-canonical-did" | "no-base58-owner",
+): Promise<IdentityReport | undefined> {
+  const config = await loadConfig();
+  const api = new ApiClient({ baseUrl: config.apiUrl });
+  try {
+    const card = await findMarketplaceAgent(did, api);
+    if (!card) return undefined;
+    return { kind: "marketplace-only", did, card, reason };
+  } catch {
+    return undefined;
+  }
+}
+
 async function resolveAipDid(
   did: string,
   opts: WhoisOptions,
 ): Promise<IdentityReport> {
+  if (!isCanonicalAipDid(did)) {
+    const fallback = await tryMarketplaceFallback(did, "no-base58-owner");
+    if (fallback) return fallback;
+    // Else fall through to on-chain attempt so the user still sees a clear error.
+  }
+
   const config = await loadConfig();
   const ctx = buildResolver(config, { network: opts.network, rpcUrl: opts.rpc });
   const spinner = startSpinner(`Resolving ${did} on ${ctx.network}`);

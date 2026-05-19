@@ -37,11 +37,20 @@ export interface UnsupportedDidReport {
   did: string;
 }
 
+export interface MarketplaceOnlyReport {
+  kind: "marketplace-only";
+  did: string;
+  card: AgentCard;
+  /** Why on-chain resolution was skipped */
+  reason: "non-canonical-did" | "no-base58-owner";
+}
+
 export type IdentityReport =
   | OnChainReport
   | OnChainMissingReport
   | UrlReport
-  | UnsupportedDidReport;
+  | UnsupportedDidReport
+  | MarketplaceOnlyReport;
 
 const SEPARATOR = "─".repeat(56);
 
@@ -102,7 +111,34 @@ export function renderIdentityReport(report: IdentityReport): void {
       return renderUrlProbe(report);
     case "unsupported-did":
       return renderUnsupportedDid(report);
+    case "marketplace-only":
+      return renderMarketplaceOnly(report);
   }
+}
+
+function renderMarketplaceOnly({ did, card, reason }: MarketplaceOnlyReport): void {
+  header(card.name, did);
+  rows([
+    ["status", statusBadge(true, "marketplace-listed (off-chain only)")],
+    ["type", c.value(card.type)],
+    ["version", c.value(card.version)],
+    ["endpoint", c.value(card.endpoint)],
+    ...(card.walletAddress
+      ? [["wallet", c.value(card.walletAddress)] as [string, string]]
+      : []),
+  ]);
+
+  renderCapabilitiesFromCard(card.capabilities);
+
+  log.blank();
+  const explanation =
+    reason === "no-base58-owner"
+      ? "DID owner segment is not a valid 32-byte base58 pubkey (e.g. 'platform' / 'sdk' / truncated)."
+      : "DID is not in canonical did:aip:<owner-pubkey>:<agent-id> form.";
+  log.raw(`  ${c.dim(explanation)}`);
+  log.raw(`  ${c.dim("On-chain registry lookup was skipped because no PDA can be derived.")}`);
+  log.raw(`  ${c.dim("Marketplace data above comes from the backend's AgentCard registry.")}`);
+  log.blank();
 }
 
 function renderOnChain({ record, metadata, did }: OnChainReport): void {

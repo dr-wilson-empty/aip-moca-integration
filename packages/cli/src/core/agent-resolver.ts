@@ -1,6 +1,32 @@
+import bs58 from "bs58";
 import { ApiClient } from "./api-client.js";
 import { AgentListResponseSchema, type ListedAgent } from "./agent-list.js";
 import { NotFoundError, ValidationError } from "./errors.js";
+
+/**
+ * Checks whether a DID is in canonical did:aip:<owner-pubkey>:<agent-id>
+ * form — that is, the owner segment decodes to a 32-byte base58 pubkey.
+ * Returns false for placeholders like 'platform' / 'sdk' / truncated keys.
+ */
+export function isCanonicalAipDid(did: string): boolean {
+  const m = /^did:aip:([^:]+):.+$/i.exec(did);
+  if (!m) return false;
+  try {
+    return bs58.decode(m[1]!).length === 32;
+  } catch {
+    return false;
+  }
+}
+
+export async function findMarketplaceAgent(
+  did: string,
+  api: ApiClient,
+): Promise<ListedAgent | undefined> {
+  const list = await api.get("/api/agent-card", AgentListResponseSchema, {
+    query: { list: true },
+  });
+  return list.agents.find((a) => a.did === did);
+}
 
 export interface ResolvedAgent {
   did: string;
