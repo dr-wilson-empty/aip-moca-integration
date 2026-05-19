@@ -10,6 +10,7 @@ import { submitTaskWithPayment } from "../core/x402.js";
 import { openSse } from "../core/sse.js";
 import { unlockKeypair } from "../core/unlock.js";
 import { rpcEndpointFor } from "../core/solana.js";
+import { resolveAgent } from "../core/agent-resolver.js";
 import { log } from "../core/logger.js";
 import { c } from "../core/theme.js";
 import {
@@ -89,22 +90,23 @@ ${c.dim("Examples:")}
   return cmd;
 }
 
-async function runSubmit(did: string, opts: SubmitOpts): Promise<void> {
+async function runSubmit(identifier: string, opts: SubmitOpts): Promise<void> {
   const config = await loadConfig();
   const cluster = opts.network ?? config.network;
   const api = new ApiClient({ baseUrl: config.apiUrl });
 
-  const lookupSpinner = startSpinner(`Looking up ${did}`);
+  const lookupSpinner = startSpinner(`Looking up ${identifier}`);
   let agent: AgentDetail;
   try {
+    const resolution = await resolveAgent(identifier, api);
     agent = await api.get("/api/agent-card/detail", AgentDetailResponseSchema, {
-      query: { did },
+      query: { did: resolution.did },
     });
   } catch (err) {
     lookupSpinner.stop();
     if (err instanceof NotFoundError) {
       throw new NotFoundError(
-        `Agent not found: ${did}`,
+        `Agent not found: ${identifier}`,
         "Run 'aip agents ls' to see available DIDs.",
       );
     }

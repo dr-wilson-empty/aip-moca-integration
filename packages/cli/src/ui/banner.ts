@@ -9,9 +9,10 @@ export function banner(): string {
 
 export function welcome(): string {
   const rows: Array<[string, string]> = [
-    ["aip whois <did|url>", "Inspect any agent's on-chain identity"],
+    ["aip ask <agent> \"prompt\"", "One-shot — auto-pays in USDC, prints result"],
     ["aip agents ls", "Browse the marketplace"],
-    ["aip chat <did>", "Talk to an agent (auto-pays in USDC)"],
+    ["aip whois <id|url>", "Inspect an agent's identity"],
+    ["aip chat [agent]", "Multi-turn REPL with an agent"],
     ["aip init <name>", "Scaffold your own agent"],
     ["aip --help", "See all commands"],
   ];

@@ -3,7 +3,9 @@ import ora from "ora";
 import { loadConfig } from "../core/config.js";
 import { buildResolver, classifyIdentityInput } from "../core/resolver.js";
 import { probeAgentCard } from "../core/agent-card.js";
-import { ValidationError } from "../core/errors.js";
+import { ApiClient } from "../core/api-client.js";
+import { resolveAgent } from "../core/agent-resolver.js";
+import { NotFoundError, ValidationError } from "../core/errors.js";
 import { log } from "../core/logger.js";
 import { c } from "../core/theme.js";
 import { renderIdentityReport, type IdentityReport } from "../ui/card.js";
@@ -54,10 +56,27 @@ async function runWhois(identifier: string, opts: WhoisOptions): Promise<Identit
   const classified = classifyIdentityInput(identifier);
 
   if (classified.kind === "unknown") {
-    throw new ValidationError(
-      `Cannot tell whether '${classified.raw}' is a DID or URL`,
-      "Expected something starting with 'did:aip:' or 'https://'.",
-    );
+    // Last chance: maybe a marketplace short name (e.g. "summary").
+    const config = await loadConfig();
+    const api = new ApiClient({ baseUrl: config.apiUrl });
+    try {
+      const resolution = await resolveAgent(classified.raw, api);
+      const reclassified = classifyIdentityInput(resolution.did);
+      if (reclassified.kind === "aip-did") {
+        return await resolveAipDid(reclassified.did, opts);
+      }
+      throw new ValidationError(
+        `Resolved '${classified.raw}' → ${resolution.did}, but that DID isn't did:aip and cannot be inspected here.`,
+      );
+    } catch (err) {
+      if (err instanceof NotFoundError || err instanceof ValidationError) {
+        throw new ValidationError(
+          `Cannot tell whether '${classified.raw}' is a DID, URL, or marketplace name`,
+          "Expected: 'did:aip:…', 'https://…', or an agent name from 'aip agents ls'.",
+        );
+      }
+      throw err;
+    }
   }
 
   if (classified.kind === "other-did") {
@@ -76,11 +95,18 @@ async function runWhois(identifier: string, opts: WhoisOptions): Promise<Identit
     }
   }
 
+  return await resolveAipDid(classified.did, opts);
+}
+
+async function resolveAipDid(
+  did: string,
+  opts: WhoisOptions,
+): Promise<IdentityReport> {
   const config = await loadConfig();
   const ctx = buildResolver(config, { network: opts.network, rpcUrl: opts.rpc });
-  const spinner = startSpinner(`Resolving ${classified.did} on ${ctx.network}`);
+  const spinner = startSpinner(`Resolving ${did} on ${ctx.network}`);
   try {
-    const result = await ctx.resolver.resolve(classified.did);
+    const result = await ctx.resolver.resolve(did);
     spinner.stop();
 
     if (
@@ -90,7 +116,7 @@ async function runWhois(identifier: string, opts: WhoisOptions): Promise<Identit
     ) {
       return {
         kind: "on-chain",
-        did: classified.did,
+        did,
         record: result.agentRecord,
         metadata: result.didResolutionMetadata,
         document: result.didDocument,
@@ -99,7 +125,7 @@ async function runWhois(identifier: string, opts: WhoisOptions): Promise<Identit
 
     let pda: string | undefined;
     try {
-      pda = ctx.resolver.derivePda(classified.did).pda.toBase58();
+      pda = ctx.resolver.derivePda(did).pda.toBase58();
     } catch {
       /* invalid DID format — pda stays undefined */
     }
@@ -117,7 +143,7 @@ async function runWhois(identifier: string, opts: WhoisOptions): Promise<Identit
 
     return {
       kind: "on-chain-missing",
-      did: classified.did,
+      did,
       pda,
       cluster: ctx.cluster,
       reason,

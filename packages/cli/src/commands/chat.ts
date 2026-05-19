@@ -26,6 +26,7 @@ import {
   ValidationError,
 } from "../core/errors.js";
 import { explorerTxUrl } from "../core/format.js";
+import { resolveAgent } from "../core/agent-resolver.js";
 
 interface ChatOpts {
   capability?: string;
@@ -339,15 +340,16 @@ function priceFor(agent: AgentDetail, capabilityId: string): string {
   return cap.pricing.amount;
 }
 
-async function fetchAgent(api: ApiClient, did: string): Promise<AgentDetail> {
+async function fetchAgent(api: ApiClient, identifier: string): Promise<AgentDetail> {
   try {
+    const resolution = await resolveAgent(identifier, api);
     return await api.get("/api/agent-card/detail", AgentDetailResponseSchema, {
-      query: { did },
+      query: { did: resolution.did },
     });
   } catch (err) {
     if (err instanceof NotFoundError) {
       throw new NotFoundError(
-        `Agent not found: ${did}`,
+        `Agent not found: ${identifier}`,
         "Run 'aip agents ls' to see what's available.",
       );
     }

@@ -12,6 +12,29 @@ Ortam değişkenleri:
 - `AIP_RPC_URL` — Solana RPC override
 - `NO_COLOR=1` — renkleri kapat
 
+> 💡 **Kısa adlandırma:** `task submit`, `chat`, `whois`, `agents show` ve `ask` komutları artık **agent kısa adlarını** kabul ediyor. `did:aip:platform:summary-agent` yerine `summary` ya da `summary-agent` yeter. Birden fazla agent eşleşirse CLI listeyi gösterip seçmeni ister.
+
+> 💡 **Default agent:** Sürekli aynı agent'la konuşuyorsan: `aip config set defaultAgent summary`. Sonra `aip ask "..."` doğrudan onun üzerinden gider.
+
+---
+
+## ⚡ Hızlı sorgu (yeni)
+
+| Komut | Ne yapar |
+|---|---|
+| `aip ask <agent> "prompt"` | Bir agent'a tek prompt gönder, sonucu bekle ve yazdır. `task submit --wait`'in kısa/güzel hali. Agent yerine DID, agent_id veya marketplace adı yazabilirsin. `--capability <id>`, `--amount <usdc>`, `--input-file <path>` (`-` stdin), `--no-wait`, `--json`, `--network`, `--rpc` |
+| `aip ask "prompt"` | Yukarıdakinin agent'sız hali. `defaultAgent` config'i set edildiyse onu kullanır. |
+
+Örnek:
+```bash
+aip ask summary "AIP nedir bir cumlede"
+aip ask did:aip:platform:summary-agent "..."
+aip config set defaultAgent summary
+aip ask "AIP nedir"                              # agent ezberi gerekmez
+aip ask summary -f ./article.md                  # dosyadan
+echo "metin" | aip ask summary -f -              # stdin
+```
+
 ---
 
 ## 🔍 Keşif (cüzdan gerekmez)
@@ -22,8 +45,8 @@ Ortam değişkenleri:
 | `aip --version` | Yüklü CLI sürümünü yazar |
 | `aip --help` | Tüm komutların listesi |
 | `aip agents ls` | Marketplace'teki agent'ları tablo halinde listeler. Filtreler: `--type Task\|LLM\|Execution`, `--max-price 0.10`, `--online-only`, `--limit 10 --page 2`, `--no-status` (status ping atlanır, hızlı), `--json` |
-| `aip agents show <did>` | Bir agent'ın tüm detaylarını gösterir (kapasiteler, fiyat, sürüm, sahip cüzdan, açıklama). `--no-status`, `--json` |
-| `aip whois <did\|url>` | Bir kimliği inceler. `did:aip:*` ise on-chain registry'den çözer; URL ise `/.well-known/agent.json` probe eder. AIP-uyumsuz endpoint'leri yüksek sesle uyarır. `--network`, `--rpc`, `--json` |
+| `aip agents show <agent>` | Bir agent'ın tüm detaylarını gösterir. Agent: DID, kısa ad veya marketplace adı. `--no-status`, `--json` |
+| `aip whois <id>` | Bir kimliği inceler. `did:aip:*` → on-chain registry; URL → `/.well-known/agent.json` probe; kısa ad → marketplace üzerinden çöz, sonra on-chain. AIP-uyumsuz endpoint'leri yüksek sesle uyarır. `--network`, `--rpc`, `--json` |
 
 ---
 
@@ -41,8 +64,8 @@ Ortam değişkenleri:
 
 | Komut | Ne yapar |
 |---|---|
-| `aip chat [did]` | Bir agent ile interaktif REPL. DID verilmezse marketplace listesinden seçim açar. Her turda x402 ile USDC ödemesi yapılır, SSE stream'i izlenir, settlement tx linki basılır. Slash komutları: `/help`, `/cost`, `/clear`, `/save [path]`, `/exit`. Transcript otomatik `~/.aip/history/<agent>-<timestamp>.json`'a yazılır (`--no-history` ile kapatılır) |
-| `aip task submit <did>` | Tek seferlik görev gönder. `--capability <id>` (default ilk capability), `--input "metin"` veya `--input-file <path>` (`-` ile stdin), `--amount <usdc>` (override), `--wait` (tamamlanmayı bekle, artifact'i bas), `--json`, `--network`, `--rpc` |
+| `aip chat [agent]` | Bir agent ile interaktif REPL. Agent (DID veya kısa ad) verilmezse marketplace listesinden seçim açar. Her turda x402 ile USDC ödemesi yapılır, SSE stream'i izlenir, settlement tx linki basılır. Slash komutları: `/help`, `/cost`, `/clear`, `/save [path]`, `/exit`. Transcript otomatik `~/.aip/history/<agent>-<timestamp>.json`'a yazılır (`--no-history` ile kapatılır) |
+| `aip task submit <agent>` | Tek seferlik görev gönder. Agent: DID veya kısa ad. Daha yeni: `aip ask` (yukarıda) aynı şeyi daha az flag'la yapar. `--capability <id>` (default ilk capability), `--input "metin"` veya `--input-file <path>` (`-` ile stdin), `--amount <usdc>` (override), `--wait` (tamamlanmayı bekle, artifact'i bas), `--json`, `--network`, `--rpc` |
 | `aip task status <taskId>` | Bir görevin anlık durumunu yazdırır + log entry'lerini gösterir. `--json` |
 | `aip task stream <taskId>` | Devam eden bir görevi SSE üzerinden takip eder, event'leri canlı render eder |
 

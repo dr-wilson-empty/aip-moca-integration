@@ -16,6 +16,7 @@ import { registerCommand } from "./commands/register.js";
 import { budgetCommand } from "./commands/budget.js";
 import { explorerCommand } from "./commands/explorer.js";
 import { mcpCommand } from "./commands/mcp.js";
+import { askCommand } from "./commands/ask.js";
 import { welcome } from "./ui/banner.js";
 
 class AipHelp extends Help {
@@ -74,6 +75,7 @@ export function buildProgram(): Command {
 
   applyHelpRecursively(program);
 
+  program.addCommand(askCommand());
   program.addCommand(loginCommand());
   program.addCommand(whoamiCommand());
   program.addCommand(logoutCommand());

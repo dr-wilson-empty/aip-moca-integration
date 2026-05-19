@@ -15,6 +15,7 @@ import { renderAgentDetail } from "../ui/agent-detail.js";
 import { log } from "../core/logger.js";
 import { c } from "../core/theme.js";
 import { NetworkError, NotFoundError, ValidationError } from "../core/errors.js";
+import { resolveAgent } from "../core/agent-resolver.js";
 
 interface ListOpts {
   type?: "Task" | "LLM" | "Execution";
@@ -139,21 +140,24 @@ async function runList(opts: ListOpts): Promise<void> {
   }
 }
 
-async function runShow(did: string, opts: ShowOpts): Promise<void> {
+async function runShow(identifier: string, opts: ShowOpts): Promise<void> {
   const config = await loadConfig();
   const client = new ApiClient({ baseUrl: config.apiUrl });
 
-  const spinner = startSpinner(`Fetching ${did}`);
+  const spinner = startSpinner(`Fetching ${identifier}`);
   let agent;
+  let resolvedDid = identifier;
   try {
+    const resolution = await resolveAgent(identifier, client);
+    resolvedDid = resolution.did;
     agent = await client.get("/api/agent-card/detail", AgentDetailResponseSchema, {
-      query: { did },
+      query: { did: resolvedDid },
     });
   } catch (err) {
     spinner.stop();
     if (err instanceof NotFoundError) {
       throw new NotFoundError(
-        `Agent not found: ${did}`,
+        `Agent not found: ${identifier}`,
         "Use 'aip agents ls' to see what's available, or 'aip whois <did>' for a direct on-chain lookup.",
       );
     }
@@ -164,7 +168,7 @@ async function runShow(did: string, opts: ShowOpts): Promise<void> {
   if (!opts.noStatus) {
     try {
       const statuses = await client.get("/api/agent-card/status", AgentStatusListSchema);
-      status = statuses.find((s) => s.did === did);
+      status = statuses.find((s) => s.did === resolvedDid);
     } catch {
       /* status is optional */
     }
