@@ -160,7 +160,7 @@ async function runAsk(
     return;
   }
 
-  printResponse(task, artifact || task.artifact || "", submission.escrowTxHash, cluster);
+  printResponse(task, artifact || task.artifact || "", submission.escrowTxHash, cluster, amount);
 
   if (task.state === "FAILED" || task.state === "CANCELLED") {
     process.exitCode = 1;
@@ -223,9 +223,15 @@ function printResponse(
   artifact: string,
   escrowTxHash: string | undefined,
   cluster: "devnet" | "mainnet-beta",
+  amountPaid: string,
 ): void {
   log.blank();
-  log.raw(`  ${c.success(glyph.success)} ${c.success(task.state)}  ${c.dim(`(${task.usdcSpent} USDC spent)`)}`);
+  const refunded = task.state === "FAILED" || task.state === "CANCELLED";
+  const serverSpent = parseFloat(task.usdcSpent);
+  const actualSpent = refunded
+    ? "0.00"
+    : (serverSpent > 0 ? serverSpent : parseFloat(amountPaid) || 0).toFixed(4);
+  log.raw(`  ${c.success(glyph.success)} ${c.success(task.state)}  ${c.dim(`(${actualSpent} USDC spent)`)}`);
   log.blank();
   for (const line of (artifact || "(no output)").trim().split("\n")) {
     log.raw(`  ${c.value(line)}`);

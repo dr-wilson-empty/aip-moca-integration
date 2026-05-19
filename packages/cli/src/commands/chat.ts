@@ -203,15 +203,22 @@ async function runTurn(
     );
   }
 
+  // Backend's task.usdcSpent is sometimes empty/0 even on success — fall
+  // back to the price we actually paid for this capability. If the task
+  // ended in FAILED/CANCELLED the escrow program refunds, so don't count.
+  const pricePaid = priceFor(session.agent, session.capabilityId);
+  const refunded = task.state === "FAILED" || task.state === "CANCELLED";
+  const turnSpent = refunded ? 0 : parseFloat(task.usdcSpent) || parseFloat(pricePaid) || 0;
+
   session.turns.push({
     at: new Date().toISOString(),
     prompt: promptText,
     response: cleanResponse,
     taskId: submission.taskId,
-    usdcSpent: task.usdcSpent,
+    usdcSpent: turnSpent.toFixed(4),
     escrowTxHash: submission.escrowTxHash || undefined,
   });
-  session.totalSpent += parseFloat(task.usdcSpent) || 0;
+  session.totalSpent += turnSpent;
 }
 
 async function streamUntilEnd(api: ApiClient, taskId: string): Promise<string> {
