@@ -11,9 +11,9 @@
 |--|--|
 | **Branch** | `feat/cli` |
 | **PR** | [aip-beta#17](https://github.com/dr-wilson-empty/aip-beta/pull/17) (ready for review) |
-| **Aktif faz** | Faz 5 — `chat` & `task submit` (sırada) |
-| **Aktif iş** | — (Faz 4 tamamlandı) |
-| **Son commit** | `b0ca12a` — feat(cli): Phase 3 |
+| **Aktif faz** | Faz 5b — `aip chat` REPL (sırada) |
+| **Aktif iş** | — (Faz 5a `task submit/status/stream` tamamlandı) |
+| **Son commit** | `9dce7ce` — feat(cli): Phase 4 |
 
 ---
 
@@ -26,7 +26,8 @@
 | 2 | `aip whois` | ✅ Tamam |
 | 3 | `aip login` / `whoami` / `logout` | ✅ Tamam |
 | 4 | `aip agents ls` / `show` | ✅ Tamam |
-| 5 | `aip chat` / `task submit` / `stream` | 🟡 Sırada |
+| 5a | `aip task submit` / `status` / `stream` (x402 + SSE) | ✅ Tamam |
+| 5b | `aip chat` REPL | 🟡 Sırada |
 | 6 | `aip init` / `dev` | ⚪ Bekliyor |
 | 7 | `aip register` / `budget` / `explorer` / `listen` | ⚪ Bekliyor |
 | 8 | `aip mcp` / `tui` / `try` | ⚪ Bekliyor |
@@ -79,16 +80,26 @@
 - [x] `test/agents.test.ts` — 13 test (şema, cheapestPrice, applyFilters: type, maxPrice, online, kombinasyon)
 - [x] Canlı smoke test: 6 agent listelendi, filtre çalışıyor, show ve JSON çıktısı temiz (localhost:3000 üzerinden)
 
-## Faz 5 — Sıradaki iş (sıralı)
+## Faz 5a — Tamamlanan iş
 
-- [ ] `src/core/x402.ts` — x402 protokolü için ödeme header'ı kodlama/çözme, escrow tx oluşturma yardımcısı
-- [ ] `src/core/session.ts` — wallet signature ile auth session (Ed25519, 24h TTL); session cache `~/.aip/session.json`
-- [ ] `src/core/sse.ts` — SSE stream consumer (event/data parse, abort, reconnect)
-- [ ] `src/commands/task.ts` — `aip task submit <did> --capability X --input Y`, `--input-file`, `--wait`, `--json`
-- [ ] `src/commands/task.ts` — `aip task status <id>`, `aip task stream <id>`
-- [ ] `src/commands/chat.ts` — interaktif REPL: prompt loop, slash commands (`/exit`, `/save`, `/clear`), her turda x402 ödeme + SSE
-- [ ] Wallet unlock: ihtiyaç anında passphrase prompt, single-command için unlock cache (in-memory)
-- [ ] Test: x402 header serialize/deserialize, SSE event parser, session expiry
+- [x] `@solana/spl-token` dep eklendi (`getAssociatedTokenAddress`, `getAccount`, `TOKEN_PROGRAM_ID`)
+- [x] `src/core/task-types.ts` — Task / TaskState / LogEntry / Artifact / QuoteResponse / TaskCreated zod şemaları
+- [x] `src/core/sse.ts` — Native fetch tabanlı async generator SSE consumer (event/data/id parse, comment skip, multi-line data, kısmi buffer)
+- [x] `src/core/unlock.ts` — passphrase prompt (clack) + in-memory keypair cache (5 dakika TTL) + `lockKeypair()`
+- [x] `src/core/x402.ts` — `useX402Payment` hook'unun Node portu: quote → balance check → init_escrow instruction (anchor discriminator + borsh) → 10-account tx → CLI keypair signs → X-PAYMENT header + POST /api/task
+- [x] `src/commands/task.ts` — `submit <did>`, `status <id>`, `stream <id>` subkomutlar; `--capability`, `--input`/`--input-file` (stdin '-' dahil), `--amount`, `--wait`, `--json`, `--network`, `--rpc`
+- [x] `src/ui/task-report.ts` — task özeti + canlı SSE event renderer (state-aware glyph'lerle)
+- [x] `test/task.test.ts` — 10 test (TaskState, LogEntry, Task minimal + opsiyonel, QuoteResponse boş accepts reddi)
+- [x] Smoke test: hata yolları (geçersiz task ID → 70, eksik input → 65, keystore yok → 70, SSE 404 → temiz error)
+- [x] Bilinen: `bigint-buffer` native binding warning'i — spl-token transitive, pure JS fallback çalışıyor, sustur etmek için `npm rebuild` veya Faz 9 polish
+
+## Faz 5b — Sıradaki iş (sıralı)
+
+- [ ] `src/commands/chat.ts` — interaktif REPL: `aip chat <did>` veya `aip chat` (agent seç)
+- [ ] Multi-turn history (in-memory + opsiyonel `~/.aip/history/<agent>-<timestamp>.json`)
+- [ ] Slash komutları: `/exit`, `/clear`, `/save`, `/agent` (agent değiştir), `/cost` (oturum gideri)
+- [ ] Her turda otomatik x402 ödeme akışı (Faz 5a `submitTaskWithPayment` reuse)
+- [ ] Test: slash komut parser, history persistence
 
 ---
 

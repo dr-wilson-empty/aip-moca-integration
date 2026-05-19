@@ -9,6 +9,7 @@ import { loginCommand } from "./commands/login.js";
 import { whoamiCommand } from "./commands/whoami.js";
 import { logoutCommand } from "./commands/logout.js";
 import { agentsCommand } from "./commands/agents.js";
+import { taskCommand } from "./commands/task.js";
 import { welcome } from "./ui/banner.js";
 
 class AipHelp extends Help {
@@ -71,6 +72,7 @@ export function buildProgram(): Command {
   program.addCommand(whoamiCommand());
   program.addCommand(logoutCommand());
   program.addCommand(agentsCommand());
+  program.addCommand(taskCommand());
   program.addCommand(whoisCommand());
   program.addCommand(configCommand());
   applyHelpRecursively(program);
