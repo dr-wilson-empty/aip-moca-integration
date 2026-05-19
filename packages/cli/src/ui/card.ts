@@ -1,4 +1,4 @@
-import type { AgentRecord, DidDocument, ResolutionMetadata } from "@aip/did-resolver";
+import type { AgentRecord, DidDocument, ResolutionMetadata } from "@aipagents/did-resolver";
 import type { AgentCard, ProbeResult } from "../core/agent-card.js";
 import { c, glyph } from "../core/theme.js";
 import { log } from "../core/logger.js";

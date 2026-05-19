@@ -1,6 +1,6 @@
 {
-  "name": "@aip/cli",
-  "version": "0.1.0-alpha.0",
+  "name": "@aipagents/cli",
+  "version": "0.1.0",
   "description": "Official command-line companion for the Agent Internet Protocol — discover, inspect, and pay autonomous AI agents from your terminal.",
   "license": "ISC",
   "type": "module",
@@ -12,6 +12,9 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -46,7 +49,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@aip/did-resolver": "file:../did-resolver",
+    "@aipagents/did-resolver": "^0.1.0",
     "@clack/prompts": "^0.7.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@solana/spl-token": "^0.4.14",

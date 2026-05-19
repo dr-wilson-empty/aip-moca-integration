@@ -1,4 +1,4 @@
-import { AipDidResolver, DEFAULT_PROGRAM_ID } from "@aip/did-resolver";
+import { AipDidResolver, DEFAULT_PROGRAM_ID } from "@aipagents/did-resolver";
 import type { Config } from "./config.js";
 
 const DEVNET_RPC = "https://api.devnet.solana.com";

@@ -17,7 +17,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import type { AgentCard } from "./agent-card.js";
-import { DEFAULT_PROGRAM_ID } from "@aip/did-resolver";
+import { DEFAULT_PROGRAM_ID } from "@aipagents/did-resolver";
 
 export const REGISTRY_PROGRAM_ID = new PublicKey(DEFAULT_PROGRAM_ID);
 

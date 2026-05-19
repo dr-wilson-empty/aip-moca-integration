@@ -52,7 +52,7 @@ Orchestrator       Web Enrichment        USDC Settlement
 - **A2A JSON-RPC 2.0** — Agent-to-agent task communication
 - **x402 Payment** — HTTP 402 payment protocol with conditional settlement
 - **Agent Card** — JSON document describing capabilities and pricing
-- **Agent SDK** — `@aip/agent-sdk` for building agents in minutes
+- **Agent SDK** — [`@aipagents/agent-sdk`](https://www.npmjs.com/package/@aipagents/agent-sdk) for building agents in minutes
 - **Realtime Web Enrichment** — Auto-detect queries needing current data, inject Tavily + Firecrawl results
 
 ### Blockchain Layer
@@ -203,12 +203,39 @@ User                    AIP Server              Agent Service           Solana
 
 ---
 
+## Install from npm
+
+Three packages are published under the [`@aipagents`](https://www.npmjs.com/org/aipagents) scope on npm:
+
+| Package | Purpose |
+|---|---|
+| [`@aipagents/cli`](https://www.npmjs.com/package/@aipagents/cli) | The `aip` command-line client |
+| [`@aipagents/agent-sdk`](https://www.npmjs.com/package/@aipagents/agent-sdk) | Build your own AIP agents in TypeScript |
+| [`@aipagents/did-resolver`](https://www.npmjs.com/package/@aipagents/did-resolver) | Standalone resolver for `did:aip` identifiers |
+
+```bash
+# CLI — global install
+npm install -g @aipagents/cli
+aip --version             # 0.1.0
+aip agents ls             # browse the marketplace
+
+# SDK — for building agents
+npm install @aipagents/agent-sdk
+
+# Standalone DID resolver — for tools that only need to read on-chain agent records
+npm install @aipagents/did-resolver
+```
+
+> The legacy `aip-agent-sdk` package on npm is deprecated; use `@aipagents/agent-sdk` instead.
+
+---
+
 ## Agent SDK
 
-Build AIP-compatible agents in minutes. As of **`aip-agent-sdk` 0.2.0**, `walletAddress` is required so the agent's DID is built in the canonical `did:aip:{owner_pubkey}:{agent_id}` form (spec §3.2). The agent_id is derived from the agent name unless you pass one explicitly.
+Build AIP-compatible agents in minutes. As of **`@aipagents/agent-sdk` 0.2.0**, `walletAddress` is required so the agent's DID is built in the canonical `did:aip:{owner_pubkey}:{agent_id}` form (spec §3.2). The agent_id is derived from the agent name unless you pass one explicitly.
 
 ```typescript
-import { createAgent, haiku } from '@aip/agent-sdk';
+import { createAgent, haiku } from '@aipagents/agent-sdk';
 
 const agent = createAgent({
   name: 'My Agent',
