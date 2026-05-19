@@ -41,7 +41,15 @@ export class ApiClient {
   }
 
   url(path: string, query?: RequestOptions["query"]): string {
-    const u = new URL(path.startsWith("/") ? path : `/${path}`, this.baseUrl);
+    let u: URL;
+    try {
+      u = new URL(path.startsWith("/") ? path : `/${path}`, this.baseUrl);
+    } catch {
+      throw new ValidationError(
+        `Could not build a URL from baseUrl='${this.baseUrl}' + path='${path}'`,
+        "Fix with: aip config set apiUrl http://localhost:3000  (or your real backend URL).",
+      );
+    }
     if (query) {
       for (const [k, v] of Object.entries(query)) {
         if (v === undefined) continue;

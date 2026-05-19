@@ -17,10 +17,17 @@ export type ConfigKey = keyof Config;
 
 const DEFAULTS: Config = ConfigSchema.parse({});
 
+function nonEmpty(value: string | undefined): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function withEnvOverrides(config: Config): Config {
-  const apiUrl = process.env.AIP_API_URL ?? config.apiUrl;
-  const network = (process.env.AIP_NETWORK as Config["network"]) ?? config.network;
-  const rpcUrl = process.env.AIP_RPC_URL ?? config.rpcUrl;
+  const apiUrl = nonEmpty(process.env.AIP_API_URL) ?? config.apiUrl;
+  const network =
+    (nonEmpty(process.env.AIP_NETWORK) as Config["network"] | undefined) ?? config.network;
+  const rpcUrl = nonEmpty(process.env.AIP_RPC_URL) ?? config.rpcUrl;
   return { ...config, apiUrl, network, rpcUrl };
 }
 

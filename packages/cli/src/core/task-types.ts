@@ -25,24 +25,26 @@ export const ArtifactSchema = z.object({
   label: z.string().optional(),
 });
 
-export const TaskSchema = z.object({
-  id: z.string(),
-  counterpartAgent: z.string(),
-  capability: z.string(),
-  input: z.string(),
-  startedAt: z.string(),
-  duration: z.string(),
-  state: TaskStateSchema,
-  usdcSpent: z.string(),
-  artifact: z.string().optional(),
-  parsedArtifact: ArtifactSchema.optional(),
-  escrowTxHash: z.string().optional(),
-  settlementTxHash: z.string().optional(),
-  log: z.array(LogEntrySchema).default([]),
-  delegatedBy: z.string().optional(),
-  isAgentTask: z.boolean().optional(),
-  chainId: z.string().optional(),
-});
+export const TaskSchema = z
+  .object({
+    id: z.string(),
+    state: TaskStateSchema,
+    counterpartAgent: z.string().default(""),
+    capability: z.string().default(""),
+    input: z.string().default(""),
+    startedAt: z.string().default(""),
+    duration: z.string().default(""),
+    usdcSpent: z.string().default("0"),
+    artifact: z.string().optional(),
+    parsedArtifact: ArtifactSchema.optional(),
+    escrowTxHash: z.string().optional(),
+    settlementTxHash: z.string().optional(),
+    log: z.array(LogEntrySchema).default([]),
+    delegatedBy: z.string().optional(),
+    isAgentTask: z.boolean().optional(),
+    chainId: z.string().optional(),
+  })
+  .passthrough();
 
 export const QuoteResponseSchema = z.object({
   requirements: z.object({
