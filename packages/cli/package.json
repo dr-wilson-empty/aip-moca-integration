@@ -46,6 +46,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@aip/did-resolver": "file:../did-resolver",
     "@clack/prompts": "^0.7.0",
     "@solana/web3.js": "^1.98.4",
     "boxen": "^8.0.1",

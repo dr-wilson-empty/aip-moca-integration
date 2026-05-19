@@ -4,6 +4,7 @@ import { log } from "./core/logger.js";
 import { isAipError, ExitCode } from "./core/errors.js";
 import { VERSION } from "./core/constants.js";
 import { configCommand } from "./commands/config.js";
+import { whoisCommand } from "./commands/whois.js";
 import { welcome } from "./ui/banner.js";
 
 class AipHelp extends Help {
@@ -62,6 +63,7 @@ export function buildProgram(): Command {
 
   applyHelpRecursively(program);
 
+  program.addCommand(whoisCommand());
   program.addCommand(configCommand());
   applyHelpRecursively(program);
 
