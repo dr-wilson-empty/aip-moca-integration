@@ -4,6 +4,7 @@ import { fetchAgentsByOwner, deriveAgentRecordPDA } from "@/lib/solana/registry-
 import { getHostedAgentsByOwner } from "@/lib/hosted-agents";
 import { dbGetUIRegisteredDids, dbMarkAgentUIRegistered } from "@/lib/supabase/db";
 import type { MyAgentEntry, RegistrationSource, Capability } from "@/types/aip";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 
 const AGENT_TYPE_REVERSE: Record<number, string> = { 0: "LLM", 1: "Task", 2: "Execution" };
 
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       const onChainMatch = onChainRecords.find((r) => r.agentId === config.agentId);
 
       agents.push({
-        did: onChainMatch?.did ?? `did:aip:${config.ownerAddress.slice(0, 8)}:${config.agentId}`,
+        did: onChainMatch?.did ?? canonicalAgentDid(config.ownerAddress, config.agentId),
         name: config.name,
         version: "1.0.0",
         endpoint: `/api/hosted-agent?agentId=${config.agentId}`,

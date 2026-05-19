@@ -10,6 +10,7 @@ import { useX402Payment } from "@/hooks/useX402Payment";
 import { useTaskSSE } from "@/hooks/useTaskSSE";
 import { useTaskStore } from "@/store/taskStore";
 import ArtifactRenderer, { parseArtifact } from "@/components/ui/ArtifactRenderer";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import FileUpload from "@/components/ui/FileUpload";
 import type { Task } from "@/types/aip";
 
@@ -332,7 +333,7 @@ export default function TwinPage() {
         if (!orchData.ok) throw new Error("Could not find your Orchestrator Agent");
 
         const orchEndpoint = `/api/hosted-agent?agentId=${orchData.agentId}`;
-        const orchDid = `did:aip:${address.slice(0, 8)}:${orchData.agentId}`;
+        const orchDid = canonicalAgentDid(address, orchData.agentId);
         const orchStep: PipelineStep = {
           agentName: "Orchestrator Agent",
           agentEndpoint: orchEndpoint,

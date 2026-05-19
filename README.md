@@ -112,6 +112,7 @@ All programs are live on Solana Devnet and verifiable on-chain.
 | `register_agent` | Create on-chain agent record (PDA per `owner`+`agent_id`) |
 | `update_agent` | Update mutable agent data (owner only) |
 | `deregister_agent` | Close PDA, return rent (owner only) |
+| `force_close_legacy` | Raw-byte close for accounts written under an older schema that `deregister_agent` can no longer deserialize. Authorized to the platform key only (hardcoded in the program). Used once during the canonical-DID migration to clear stale PDAs. |
 
 **AgentRecord schema** (Borsh, 1366 bytes):
 

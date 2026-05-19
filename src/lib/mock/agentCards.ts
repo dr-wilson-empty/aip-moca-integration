@@ -62,23 +62,6 @@ export function getWebSearchAgent(): AgentCard {
   };
 }
 
-/** Legacy export for backward compat — use getWebSearchAgent() instead */
-export const WEB_SEARCH_AGENT: AgentCard = {
-  did: "did:aip:platform:web-search",
-  name: "Web Search Agent",
-  version: "1.0.0",
-  endpoint: "/api/web/agent",
-  type: "Task",
-  walletAddress: "",
-  capabilities: [
-    {
-      id: "web.search",
-      description: "Web Search",
-      pricing: { amount: "0.02", token: "USDC", network: "solana" },
-    },
-  ],
-};
-
 /** Platform demo agents — all hosted on the app, all use authority wallet */
 export function getDemoAgentCards(): Record<string, AgentCard> {
   const base = getAppUrl();

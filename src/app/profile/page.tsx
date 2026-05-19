@@ -244,9 +244,8 @@ interface MemoryEntry { id: string; agent_did: string; memory_type: string; cont
 
 /** Extract readable agent name from DID */
 function agentNameFromDid(did: string): string {
-  // did:aip:platform:summary-agent → Summary Agent
-  // did:aip:XXXX:boycott-agent → Boycott Agent
-  // did:key:z6Mk... → Unknown Agent
+  // did:aip:7imsPo1owz6…mABX:summary-agent → Summary Agent (canonical)
+  // did:key:z6Mk… → Unknown Agent (different identity scheme)
   const parts = did.split(":");
   const lastPart = parts[parts.length - 1];
   if (lastPart && lastPart.includes("-")) {

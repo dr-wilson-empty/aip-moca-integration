@@ -67,7 +67,8 @@ export function chatCommand(): Command {
       `
 ${c.dim("Examples:")}
   $ aip chat                                          ${c.dim("# pick agent interactively")}
-  $ aip chat did:aip:platform:summary-agent
+  $ aip chat summary                                  ${c.dim("# resolve marketplace shortname")}
+  $ aip chat did:aip:7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX:summary-agent
   $ aip chat <did> --capability text.summarize
 
 ${c.dim("Slash commands in-session:")}
