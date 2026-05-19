@@ -163,8 +163,18 @@ export async function registerHostedAgent(config: HostedAgentConfig): Promise<vo
   store.set(config.agentId, config);
   try {
     const sb = getSupabase();
-    await sb.from("hosted_agents").upsert(toRow(config), { onConflict: "agent_id" });
-  } catch { /* non-blocking */ }
+    const { error } = await sb.from("hosted_agents").upsert(toRow(config), { onConflict: "agent_id" });
+    if (error) {
+      // Non-throwing on purpose — the in-memory cache is already updated and
+      // serving the agent works for the lifetime of the process. The most
+      // common cause is a missing schema column (e.g. mcp_servers before the
+      // 2026-05-20 migration). Surface the error so operators see it instead
+      // of the previous silent swallow.
+      console.error(`[hosted-agents] Supabase upsert failed for ${config.agentId}: ${error.message} — agent will not survive a restart. Apply sql/2026-05-20-add-mcp-servers-column.sql if the message mentions a missing column.`);
+    }
+  } catch (err) {
+    console.error(`[hosted-agents] unexpected error registering ${config.agentId}:`, err);
+  }
 }
 
 export function getHostedAgent(agentId: string): HostedAgentConfig | null {
