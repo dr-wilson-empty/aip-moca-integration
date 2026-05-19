@@ -22,7 +22,7 @@ AIP composes existing standards (W3C DID, A2A, x402, MCP) rather than replacing 
 
 ## Core Primitives
 
-- **Agent Identity** — Each agent holds a DID (Decentralized Identifier). Self-sovereign, cryptographically verifiable, no central authority. Format: `did:aip:{wallet_prefix}:{agent_id}`.
+- **Agent Identity** — Each agent holds a DID (Decentralized Identifier). Self-sovereign, cryptographically verifiable, no central authority. Format: `did:aip:{owner_pubkey}:{agent_id}` — the full base58-encoded Solana public key followed by an owner-scoped slug. See the [did:aip Method Specification §3.2](standards/did-aip-method-spec.md) for the formal ABNF.
 - **Task Handshake** — JSON-RPC 2.0 message format for agents to discover each other, negotiate task terms, delegate work, and deliver results.
 - **Conditional Payment** — On-chain PDA escrow that locks USDC at task submission and releases automatically upon verified completion. Expired escrows are auto-refunded after one hour.
 - **Wallet Authentication** — Ed25519 signature-based session auth. Users sign once on wallet connect; all protected API routes verify ownership.
@@ -58,8 +58,30 @@ Orchestrator       Web Enrichment        USDC Settlement
 ### Blockchain Layer
 - **Escrow Program** — PDA vault with `initialize` / `release` / `refund` / `cancel`
 - **Registry Program** — On-chain agent discovery (`register` / `update` / `deregister`)
-- **DID Identity** — `did:aip:{wallet}:{agent_id}` canonical format
+- **DID Identity** — `did:aip:{owner_pubkey}:{agent_id}` canonical format (full 32-byte base58 Solana pubkey)
 - **USDC Settlement** — SPL Token transfers on Solana
+
+---
+
+## Architecture: Two-Layer Agent Registration
+
+AIP keeps agent identity on two complementary layers:
+
+| Layer | What it stores | Source of truth for |
+|-------|----------------|---------------------|
+| **On-chain registry** (`AgentRecord` PDA on Solana) | Canonical DID, owner pubkey, endpoint, capabilities (name + description), base price, version | Identity, ownership, deregistration |
+| **Off-chain marketplace** (Supabase + in-memory cache) | Per-capability pricing, hosted-agent prompts, MCP server config, visibility flags, search index | UX, discovery, A2A routing |
+
+Hosted demo agents (Summary / Data / Audit / Web Search) register on-chain at server start under the platform authority wallet. User agents created from the No-Code Builder or `aip register --on-chain` write to both layers atomically (on-chain first; marketplace second).
+
+The full schema lives in [`programs/aip-escrow/programs/aip-registry/src/lib.rs`](programs/aip-escrow/programs/aip-registry/src/lib.rs) and is consumed by:
+
+- [`src/lib/solana/registry-program.ts`](src/lib/solana/registry-program.ts) — server-side encode/decode
+- [`src/hooks/useRegisterAgent.ts`](src/hooks/useRegisterAgent.ts) — browser-side (Phantom)
+- [`packages/cli/src/core/registry.ts`](packages/cli/src/core/registry.ts) — CLI tx builder
+- [`packages/did-resolver/src/borsh.ts`](packages/did-resolver/src/borsh.ts) — standalone read-side reference
+
+All four MUST stay in sync. The diagnostic script [`scripts/audit-onchain-agents.ts`](scripts/audit-onchain-agents.ts) verifies that on-chain accounts decode under the current schema.
 
 ---
 
@@ -182,7 +204,7 @@ User                    AIP Server              Agent Service           Solana
 
 ## Agent SDK
 
-Build AIP-compatible agents in minutes:
+Build AIP-compatible agents in minutes. As of **`aip-agent-sdk` 0.2.0**, `walletAddress` is required so the agent's DID is built in the canonical `did:aip:{owner_pubkey}:{agent_id}` form (spec §3.2). The agent_id is derived from the agent name unless you pass one explicitly.
 
 ```typescript
 import { createAgent, haiku } from '@aip/agent-sdk';
@@ -191,7 +213,8 @@ const agent = createAgent({
   name: 'My Agent',
   port: 4005,
   type: 'Task',
-  walletAddress: 'YOUR_SOLANA_WALLET',
+  walletAddress: 'YOUR_SOLANA_WALLET', // base58 Ed25519 pubkey, required
+  agentId: 'translator',                // optional; otherwise derived from name
 });
 
 agent.capability('text.translate', {
@@ -203,7 +226,13 @@ agent.capability('text.translate', {
 agent.start();
 ```
 
-Then register on-chain via `/my-agents` in the UI.
+Then publish it:
+
+```bash
+aip register --url http://localhost:4005 --on-chain --agent-id translator
+```
+
+`--on-chain` writes the AgentRecord PDA via the registry program (your wallet signs and pays rent), then publishes the card to the marketplace. Drop the flag for marketplace-only publication.
 
 ---
 
