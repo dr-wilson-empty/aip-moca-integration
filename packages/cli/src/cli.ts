@@ -12,6 +12,9 @@ import { agentsCommand } from "./commands/agents.js";
 import { taskCommand } from "./commands/task.js";
 import { chatCommand } from "./commands/chat.js";
 import { initCommand } from "./commands/init.js";
+import { registerCommand } from "./commands/register.js";
+import { budgetCommand } from "./commands/budget.js";
+import { explorerCommand } from "./commands/explorer.js";
 import { welcome } from "./ui/banner.js";
 
 class AipHelp extends Help {
@@ -77,6 +80,9 @@ export function buildProgram(): Command {
   program.addCommand(chatCommand());
   program.addCommand(taskCommand());
   program.addCommand(initCommand());
+  program.addCommand(registerCommand());
+  program.addCommand(budgetCommand());
+  program.addCommand(explorerCommand());
   program.addCommand(whoisCommand());
   program.addCommand(configCommand());
   applyHelpRecursively(program);

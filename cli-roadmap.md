@@ -11,9 +11,9 @@
 |--|--|
 | **Branch** | `feat/cli` |
 | **PR** | [aip-beta#17](https://github.com/dr-wilson-empty/aip-beta/pull/17) (ready for review) |
-| **Aktif faz** | Faz 7 — `register/budget/explorer` (sırada) |
-| **Aktif iş** | — (Faz 6 `init` tamamlandı) |
-| **Son commit** | `af80bb7` — feat(cli): Phase 5b |
+| **Aktif faz** | Faz 8 — `aip mcp` köprüsü (sırada) |
+| **Aktif iş** | — (Faz 7 `register/budget/explorer` tamamlandı) |
+| **Son commit** | `30cb20f` — feat(cli): Phase 6 |
 
 ---
 
@@ -29,8 +29,8 @@
 | 5a | `aip task submit` / `status` / `stream` (x402 + SSE) | ✅ Tamam |
 | 5b | `aip chat` REPL | ✅ Tamam |
 | 6 | `aip init` (3 template) | ✅ Tamam |
-| 7 | `aip register` / `budget` / `explorer` / `listen` | 🟡 Sırada |
-| 8 | `aip mcp` / `tui` / `try` | ⚪ Bekliyor |
+| 7 | `aip register` / `budget info` / `explorer` | ✅ Tamam |
+| 8 | `aip mcp` / `tui` / `try` | 🟡 Sırada |
 | 9 | Polish, npm publish, launch | ⚪ Bekliyor |
 
 ---
@@ -114,14 +114,23 @@
 - [x] AI-template'ler için `.env.example` `ANTHROPIC_API_KEY` ister, echo template istemez (next-steps de buna uyumlu)
 - [x] `aip dev` (tunnel) Faz 9 polish'e ertelendi — yerel test için scaffold'ın README'si `cloudflared tunnel --url` ipucu veriyor
 
-## Faz 7 — Sıradaki iş (sıralı)
+## Faz 7 — Tamamlanan iş
 
-- [ ] `src/core/registry.ts` — Anchor `register_agent` IDL'i + instruction builder (Phase 2 `did-resolver`'ın okuma tarafı zaten var, biz yazma tarafı ekliyoruz)
-- [ ] `src/commands/register.ts` — local agent'ın AgentCard'ını okur (`./aip-agent.json` veya `--card-file`), wallet ile imzalar, on-chain `register_agent` instruction'ı atar
-- [ ] `src/commands/budget.ts` — `deposit | withdraw | info` — POST `/api/budget` ile orchestrator budget yönetimi
-- [ ] `src/commands/explorer.ts` — tx/address için Solana Explorer URL üretir (`--open` ile tarayıcıda aç)
-- [ ] `src/commands/listen.ts` — Stripe-CLI tarzı: on-chain trigger + webhook'ları local URL'e forward eder
-- [ ] Test: register payload validation, budget RPC stub, explorer URL formatting
+- [x] `src/commands/register.ts` — `aip register --url <agent-endpoint>` URL probe + POST, veya `--card-file <path>` ile yerel JSON; `--public-key` ile DID-pubkey eşleşmesi server'a doğrulatılır; `--yes` ile onay atlatılır
+- [x] `src/commands/explorer.ts` — `aip explorer <tx|address> [--tx|--address] [--network] [--open]`; macOS/Linux/Windows için doğru tarayıcı açıcı
+- [x] `src/commands/budget.ts` — `aip budget info [did]` (DID bazlı) veya `--owner <pubkey>` (cüzdan bazlı); `--history` ile son işlemler; `--json` script desteği; "no budget on file" friendly mesajı
+- [x] `register` end-to-end smoke test: card-file submit → `agents show` ile geri okuma çalışıyor
+- [x] `register` URL probe yolu Faz 2 `probeAgentCard`'ı re-use ediyor (DRY)
+- [x] **Ertelenenler (Faz 9 polish)**: `aip budget deposit/withdraw` (on-chain transfer), `aip listen` (webhook forwarder)
+
+## Faz 8 — Sıradaki iş (sıralı)
+
+- [ ] `src/commands/mcp.ts` — `aip mcp` MCP server modu (stdio transport)
+- [ ] `@modelcontextprotocol/sdk` dep eklemek (parent monorepo `^1.29.0` kullanıyor)
+- [ ] Tool tanımları: `aip_agents_ls`, `aip_whois`, `aip_task_submit`, `aip_chat` (chat handle olarak değil tek-shot)
+- [ ] Each tool wraps existing CLI logic — no duplication
+- [ ] Test: MCP handshake response, tool list, dummy tool call
+- [ ] (Stretch) `aip tui` — ink-based dashboard; `aip try` — sıfır-kurulum demo
 
 ---
 
