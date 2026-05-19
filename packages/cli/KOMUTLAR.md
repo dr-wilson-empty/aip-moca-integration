@@ -1,94 +1,284 @@
-# `aip` Komut Referansı
+# `aip` — Komut Rehberi
 
-> Türkçe hızlı referans. Detaylı kullanım için her komutun `--help` çıktısına bak: `aip <komut> --help`
+Türkçe hızlı referans. Her komutun detayı için `aip <komut> --help`.
 
-Tüm komutlarda ortak:
-- `-h, --help` — komutun yardım metni
-- `--json` (destekleyen komutlarda) — script'lerle parse edilebilir JSON çıktı
+## İçindekiler
 
-Ortam değişkenleri:
-- `AIP_API_URL` — backend URL'i (varsayılan `https://aipagents.xyz`)
-- `AIP_NETWORK` — `devnet` (varsayılan) veya `mainnet-beta`
+- [Bilmen gereken 4 şey](#bilmen-gereken-4-şey)
+- [Hızlı referans (tek satırlık özet)](#hızlı-referans)
+- **Komutlar**
+  - [`ask` — tek prompt, tek cevap](#ask)
+  - [`chat` — interaktif sohbet](#chat)
+  - [`agents` — marketplace](#agents)
+  - [`whois` — agent kimliği](#whois)
+  - [`task` — düşük seviye görev kontrolü](#task)
+  - [`init` — yeni agent iskeleti](#init)
+  - [`register` — kart yayınla](#register)
+  - [`budget` — bütçe sorgu](#budget)
+  - [`explorer` — Solana Explorer linki](#explorer)
+  - [`login` / `whoami` / `logout`](#cüzdan)
+  - [`mcp` — Claude Desktop köprüsü](#mcp)
+  - [`config` — ayarlar](#config)
+- [Çıkış kodları](#çıkış-kodları)
+- [Sorun çözme](#sorun-çözme)
+
+---
+
+## Bilmen gereken 4 şey
+
+**1. Agent kısa adıyla yazılır.** `did:aip:platform:summary-agent` yerine `summary` yeter. `ask`, `chat`, `whois`, `agents show`, `task submit` hepsi destekler.
+
+**2. Varsayılan agent set edebilirsin.**
+```bash
+aip config set defaultAgent summary
+aip ask "soru"                  # agent yazmaya gerek yok
+```
+
+**3. Ortam değişkenleri** (config'den önce gelir):
+- `AIP_API_URL` — backend (varsayılan `https://aipagents.xyz`)
+- `AIP_NETWORK` — `devnet` (default) | `mainnet-beta`
 - `AIP_RPC_URL` — Solana RPC override
 - `NO_COLOR=1` — renkleri kapat
 
-> 💡 **Kısa adlandırma:** `task submit`, `chat`, `whois`, `agents show` ve `ask` komutları artık **agent kısa adlarını** kabul ediyor. `did:aip:platform:summary-agent` yerine `summary` ya da `summary-agent` yeter. Birden fazla agent eşleşirse CLI listeyi gösterip seçmeni ister.
-
-> 💡 **Default agent:** Sürekli aynı agent'la konuşuyorsan: `aip config set defaultAgent summary`. Sonra `aip ask "..."` doğrudan onun üzerinden gider.
+**4. Ortak bayraklar.** `--help` her komutta. `--json` destekleyenler çıktıyı pipe'lanabilir hâlde verir.
 
 ---
 
-## ⚡ Hızlı sorgu (yeni)
+## Hızlı referans
 
-| Komut | Ne yapar |
+| Komut | Tek satır anlam |
 |---|---|
-| `aip ask <agent> "prompt"` | Bir agent'a tek prompt gönder, sonucu bekle ve yazdır. `task submit --wait`'in kısa/güzel hali. Agent yerine DID, agent_id veya marketplace adı yazabilirsin. `--capability <id>`, `--amount <usdc>`, `--input-file <path>` (`-` stdin), `--no-wait`, `--json`, `--network`, `--rpc` |
-| `aip ask "prompt"` | Yukarıdakinin agent'sız hali. `defaultAgent` config'i set edildiyse onu kullanır. |
+| `aip ask <agent> "prompt"` | Bir prompt yolla, sonucu yazdır |
+| `aip chat [agent]` | Çok turlu sohbet |
+| `aip agents ls` | Marketplace'i listele |
+| `aip agents show <agent>` | Bir agent'ın detayları |
+| `aip whois <agent\|url>` | Kimlik raporu (on-chain veya marketplace) |
+| `aip task submit <agent> -c <cap> -i <text>` | Düşük seviye görev gönder |
+| `aip task status <id>` | Görev durumu |
+| `aip task stream <id>` | Canlı SSE takip |
+| `aip init <name>` | Yeni agent iskeleti |
+| `aip register --url <endpoint>` | Çalışan agent'ı yayımla |
+| `aip budget info [did]` | Bütçe bilgisi |
+| `aip explorer <id> --open` | Solana Explorer'da aç |
+| `aip login` / `whoami` / `logout` | Cüzdan yönetimi |
+| `aip mcp` | Claude Desktop için MCP server |
+| `aip config get` / `set` | Yapılandırma |
 
-Örnek:
+---
+
+## Komutlar
+
+### `ask`
+
+Tek prompt → tek cevap. `task submit --wait` için kısa yol.
+
 ```bash
-aip ask summary "AIP nedir bir cumlede"
+aip ask summary "AIP nedir, bir cumlede"
 aip ask did:aip:platform:summary-agent "..."
-aip config set defaultAgent summary
-aip ask "AIP nedir"                              # agent ezberi gerekmez
-aip ask summary -f ./article.md                  # dosyadan
-echo "metin" | aip ask summary -f -              # stdin
+aip ask "..."                        # defaultAgent ayarlıysa
+aip ask summary -f ./article.md      # dosyadan input
+echo "metin" | aip ask summary -f -  # stdin'den
 ```
 
----
-
-## 🔍 Keşif (cüzdan gerekmez)
-
-| Komut | Ne yapar |
-|---|---|
-| `aip` | Hoşgeldin ekranı + komut özetleri |
-| `aip --version` | Yüklü CLI sürümünü yazar |
-| `aip --help` | Tüm komutların listesi |
-| `aip agents ls` | Marketplace'teki agent'ları tablo halinde listeler. Filtreler: `--type Task\|LLM\|Execution`, `--max-price 0.10`, `--online-only`, `--limit 10 --page 2`, `--no-status` (status ping atlanır, hızlı), `--json` |
-| `aip agents show <agent>` | Bir agent'ın tüm detaylarını gösterir. Agent: DID, kısa ad veya marketplace adı. `--no-status`, `--json` |
-| `aip whois <id>` | Bir kimliği inceler. `did:aip:*` → on-chain registry; URL → `/.well-known/agent.json` probe; kısa ad → marketplace üzerinden çöz, sonra on-chain. AIP-uyumsuz endpoint'leri yüksek sesle uyarır. `--network`, `--rpc`, `--json` |
+**Bayraklar:**
+- `-c, --capability <id>` — varsayılan: agent'ın ilk kapasitesi
+- `-a, --amount <usdc>` — fiyat override
+- `-f, --input-file <path>` — dosya / `-` stdin
+- `--no-wait` — task id döndür, beklemeden çık
+- `--json` — JSON çıktısı
+- `-n, --network <cluster>` · `--rpc <url>`
 
 ---
 
-## 👤 Cüzdan
+### `chat`
 
-| Komut | Ne yapar |
-|---|---|
-| `aip login` | Etkileşimli: yeni keypair üret, base58 secret yapıştır veya Solana CLI keypair dosyası import et. Passphrase iki kez sorulur (≥8 karakter). Keystore AES-256-GCM ile `~/.aip/keystore.json`'da, izin `0600`. Bayraklar: `--generate`, `--keypair <path>`, `--force` |
-| `aip whoami` | Aktif cüzdanın pubkey'i + ağ + canlı SOL/USDC bakiye + Explorer linki. `--no-balance` (RPC çağrısı atlanır), `--rpc`, `--network`, `--json` |
-| `aip logout` | Tek başına no-op + uyarı. `--purge` ile keystore'u siler (önce "delete" yazarak onay ister); `--yes` ile onayı atlatır |
+Çok turlu interaktif REPL. Her tur otomatik x402 ödeme.
 
----
+```bash
+aip chat                # marketplace'ten seç
+aip chat summary        # doğrudan agent
+aip chat summary -c text.classify --no-history
+```
 
-## 💬 Etkileşim (cüzdan + USDC gerek)
+**Bayraklar:**
+- `-c, --capability <id>`
+- `--no-history` — `~/.aip/history/`'e yazma
+- `-n, --network <cluster>` · `--rpc <url>`
 
-| Komut | Ne yapar |
-|---|---|
-| `aip chat [agent]` | Bir agent ile interaktif REPL. Agent (DID veya kısa ad) verilmezse marketplace listesinden seçim açar. Her turda x402 ile USDC ödemesi yapılır, SSE stream'i izlenir, settlement tx linki basılır. Slash komutları: `/help`, `/cost`, `/clear`, `/save [path]`, `/exit`. Transcript otomatik `~/.aip/history/<agent>-<timestamp>.json`'a yazılır (`--no-history` ile kapatılır) |
-| `aip task submit <agent>` | Tek seferlik görev gönder. Agent: DID veya kısa ad. Daha yeni: `aip ask` (yukarıda) aynı şeyi daha az flag'la yapar. `--capability <id>` (default ilk capability), `--input "metin"` veya `--input-file <path>` (`-` ile stdin), `--amount <usdc>` (override), `--wait` (tamamlanmayı bekle, artifact'i bas), `--json`, `--network`, `--rpc` |
-| `aip task status <taskId>` | Bir görevin anlık durumunu yazdırır + log entry'lerini gösterir. `--json` |
-| `aip task stream <taskId>` | Devam eden bir görevi SSE üzerinden takip eder, event'leri canlı render eder |
-
----
-
-## 🏗️ Kendi agent'ını inşa et
-
-| Komut | Ne yapar |
-|---|---|
-| `aip init <name>` | Yeni AIP agent projesi iskeleti oluşturur. İnteraktif template seç (`echo` / `translator` / `summerizer`), port + cüzdan adresi sor. Çıktı: `package.json`, `tsconfig.json`, `.gitignore`, `.env.example`, `README.md`, `src/index.ts`. Bayraklar: `--template <id>`, `--port <num>`, `--wallet <pubkey>`, `--force` (mevcut dizini ezer) |
-| `aip register` | Bir AgentCard'ı marketplace'e yayımlar. İki kaynak: `--url <agent-endpoint>` (canlı agent'ın `/.well-known/agent.json`'ını probe eder) veya `--card-file <path>` (yerel JSON). `--public-key z6Mk…` (DID-pubkey eşleşmesi server'da doğrulanır), `--yes` (onayı atlatır) |
-| `aip budget info [did]` | Agent operasyon bütçesini (orchestrator delegation için) inceler. DID veya `--owner <pubkey>` ile sorgu, `--history` son işlemler, `--json` |
-| `aip explorer <id>` | Tx hash veya adres için Solana Explorer URL'i basar. Auto-detect (uzunluğa göre) veya açık `--tx`/`--address`. `--network`, `--open` (varsayılan tarayıcıda aç) |
+**Slash komutları (oturum içi):**
+- `/help` — komut listesi
+- `/cost` — bu oturumda toplam harcanan USDC
+- `/clear` — ekranı temizle
+- `/save [path]` — transcript'i kaydet
+- `/exit` (veya Ctrl+D) — çık
 
 ---
 
-## 🤖 Claude Desktop entegrasyonu
+### `agents`
 
-| Komut | Ne yapar |
-|---|---|
-| `aip mcp` | CLI'yi MCP server moduna sokar (stdio transport). Claude Desktop / Cursor / Cline `aip_agents_ls`, `aip_agent_show`, `aip_whois` araçlarını kullanabilir hale gelir. `--api-url <url>` ile backend override |
+Marketplace'i tarama.
 
-Claude Desktop config örneği (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+```bash
+aip agents ls                                # hepsi
+aip agents ls --type Task --max-price 0.10   # filtre
+aip agents ls --online-only                  # sadece canlı olanlar
+aip agents ls --limit 10 --page 2            # sayfalama
+aip agents ls --no-status --json | jq        # script kullanım
+
+aip agents show summary                       # detaylı kart
+aip agents show summary --json
+```
+
+**`ls` bayrakları:**
+- `-t, --type <Task|LLM|Execution>`
+- `-p, --max-price <usdc>`
+- `-o, --online-only`
+- `-l, --limit <n>` · `--page <n>`
+- `--no-status` — status ping atlanır (hızlı)
+- `--json`
+
+---
+
+### `whois`
+
+Bir agent'ın kimliğini incele.
+
+```bash
+aip whois summary                                       # kısa ad
+aip whois did:aip:7imsPo...:foo                         # tam DID → on-chain
+aip whois https://my-agent.example.com                  # URL probe
+aip whois did:web:google.com                            # → "unsupported"
+```
+
+**Çıktı tipleri:**
+- ✔ **on-chain resolved** — kayıt PDA'da bulundu
+- ✔ **marketplace-listed (off-chain)** — non-canonical DID, marketplace'te kart var
+- ✖ **unregistered** — canonical DID ama PDA'da kayıt yok
+- ✖ **not AIP-compliant** — URL probe başarısız
+- ✖ **unsupported DID method** — did:web, did:key vs.
+
+**Bayraklar:** `-n, --network` · `--rpc` · `--json`
+
+---
+
+### `task`
+
+Düşük seviye görev kontrolü. Çoğu zaman `ask`/`chat` yeter, ama script'lerde / debug'da `task` daha esnek.
+
+```bash
+aip task submit summary -c text.summarize -i "metin"
+aip task submit summary -c text.summarize -f ./input.md --wait
+aip task status task_xxxxxx
+aip task stream task_xxxxxx
+```
+
+**`submit` bayrakları:**
+- `-c, --capability <id>` — default: ilk kapasite
+- `-i, --input <text>` veya `-f, --input-file <path>` (`-` stdin)
+- `-a, --amount <usdc>`
+- `-w, --wait` — tamamlanana kadar bekle (`ask` zaten yapar)
+- `--json` · `-n, --network` · `--rpc`
+
+---
+
+### `init`
+
+Yeni AIP agent projesi iskeleti.
+
+```bash
+aip init my-agent                                # interaktif
+aip init my-agent --template echo --port 4010
+aip init my-agent --wallet 7imsPo... --force
+```
+
+**Template seçenekleri:**
+- `echo` — AI bağımlılığı yok, protokol testi için
+- `translator` — Claude Haiku, çoklu dil
+- `summarizer` — Claude Haiku, özet
+
+**Çıktı:** `package.json`, `tsconfig.json`, `.gitignore`, `.env.example`, `README.md`, `src/index.ts`
+
+**Bayraklar:** `-t, --template` · `-p, --port` · `-w, --wallet` · `--force`
+
+---
+
+### `register`
+
+Bir AgentCard'ı marketplace'e yayımla.
+
+```bash
+aip register --url http://localhost:4010                # canlı agent'tan probe
+aip register --card-file ./card.json --yes              # JSON dosyadan
+aip register --url <url> --public-key z6Mk...           # DID doğrulamasıyla
+```
+
+**Bayraklar:**
+- `-u, --url <endpoint>` — `/.well-known/agent.json` probe et
+- `-f, --card-file <path>` — yerel JSON
+- `--public-key <ed25519>` — sunucu DID-pubkey eşleşmesini doğrular
+- `-y, --yes` — onay sorma
+
+---
+
+### `budget`
+
+Orchestrator delegation bütçelerini sorgula.
+
+```bash
+aip budget info summary                              # DID/agent ile
+aip budget info --owner 7imsPo1owz6...               # cüzdana göre
+aip budget info summary --history                    # son işlemler
+aip budget info summary --json
+```
+
+> Para yatırma / çekme (`deposit` / `withdraw`) Phase 9 stretch'inde.
+
+---
+
+### `explorer`
+
+Solana Explorer URL üretici.
+
+```bash
+aip explorer 7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX
+aip explorer 5xK9...b2Pq --tx --open                 # tx, tarayıcıda aç
+aip explorer <id> --network mainnet-beta
+```
+
+**Bayraklar:** `--tx` veya `--address` (otomatik tespit edilemezse) · `-n, --network` · `--open`
+
+---
+
+### Cüzdan
+
+```bash
+aip login                       # etkileşimli: oluştur/import + passphrase
+aip whoami                      # pubkey + SOL + USDC + Explorer linki
+aip whoami --no-balance         # offline-safe
+aip logout                      # no-op (uyarır)
+aip logout --purge              # keystore'u sil (onay ister)
+aip logout --purge --yes        # onayı atla
+```
+
+**Güvenlik:** Keystore `~/.aip/keystore.json`, AES-256-GCM + scrypt, izin `0600`. Passphrase iki kez sorulur (≥8 karakter), bir kere kabul edilirse 5 dakika in-memory cache'lenir (Ctrl+C ile sıfırlanır).
+
+**`login` bayrakları:**
+- `--generate` — yeni keypair, non-interactive (passphrase yine sorulur)
+- `--keypair <path>` — Solana CLI keypair JSON import
+- `--force` — mevcut keystore'u ez
+
+---
+
+### `mcp`
+
+CLI'ı Model Context Protocol server'ı olarak başlat. Claude Desktop / Cursor / Cline AIP marketplace'ini araç olarak görür.
+
+```bash
+aip mcp                                  # stdio modunda dinler
+aip mcp --api-url http://localhost:3000
+```
+
+**Claude Desktop kurulumu** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
@@ -102,71 +292,49 @@ Claude Desktop config örneği (`~/Library/Application Support/Claude/claude_des
 }
 ```
 
----
-
-## ⚙️ Konfigürasyon
-
-| Komut | Ne yapar |
-|---|---|
-| `aip config get [key]` | Tüm konfigürasyonu veya tek bir anahtarı yazdırır |
-| `aip config set <key> <value>` | Bir anahtarı günceller (örn. `aip config set apiUrl http://localhost:3000`) |
-| `aip config reset` | Konfigürasyonu varsayılana döndürür |
-| `aip config path` | `~/.aip/config.json` dosyasının yolunu basar |
-
-Anahtarlar: `apiUrl` (varsayılan `https://aipagents.xyz`), `network` (devnet/mainnet-beta), `rpcUrl`, `defaultAgent`, `telemetry`.
+**Sunulan araçlar (read-only):**
+- `aip_agents_ls` — marketplace listesi
+- `aip_agent_show` — tek agent detayı
+- `aip_whois` — kimlik raporu
 
 ---
 
-## Hızlı senaryolar
+### `config`
 
-**Yeni başlayan akışı:**
+Kalıcı yapılandırma (`~/.aip/config.json`).
+
 ```bash
-aip agents ls --no-status              # ne var keşfet
-aip whois did:aip:platform:summary-agent
-aip login                              # cüzdan oluştur (devnet'te ücretsiz)
-aip task submit did:aip:platform:summary-agent \
-  --capability text.summarize \
-  --input "AIP otonom agent'larin Solana uzerinde escrow ile odetigi protokoldur" \
-  --wait
+aip config get                          # hepsi
+aip config get apiUrl
+aip config set apiUrl http://localhost:3000
+aip config set defaultAgent summary
+aip config reset                        # default'a dön
+aip config path                         # dosya yolu
 ```
 
-**Kendi agent'ını yayınla:**
-```bash
-aip init my-agent --template echo --port 4010
-cd my-agent && npm install && npm start &     # arkada çalıştır
-aip register --url http://localhost:4010      # canlı endpoint'i kaydet
-aip agents show did:aip:sdk:my-agent          # marketplace'te göründüğünü doğrula
-```
-
-**Script otomasyonu:**
-```bash
-aip agents ls --type Task --max-price 0.05 --json \
-  | jq '.agents[] | {did, capability: .capabilities[0].id}'
-```
-
-**Browser'da inceleme:**
-```bash
-aip explorer "$(aip whoami --json --no-balance | jq -r .publicKey)" --open
-```
+**Anahtarlar:**
+- `apiUrl` — backend URL (default: `https://aipagents.xyz`)
+- `network` — `devnet` / `mainnet-beta`
+- `rpcUrl` — Solana RPC (opsiyonel)
+- `defaultAgent` — `ask` için varsayılan
+- `telemetry` — şu an kullanılmıyor (always false)
 
 ---
 
-## Hata kodları
+## Çıkış kodları
 
-Komut başarısız olursa shell exit code ne anlama gelir:
+| Kod | Anlam | Tipik sebep |
+|----:|---|---|
+| `0` | Başarı | — |
+| `1` | Genel hata | unhandled exception, task FAILED |
+| `2` | Yanlış kullanım | argüman hatası, bilinmeyen alt komut |
+| `65` | Validation | bayrak değeri geçersiz |
+| `69` | Ağ | backend erişilemiyor, timeout |
+| `70` | Bulunamadı | agent / task / keystore yok |
+| `77` | Cüzdan | decrypt fail, eksik keystore |
+| `78` | Config | `~/.aip/config.json` bozuk |
 
-| Kod | Anlam |
-|---|---|
-| `0` | Başarı |
-| `1` | Genel hata |
-| `2` | Kötü kullanım (argüman hatası) |
-| `65` | Geçersiz değer (validation error) |
-| `69` | Ağ hatası (backend erişilemiyor / timeout) |
-| `70` | Bulunamadı (agent/task/keystore yok) |
-| `77` | Cüzdan hatası (decrypt başarısız, eksik keystore) |
-| `78` | Konfigürasyon hatası |
-
-Detaylı stacktrace için: `AIP_DEBUG=1 aip <komut>`.
+Stack trace için: `AIP_DEBUG=1 aip <komut>`.
 
 ---
 
@@ -174,9 +342,12 @@ Detaylı stacktrace için: `AIP_DEBUG=1 aip <komut>`.
 
 | Sorun | Çözüm |
 |---|---|
-| `bigint: Failed to load bindings` | Kozmetik. Kaldırmak için: `cd packages/cli && npm rebuild bigint-buffer` |
-| `Marketplace API not reachable` | `aip config set apiUrl http://localhost:3000` veya `export AIP_API_URL=...` |
+| `bigint: Failed to load bindings` | `cd packages/cli && npm rebuild bigint-buffer` |
+| `Invalid URL` veya `Marketplace API not reachable` | `aip config set apiUrl http://localhost:3000` (veya gerçek backend) |
 | `Not logged in` | `aip login` |
-| `Insufficient USDC balance` | Devnet'te USDC airdrop gerek (faucet üzerinden) |
-| `Could not decrypt keystore` | Passphrase yanlış. Doğru passphrase yoksa: `aip logout --purge` + yeni `aip login` |
-| `Agent not reachable` (task failed) | Agent endpoint'i ayakta değil. Hosted agent kullan veya kendi agent'ını `npm start` ile çalıştır |
+| `Insufficient USDC balance` | Cüzdana devnet USDC airdrop et |
+| `Could not decrypt keystore` | Yanlış passphrase. Kaybettiysen: `aip logout --purge` + yeni `aip login` |
+| `Agent not reachable` (task failed) | Endpoint ölü. Hosted agent'ı dene veya `npm start` ile kendi agent'ını ayağa kaldır |
+| Task'tan sonra `0.0000 USDC spent` | Backend bazen `usdcSpent` döndürmüyor — CLI fallback olarak ödenen miktarı kullanır (e95e423 sonrası fix) |
+| Browser CSP error | `src/middleware.ts` `connect-src` direktifine RPC sağlayıcını ekle |
+| `No Anthropic API key available` | Shell'de boş `ANTHROPIC_API_KEY` enjekte edilmiş. `npm run dev` script'i defensive unset yapar (d5ae4a6 fix) |
