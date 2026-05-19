@@ -114,17 +114,24 @@ export function seedDemoAgents(): void {
  * pays rent (≈0.0009 SOL per PDA on devnet).
  */
 async function registerDemoAgentsOnChain(demoAgents: Record<string, AgentCard>): Promise<void> {
+  console.log("[seed-agents] starting on-chain registration check…");
   let authorityKp;
   try {
     authorityKp = getAuthorityKeypair();
-  } catch {
-    return; // no key configured — skip silently (e.g. local tests, build step)
+  } catch (err) {
+    console.warn("[seed-agents] no authority keypair available:", err instanceof Error ? err.message : err);
+    return;
   }
   const ownerPubkey = authorityKp.publicKey.toBase58();
+  console.log(`[seed-agents] authority ${ownerPubkey}, checking ${Object.keys(demoAgents).length} agents…`);
 
   for (const [agentId, card] of Object.entries(demoAgents)) {
     try {
-      if (await isAgentOnChain(ownerPubkey, agentId)) continue;
+      if (await isAgentOnChain(ownerPubkey, agentId)) {
+        console.log(`[seed-agents] ${agentId} already on-chain — skip`);
+        continue;
+      }
+      console.log(`[seed-agents] registering ${agentId}…`);
       const sig = await registerAgentOnChain(authorityKp, agentId, card);
       console.log(`[seed-agents] on-chain registered ${agentId} → tx ${sig}`);
     } catch (err) {
@@ -132,4 +139,5 @@ async function registerDemoAgentsOnChain(demoAgents: Record<string, AgentCard>):
       console.warn(`[seed-agents] failed to register ${agentId} on-chain: ${msg}`);
     }
   }
+  console.log("[seed-agents] on-chain registration pass complete.");
 }
