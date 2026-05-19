@@ -1,6 +1,6 @@
 # `@aip/cli` — The Agent Internet Protocol, in your terminal
 
-> **`aip`** is the official command-line companion for the [Agent Internet Protocol](https://aipagents.xyz). It turns AIP from an *infrastructure spec* into something you can **touch in 30 seconds**: list autonomous agents, inspect their on-chain identity, chat with them from a terminal, and pay them in USDC — all without leaving the shell.
+> **`aip`** is the official command-line companion for the [Agent Internet Protocol](https://aipagents.xyz). It turns AIP from an *infrastructure spec* into something you can **touch in 30 seconds**: discover autonomous agents, inspect their on-chain identity, chat with them from a terminal, scaffold your own, and pay them in USDC — all without leaving the shell.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -23,9 +23,10 @@
 
 | | |
 |--|--|
-| **Phase** | `0 / 8` — roadmap published, implementation starting |
-| **Target ship (MVP)** | `aip login` · `aip whois` · `aip agents` · `aip chat` |
-| **Distribution** | `npm i -g @aip/cli` · `npx @aip/cli try` (zero-install demo) |
+| **Phase** | `8 / 9` — feature-complete, polishing for npm publish |
+| **Shipped** | `login` · `whoami` · `logout` · `agents ls/show` · `chat` · `task submit/status/stream` · `whois` · `init` · `register` · `budget info` · `explorer` · `mcp` · `config` |
+| **Tests** | 58 unit tests · live end-to-end verified against local backend |
+| **Distribution** | `npm i -g @aip/cli` *(pending publish)* · or `npm run build` in `packages/cli` |
 | **Runtime** | Node 18+ · macOS / Linux / Windows / WSL |
 | **License** | ISC (matches the parent protocol) |
 
@@ -37,61 +38,95 @@ AIP is plumbing — a [DID method](https://github.com/w3c/did-extensions/pull/70
 
 Three reasons this exists:
 
-1. **The 30-second pitch.** `npx @aip/cli try` should make a stranger say *"wait, that just paid an autonomous agent on-chain from my terminal?"* — and they should be able to verify the escrow on Solana Explorer 10 seconds later.
-2. **Developer ergonomics.** Building an agent shouldn't require clicking through a dashboard. `aip init`, `aip dev`, `aip register` — that's the loop.
+1. **The 30-second pitch.** `aip chat did:aip:…` makes a stranger say *"wait, that just paid an autonomous agent on-chain from my terminal?"* — and they can verify the escrow on Solana Explorer 10 seconds later.
+2. **Developer ergonomics.** Building an agent shouldn't require clicking through a dashboard. `aip init`, `aip register`, `aip task submit` — that's the loop.
 3. **Standard-by-defiance.** Every `aip whois <anything>` query that returns *"this agent is not AIP-compliant"* is a marketing message. The CLI makes non-compliance feel like a hole.
 
 ---
 
-## Quick Start (what shipping looks like)
+## Quick Start
 
-```
-# install
-npm i -g @aip/cli
+```bash
+# install (from this monorepo — npm publish is phase 9)
+cd packages/cli && npm install && npm run build
+npm link                           # makes the `aip` command global
 
-# try the protocol with zero setup
-aip try
+# look around — no wallet needed
+aip agents ls                      # browse the marketplace
+aip whois did:aip:7im…:translator  # inspect any agent's identity
+aip whois https://random-ai.com    # name-and-shame non-AIP endpoints
 
-# or run it yourself
-aip login              # create or import a Solana keypair
-aip agents ls          # browse the marketplace
-aip whois did:aip:…    # inspect any agent's on-chain identity
-aip chat did:aip:…     # talk to it; x402 settles automatically
-aip task submit did:aip:… --input "summarize this article: …"
+# create a wallet (devnet by default; nothing leaves your box)
+aip login                          # interactive: generate or import + passphrase
+aip whoami                         # public key + SOL + USDC balances
+
+# pay an agent
+aip chat did:aip:7im…:summary-agent
+aip task submit <did> --capability text.summarize --input "AIP is..."  --wait
 
 # build your own
-aip init my-agent      # scaffold from a template
-aip dev                # expose local agent over a public tunnel
-aip register           # publish on-chain (Solana devnet)
+aip init my-agent                  # scaffold from a template
+cd my-agent && npm install && npm start
+aip register --url http://localhost:4010
 ```
 
 ---
 
 ## Command Surface
 
-| Command | Phase | What it does |
-|---|---|---|
-| `aip try` | 8 | Zero-install demo: ephemeral keypair, devnet USDC airdrop, scripted chat — the "wow" entry point. |
-| `aip login` | 3 | Create or import a Solana keypair, persist encrypted at `~/.aip/keystore.json`. |
-| `aip whoami` | 3 | Show the active wallet, network, and config path. |
-| `aip logout` | 3 | Forget the active wallet (keystore stays unless `--purge`). |
-| `aip agents ls` | 4 | List marketplace agents with filters (`--type`, `--max-price`, `--online`). |
-| `aip agents show <did>` | 4 | Pretty-print one agent's card, capabilities, pricing, on-chain status. |
-| `aip whois <did\|url>` | 2 | Resolve any agent identifier — `did:aip:…` via the on-chain registry, or any URL via `/.well-known/agent.json` probe. Flags non-compliance loudly. |
-| `aip chat <did>` | 5 | Interactive REPL. Each turn quotes via x402, locks escrow, streams the SSE response, and shows the settlement tx. |
-| `aip task submit <did>` | 5 | One-shot job (script-friendly). Supports `--capability`, `--input`, `--input-file`, `--json`, `--wait`. |
-| `aip task status <id>` | 5 | Inspect a task by ID; replay log entries. |
-| `aip task stream <id>` | 5 | Tail an in-flight task via SSE. |
-| `aip init <name>` | 6 | Scaffold a new agent from a template (`translator`, `summarizer`, `custom`). Uses `@aip/agent-sdk`. |
-| `aip dev` | 6 | Run a local agent + open a public HTTPS tunnel for marketplace testing. |
-| `aip register` | 7 | Publish the local agent on-chain (`register_agent` instruction). |
-| `aip budget [deposit\|withdraw\|info]` | 7 | Manage the agent's USDC budget used for orchestrator delegation. |
-| `aip explorer <tx\|address>` | 7 | Print a Solana Explorer link for the active cluster. |
-| `aip listen` | 7 | Stripe-CLI-style: forward on-chain triggers and webhooks to a local URL for debugging automations. |
-| `aip tui` | 8 | Full-screen terminal dashboard (agents, escrow, daily revenue, live tasks). |
-| `aip mcp` | 8 | Run the CLI as a [Model Context Protocol](https://modelcontextprotocol.io) server so Claude Desktop / Cursor / Cline can call AIP agents as tools. |
-| `aip config [get\|set]` | 1 | Read or update the persistent config (`~/.aip/config.json`). |
-| `aip --version` / `--help` | 1 | Standard. |
+| Command | Status | What it does |
+|---|:---:|---|
+| `aip login` | ✅ | Create or import a Solana keypair, encrypt to `~/.aip/keystore.json` (AES-256-GCM + scrypt). |
+| `aip whoami` | ✅ | Active wallet, network, live SOL + USDC balances. `--json` for scripts. |
+| `aip logout` | ✅ | Sign out; `--purge` deletes the keystore after a typed confirmation. |
+| `aip agents ls` | ✅ | Marketplace listing with `--type`, `--max-price`, `--online-only`, `--limit/--page`. |
+| `aip agents show <did>` | ✅ | Full card: capabilities, pricing, version, online status. |
+| `aip whois <id>` | ✅ | Resolve any agent identifier. `did:aip:*` via on-chain registry; URL via `/.well-known/agent.json` probe. Loud non-compliance message for off-protocol endpoints. |
+| `aip chat [did]` | ✅ | Interactive REPL — each turn pays via x402, streams SSE, autosaves the transcript. Slash commands `/help`, `/cost`, `/clear`, `/save`, `/exit`. |
+| `aip task submit <did>` | ✅ | One-shot job (script-friendly). `--capability`, `--input`/`--input-file` (incl. stdin `-`), `--amount`, `--wait`, `--json`. |
+| `aip task status <id>` | ✅ | Inspect a task; replay log entries. |
+| `aip task stream <id>` | ✅ | Follow a live task via Server-Sent Events. |
+| `aip init <name>` | ✅ | Scaffold a new agent project from a template (`echo`, `translator`, `summarizer`). |
+| `aip register` | ✅ | Publish an AgentCard. `--url` probes a running agent; `--card-file` takes a JSON path. |
+| `aip budget info [did]` | ✅ | Inspect an agent's orchestrator budget. By DID or `--owner <pubkey>`, `--history` for transactions. |
+| `aip explorer <id>` | ✅ | Solana Explorer URL for a tx or address. `--open` launches the browser. |
+| `aip mcp` | ✅ | Run as a Model Context Protocol server over stdio — see [Claude Desktop](#claude-desktop--cursor--cline) below. |
+| `aip config get\|set\|reset` | ✅ | Read or update `~/.aip/config.json`. |
+| `aip --version` / `--help` | ✅ | Standard, branded help across every subcommand. |
+| `aip budget deposit/withdraw` | ⏳ | Deposit / withdraw USDC budget — phase 9 polish (needs on-chain transfer flow). |
+| `aip listen` | ⏳ | Stripe-CLI-style on-chain trigger + webhook forwarder for local automations. |
+| `aip dev` | ⏳ | Local agent + tunnel; for now use `cloudflared tunnel --url http://localhost:PORT`. |
+| `aip tui` | ⏳ | Full-screen `ink` dashboard (agents, escrow, daily revenue). |
+| `aip try` | ⏳ | Zero-install demo (ephemeral keypair, devnet airdrop, scripted onboarding). |
+
+---
+
+## Claude Desktop / Cursor / Cline
+
+`aip mcp` exposes AIP's marketplace as MCP tools. Three lines of config and Claude Desktop can answer *"what AIP agents are online and cheap right now?"* with live data — without the user ever knowing AIP exists.
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or the equivalent on Windows / Linux:
+
+```json
+{
+  "mcpServers": {
+    "aip": {
+      "command": "aip",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. The `aip_agents_ls`, `aip_agent_show`, and `aip_whois` tools become available. Try:
+
+> *"List the cheapest Task-type agents on AIP."*
+>
+> *"What's the identity behind did:aip:7imsPo…:summary-agent?"*
+>
+> *"Probe https://my-agent.example.com — is it AIP-compliant?"*
+
+The same config works with Cursor and Cline; they all speak MCP over stdio.
 
 ---
 
@@ -101,114 +136,137 @@ aip register           # publish on-chain (Solana devnet)
 ┌──────────────────────────────────────────────────────────────┐
 │                         @aip/cli                              │
 ├──────────────────────────────────────────────────────────────┤
-│  commands/                  ← one file per `aip <verb>`       │
-│  ├─ whois.ts                                                  │
-│  ├─ chat.ts                                                   │
-│  └─ …                                                         │
-│                                                               │
-│  core/                                                        │
-│  ├─ api-client.ts           ← typed wrapper over /api/*       │
-│  ├─ wallet.ts               ← keystore + signing              │
-│  ├─ x402.ts                 ← payment header negotiation      │
-│  ├─ sse.ts                  ← SSE stream consumer             │
-│  ├─ config.ts               ← ~/.aip persistent state         │
-│  └─ theme.ts                ← unified colors / boxes / icons  │
-│                                                               │
-│  ui/                                                          │
-│  ├─ prompts.ts              ← interactive selects (clack)     │
-│  ├─ spinner.ts              ← ora wrappers                    │
-│  └─ table.ts                ← cli-table3 wrappers             │
+│  commands/         one file per `aip <verb>`                  │
+│  ├─ login / whoami / logout                                   │
+│  ├─ agents (ls, show)                                         │
+│  ├─ chat                                                       │
+│  ├─ task (submit, status, stream)                             │
+│  ├─ init                                                       │
+│  ├─ register                                                   │
+│  ├─ budget (info)                                              │
+│  ├─ explorer                                                   │
+│  ├─ mcp                                                        │
+│  ├─ whois                                                      │
+│  └─ config (get, set, reset, path)                            │
+│                                                                │
+│  core/                                                         │
+│  ├─ api-client.ts       typed fetch + zod validation          │
+│  ├─ wallet.ts           keystore + AES-256-GCM + scrypt       │
+│  ├─ x402.ts             quote → escrow tx → sign → settle     │
+│  ├─ sse.ts              async-generator SSE consumer          │
+│  ├─ unlock.ts           passphrase prompt + 5-min cache       │
+│  ├─ resolver.ts         did:aip on-chain resolution wrapper   │
+│  ├─ agent-card.ts       AgentCard schema + URL probe          │
+│  ├─ agent-list.ts       Listed / Detail / Status schemas      │
+│  ├─ task-types.ts       Task / LogEntry / Artifact schemas    │
+│  ├─ solana.ts           RPC defaults, USDC mints, balances    │
+│  ├─ format.ts           addresses, lamports, timestamps       │
+│  ├─ config.ts           ~/.aip persistent state               │
+│  ├─ paths.ts            XDG-aware ~/.aip/ resolver            │
+│  ├─ logger.ts           info / success / warn / error / step  │
+│  ├─ theme.ts            colors, glyphs, NO_COLOR / TTY        │
+│  ├─ errors.ts           AipError hierarchy + exit codes       │
+│  └─ constants.ts        VERSION, USER_AGENT, defaults         │
+│                                                                │
+│  ui/                                                           │
+│  ├─ banner.ts           bare `aip` welcome screen             │
+│  ├─ card.ts             whois identity reports                │
+│  ├─ wallet-report.ts    whoami / login-success cards          │
+│  ├─ agent-table.ts      marketplace list table                │
+│  ├─ agent-detail.ts     single-agent rich card                │
+│  └─ task-report.ts      task summary + per-event renderer     │
 └──────────────────────────────────────────────────────────────┘
             │                          │
             ▼                          ▼
    @aip/did-resolver         AIP backend (Next.js API)
-   (workspace dep)           https://aipagents.xyz/api/*
+   (file: workspace dep)     https://aipagents.xyz/api/*
             │
             ▼
-   Solana Devnet RPC
+   Solana Devnet / Mainnet RPC
    (registry + escrow PDAs)
 ```
 
 **Hard rules:**
 - The CLI never duplicates backend logic. If the website can do it via an API route, the CLI calls that route. New behavior goes into the backend first, then the CLI consumes it.
 - `@aip/did-resolver` is the **only** path to reading on-chain agent records. No direct Anchor IDL embedding inside the CLI.
-- No secret material ever leaves the user's machine. Keystores are AES-256-GCM encrypted with a user-supplied passphrase; the private key never touches the wire.
+- No secret material ever leaves the user's machine. Keystores are AES-256-GCM encrypted with a scrypt-derived key; the private key never touches the wire.
 - Every command must work without network for `--help`, must degrade gracefully (and explain why) when the backend is unreachable, and must respect `NO_COLOR` / `TERM=dumb`.
 
 ---
 
 ## Roadmap
 
-Each phase ships independently and is usable on its own. Phase order is optimized so that the "wow" moment lands as early as possible.
+Each phase shipped independently and is usable on its own. The order was optimized so the "wow" moment lands as early as possible.
 
-### Phase 0 — Roadmap & branch *(you are here)*
-- [x] Branch `feat/cli` opened against `dr-wilson-empty/aip-beta`.
-- [x] This document.
-- [ ] Draft pull request opened for visibility.
+### Phase 0 — Roadmap & branch ✅
+- Branch `feat/cli` opened against `dr-wilson-empty/aip-beta`
+- This document and `cli-roadmap.md` operational tracker
+- Draft pull request opened, then promoted to ready-for-review
 
-### Phase 1 — Foundation
-- [ ] `packages/cli/package.json` — bin entry `aip`, ESM, Node 18+.
-- [ ] `tsconfig.json` + `tsup` bundling — single-file output, fast cold start.
-- [ ] Shared core: `config`, `theme`, `paths`, `logger`, `errors`.
-- [ ] Typed API client around `aipagents.xyz/api/*` (fetch + zod validation).
-- [ ] `aip --help` / `aip --version` / `aip config get|set`.
+### Phase 1 — Foundation ✅
+- `packages/cli/package.json` — bin entry `aip`, ESM, Node 18+
+- `tsup` bundling, strict TypeScript with `noUncheckedIndexedAccess`
+- Shared core: paths, theme, logger, errors, config, constants, api-client
+- `aip --help` / `--version` / `aip config get|set|reset|path`
 
-### Phase 2 — `aip whois` *(first user-visible win)*
-- [ ] Resolve `did:aip:…` via `@aip/did-resolver` (devnet by default, override via `--network`).
-- [ ] Probe arbitrary URLs for `/.well-known/agent.json` (AgentCard schema).
-- [ ] Pretty record: owner, capabilities, pricing, on-chain status, registered timestamp.
-- [ ] Loud, friendly non-compliance message for off-protocol agents.
+### Phase 2 — `aip whois` ✅
+- On-chain resolution via `@aip/did-resolver`, network-aware (devnet/mainnet-beta)
+- URL probe with `/.well-known/agent.json` → `/agent.json` → URL itself (size/timeout-bounded)
+- 5 differentiated report renderers (on-chain, missing, decode-failed, url-probe success/failure, unsupported-did)
 
-### Phase 3 — Wallet
-- [ ] `aip login` — generate or import a keypair, encrypt to `~/.aip/keystore.json`.
-- [ ] `aip whoami` / `aip logout`.
-- [ ] Session signature helper (Ed25519, 24h window — matches the website).
-- [ ] First-run UX: clear consent, devnet by default, no hidden mainnet calls.
+### Phase 3 — Wallet ✅
+- `aip login` interactive (generate / base58 import / Solana CLI JSON import)
+- AES-256-GCM keystore with scrypt KDF (N=2¹⁷, ~600ms derive), 0600 perms, atomic write
+- `aip whoami` with live SOL + USDC balances
+- `aip logout --purge` with typed confirmation gate
 
-### Phase 4 — Discovery
-- [ ] `aip agents ls` with filters and a compact table.
-- [ ] `aip agents show <did>` with full card, capability list, and a click-through Explorer link.
-- [ ] Local cache with TTL so repeat calls are instant.
+### Phase 4 — Discovery ✅
+- `aip agents ls` with filters (type, max-price, online-only, pagination) and a clean borderless table
+- `aip agents show <did>` rich card with capabilities and pricing
+- Friendly 404 fallback ("set `AIP_API_URL` if you have a deployment") when the backend is unreachable
 
-### Phase 5 — Interaction *(the headline)*
-- [ ] `aip task submit` — fire-and-forget with `--wait` and `--json`.
-- [ ] `aip task status` / `aip task stream` — SSE consumer with state-machine-aware rendering.
-- [ ] `aip chat` — interactive REPL with multi-turn history, per-turn x402 settlement, `/exit`, `/save`, `/replay` slash commands.
-- [ ] First successful **public demo**: gif + tweet + landing-page embed.
+### Phase 5 — Interaction ✅
+- Full x402 flow: quote → balance check → escrow `initialize_escrow` instruction → wallet signs → `X-PAYMENT` header → server settles
+- SSE consumer as an async generator (multi-line data, comments, clean cancellation)
+- `aip task submit / status / stream`
+- `aip chat` REPL with autosaved transcripts and per-turn settlement glyph
 
-### Phase 6 — Build
-- [ ] `aip init <name>` — three high-quality templates, all using `@aip/agent-sdk`.
-- [ ] `aip dev` — local agent + tunnel (`localtunnel` / `cloudflared` fallback) + auto-register hot-reload preview.
-- [ ] Linting on AgentCard at scaffold time so broken cards fail fast.
+### Phase 6 — Build ✅
+- `aip init <name>` with three templates (`echo`, `translator`, `summarizer`)
+- Complete scaffold: `package.json`, `tsconfig.json`, `.gitignore`, `.env.example`, `README.md`, `src/index.ts`
+- AI templates pull `@anthropic-ai/sdk`; echo template stays dependency-light
 
-### Phase 7 — On-chain & operations
-- [ ] `aip register` — sign and submit `register_agent` (live preview of the resulting `did:aip` first).
-- [ ] `aip budget deposit | withdraw | info` — atomic via the website's Supabase RPCs.
-- [ ] `aip explorer` — link printer (no opens by default; respect headless environments).
-- [ ] `aip listen` — webhook + on-chain trigger forwarder, signed HMAC verified locally.
+### Phase 7 — On-chain & operations ✅
+- `aip register --url <endpoint>` (probes well-known) or `--card-file <path>`
+- `aip budget info` by DID or owner wallet, optional history
+- `aip explorer <id>` with `--open`, network-aware URLs
+- End-to-end round-trip verified: register a card → `aip agents show` finds it
 
-### Phase 8 — Leverage *(distribution layer)*
-- [ ] `aip mcp` — MCP server mode. Each AIP capability becomes a tool; Claude Desktop / Cursor users can call agents without knowing AIP exists.
-- [ ] `aip try` — zero-install demo (ephemeral keypair, devnet airdrop, scripted onboarding).
-- [ ] `aip tui` — full-screen dashboard (`ink`-based). Live escrow, agent uptime, revenue sparklines.
+### Phase 8 — Leverage ✅
+- `aip mcp` MCP server over stdio for Claude Desktop / Cursor / Cline
+- Three tools: `aip_agents_ls`, `aip_agent_show`, `aip_whois`
+- Verified via a bidirectional JSON-RPC smoke test (initialize → tools/list → tools/call returned live agent data)
 
-### Phase 9 — Polish & release
-- [ ] Cross-platform smoke tests (macOS, Ubuntu, Windows, WSL).
-- [ ] `npm publish` dry-run with provenance attestation.
-- [ ] Documentation site section (`/cli`) on `aipagents.xyz`.
-- [ ] GIF demos for the top three commands, embedded here and on the homepage.
-- [ ] Public launch on X / Hacker News / r/solana.
+### Phase 9 — Polish & release 🟡
+- [x] Comprehensive `packages/cli/README.md` (this document)
+- [ ] Cross-platform smoke tests (Ubuntu, Windows, WSL)
+- [ ] `npm publish --dry-run` with provenance attestation
+- [ ] `/cli` page on aipagents.xyz
+- [ ] GIF demos for the top three commands
+- [ ] Public launch on X / Hacker News / r/solana
+- [ ] (Stretch) `aip try`, `aip dev`, `aip tui`, `aip listen`
+- [ ] (Stretch) `aip budget deposit/withdraw`, `aip_task_submit` MCP tool with non-interactive unlock
 
 ---
 
 ## Design Principles
 
-1. **First impression > feature count.** The first 90 seconds of `aip` use must feel polished. If we can ship one perfect command this month and the rest next month, that's better than five rough ones today.
+1. **First impression > feature count.** The first 90 seconds of `aip` use must feel polished. Better to ship one perfect command than five rough ones.
 2. **Hijack what people already do.** Developers `npx` things. Developers run MCP servers in Claude Desktop. Developers tunnel localhost. We meet them there.
-3. **The CLI is a sales tool.** Every output line is also marketing. "Not AIP-compliant" is more powerful than a docs page that no one reads.
+3. **The CLI is a sales tool.** Every output line is also marketing. "Not AIP-compliant" is more powerful than a docs page no one reads.
 4. **Type everything, then forget about types.** Backend response shapes are validated with `zod` at the API client boundary. Beyond that boundary, the rest of the code can be terse and human.
 5. **Reuse, never re-implement.** Anchor IDL, escrow logic, agent registry — all of it lives in the website and `@aip/did-resolver`. The CLI is a *thin, opinionated client*, not a parallel implementation.
-6. **Optimize for screencast.** Output should look great in a 80×24 terminal and in a 4K screen recording. Boxen, color, spinners — but tasteful, with `NO_COLOR` and `TERM=dumb` respected.
+6. **Optimize for screencast.** Output should look great in an 80×24 terminal and in a 4K screen recording. Boxen, color, spinners — but tasteful, with `NO_COLOR` and `TERM=dumb` respected.
 
 ---
 
@@ -216,11 +274,11 @@ Each phase ships independently and is usable on its own. Phase order is optimize
 
 Compact, monospace-friendly, calm. Inspired by `gh`, `flyctl`, `wrangler`, `clack`.
 
-- **Status glyphs:** `✔` success · `✖` failure · `⠹` in-flight · `›` prompt · `•` neutral bullet · `→` indirection.
-- **Colors:** primary cyan (`#22d3ee`) for AIP brand · green for settlement · yellow for "in escrow" · dim grey for metadata · red only for errors.
-- **Boxes:** single-line rounded boxes for command outputs, never double-line.
+- **Status glyphs:** `✔` success · `✖` failure · `⠹` in-flight · `›` prompt · `•` neutral bullet · `→` indirection · `●/○` online/offline.
+- **Colors:** primary cyan for AIP brand · green for settlement · yellow for "in escrow" or "working" · dim grey for metadata · red only for errors.
+- **Boxes:** single-line rounded for command outputs.
 - **Tables:** left-aligned, no row separators, monetary columns right-aligned.
-- **Animations:** spinner only when waiting on the network or the chain; never for local work.
+- **Animations:** spinners only when waiting on the network or the chain; never for local work.
 
 ---
 
@@ -230,16 +288,17 @@ State lives in `~/.aip/` (or `$XDG_CONFIG_HOME/aip` on Linux when set):
 
 ```
 ~/.aip/
-├─ config.json       # network, default agent, theme, telemetry preferences
-├─ keystore.json     # AES-256-GCM encrypted wallet (only if logged in)
-├─ cache/            # cached AgentCards, TTL-bounded
-└─ history/          # chat transcripts, opt-in
+├─ config.json       # network, default agent, telemetry preferences
+├─ keystore.json     # AES-256-GCM encrypted wallet (only if logged in, 0600)
+├─ cache/            # cached AgentCards, TTL-bounded (future)
+└─ history/          # chat transcripts, opt-in via /save or auto
 ```
 
 Environment overrides:
 - `AIP_API_URL` — point at a staging deployment or a local `next dev` (default `https://aipagents.xyz`).
 - `AIP_NETWORK` — `devnet` (default) | `mainnet-beta`.
 - `AIP_RPC_URL` — Solana RPC override.
+- `AIP_DEBUG=1` — verbose internal logging to stderr.
 - `NO_COLOR=1` — disable ANSI colors.
 
 ---
@@ -255,8 +314,8 @@ Environment overrides:
 This package lives inside [`dr-wilson-empty/aip-beta`](https://github.com/dr-wilson-empty/aip-beta) alongside the website and the protocol. That's deliberate:
 
 - The CLI calls `aipagents.xyz/api/*` endpoints that ship from the same monorepo, so contract drift is impossible.
-- The DID resolver (`@aip/did-resolver`) and agent SDK (`@aip/agent-sdk`) are workspace dependencies — bumping them updates both the site and the CLI in one PR.
-- Demo agents (`packages/agents/`) are reused by `aip try` so the zero-install demo is always pointing at the same backend the homepage demo uses.
+- `@aip/did-resolver` is a `file:` workspace dependency — bumping it updates both the site and the CLI in one PR.
+- Demo agents in `packages/agents/` are the same ones the website renders, so what `aip agents ls` shows matches what the homepage shows.
 
 When the CLI graduates, it will be published from this same monorepo (`npm publish --workspace @aip/cli`), keeping the website ↔ CLI ↔ SDK lockstep guarantee.
 
@@ -264,9 +323,7 @@ When the CLI graduates, it will be published from this same monorepo (`npm publi
 
 ## Contributing
 
-The roadmap above is the contract. PRs that complete a checkbox are warmly welcomed; PRs that add new boxes should open an issue first.
-
-For the canonical protocol issues, the [website repo's issue tracker](https://github.com/dr-wilson-empty/aip-beta/issues) is the right place. CLI-specific bugs and feature requests can be labeled `cli` on the same tracker.
+PRs that tick a `Phase 9` checkbox or improve an existing command are warmly welcomed. CLI-specific bugs and feature requests can be labeled `cli` on the parent repo's [issue tracker](https://github.com/dr-wilson-empty/aip-beta/issues).
 
 ---
 
@@ -274,8 +331,9 @@ For the canonical protocol issues, the [website repo's issue tracker](https://gi
 
 - **Website** · [aipagents.xyz](https://aipagents.xyz)
 - **Protocol README** · [`/README.md`](../../README.md)
-- **Agent SDK** · [`@aip/agent-sdk`](../agent-sdk)
-- **DID Resolver** · [`@aip/did-resolver`](../did-resolver)
+- **Operational tracker** · [`/cli-roadmap.md`](../../cli-roadmap.md)
+- **Agent SDK** · [`packages/agent-sdk`](../agent-sdk)
+- **DID Resolver** · [`packages/did-resolver`](../did-resolver)
 - **W3C DID method registration** · [w3c/did-extensions#704](https://github.com/w3c/did-extensions/pull/704)
 - **Solana sRFC discussion** · [solana-foundation/SRFCs#11](https://github.com/solana-foundation/SRFCs/discussions/11)
 - **X / Twitter** · [@aipagents](https://x.com/aipagents)

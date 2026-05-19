@@ -11,9 +11,9 @@
 |--|--|
 | **Branch** | `feat/cli` |
 | **PR** | [aip-beta#17](https://github.com/dr-wilson-empty/aip-beta/pull/17) (ready for review) |
-| **Aktif faz** | Faz 9 — README + npm publish (sırada) |
-| **Aktif iş** | — (Faz 8 `mcp` köprüsü tamamlandı) |
-| **Son commit** | `c310621` — feat(cli): Phase 7 |
+| **Aktif faz** | Faz 9 — Son polish (devam ediyor) |
+| **Aktif iş** | npm publish kullanıcı onayı bekliyor |
+| **Son commit** | `78d56a8` — feat(cli): Phase 8 |
 
 ---
 
@@ -136,16 +136,39 @@
 - [x] End-to-end smoke test (child_process üzerinden bidirectional JSON-RPC): initialize OK, tools/list OK, tools/call OK (gerçek backend verisi döndü)
 - [x] **Ertelenenler (Faz 9 polish)**: `aip_task_submit` (cüzdan kilidi açma stdio'da zor), `aip tui` (ink dashboard), `aip try` (sıfır kurulum demo)
 
-## Faz 9 — Sıradaki iş (sıralı)
+## Faz 9 — Yapılanlar / Bekleyenler
 
-- [ ] `packages/cli/README.md` polish — gerçek komut çıktılarından ekran görüntüleri/gif'ler (placeholder şu an roadmap)
-- [ ] Komut sayısı badge'ı, "Status" tablosunu Phase 0/8 → Phase 8/9 olarak güncelle
-- [ ] Cross-platform smoke test (Linux WSL ve mümkünse Windows)
-- [ ] `npm publish --dry-run` ile pre-publish kontrol
-- [ ] (Karar gerek) `@aip/cli` npm org'a erişim mi yoksa `aip-cli` (no scope) mi yayınlansın
-- [ ] aipagents.xyz sitesinde `/cli` alt sayfası — landing + komut listesi + Claude Desktop kurulumu
-- [ ] Tweet + Hacker News launch
-- [ ] `aip task submit` için MCP-uyumlu non-interaktif unlock yolu (`AIP_PASSPHRASE` env veya keyring entegrasyonu) — opsiyonel
+**Yapılanlar:**
+- [x] `packages/cli/README.md` — Status/Quick Start/Command Surface/Architecture hepsi gerçek durum (8/9, 17 komut, 58 test)
+- [x] Claude Desktop / Cursor / Cline kurulum bölümü README'ye eklendi
+- [x] `package.json` npm publish'e hazır: `git+` URL prefix, `npm pkg fix` ile bin path normalize
+- [x] `npm publish --dry-run --tag alpha` ✓ geçti — 102.7 KB tarball, 4 dosya, attestation hazır
+
+**Kullanıcıya devredilenler (CLI değişikliği gerektirmez):**
+- [ ] **`npm` org erişimi**: `@aip` scope kullanıcı namespace'i ya da org gerekiyor. Karar: `@aip/cli` mi yoksa `aip-cli` (scope'suz) mu? Bu kararı kullanıcı verecek + erişim sağlayacak
+- [ ] **Gerçek `npm publish --tag alpha`** — kullanıcının `npm login` olduğu makinede çalıştırılmalı
+- [ ] **GIF demos** — bilgisayar başında screencast çekmek + asciinema yüklemek
+- [ ] **aipagents.xyz sitesinde `/cli` alt sayfa** — landing içeriği yazımı + Vercel/Netlify deploy
+- [ ] **Tweet + Hacker News launch** — kullanıcının duyurusu
+
+**Polish/stretch (opsiyonel, ileri):**
+- [ ] Cross-platform smoke test (Ubuntu/Windows/WSL)
+- [ ] `aip try` (sıfır-kurulum demo) — ephemeral keypair + faucet
+- [ ] `aip dev` tunnel wrapper (cloudflared/localtunnel)
+- [ ] `aip tui` ink dashboard
+- [ ] `aip listen` webhook + on-chain trigger forwarder
+- [ ] `aip budget deposit/withdraw` (on-chain USDC transfer)
+- [ ] `aip_task_submit` MCP tool için non-interaktif unlock yolu
+
+---
+
+## Sayım
+
+- **Toplam komut**: 17 (3 ⏳ ertelenen: try, dev, tui, listen, deposit/withdraw)
+- **Toplam test**: 58 (15 whois + 20 wallet + 13 agents + 10 task)
+- **Build boyutu**: 117 KB minified single-file bundle
+- **Bağımlılıklar**: 11 prod (commander, chalk, ora, clack, zod, conf-free, web3.js, spl-token, bs58, mcp-sdk, boxen, did-resolver)
+- **Phase tamamlama**: 8/9 (Faz 9 polish kullanıcının el atması gereken yayın işleri)
 
 ---
 
