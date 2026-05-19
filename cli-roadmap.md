@@ -11,9 +11,9 @@
 |--|--|
 | **Branch** | `feat/cli` |
 | **PR** | [aip-beta#17](https://github.com/dr-wilson-empty/aip-beta/pull/17) (ready for review) |
-| **Aktif faz** | Faz 8 — `aip mcp` köprüsü (sırada) |
-| **Aktif iş** | — (Faz 7 `register/budget/explorer` tamamlandı) |
-| **Son commit** | `30cb20f` — feat(cli): Phase 6 |
+| **Aktif faz** | Faz 9 — README + npm publish (sırada) |
+| **Aktif iş** | — (Faz 8 `mcp` köprüsü tamamlandı) |
+| **Son commit** | `c310621` — feat(cli): Phase 7 |
 
 ---
 
@@ -30,8 +30,8 @@
 | 5b | `aip chat` REPL | ✅ Tamam |
 | 6 | `aip init` (3 template) | ✅ Tamam |
 | 7 | `aip register` / `budget info` / `explorer` | ✅ Tamam |
-| 8 | `aip mcp` / `tui` / `try` | 🟡 Sırada |
-| 9 | Polish, npm publish, launch | ⚪ Bekliyor |
+| 8 | `aip mcp` (Claude Desktop köprüsü) | ✅ Tamam |
+| 9 | Polish, README, npm publish, launch | 🟡 Sırada |
 
 ---
 
@@ -123,14 +123,29 @@
 - [x] `register` URL probe yolu Faz 2 `probeAgentCard`'ı re-use ediyor (DRY)
 - [x] **Ertelenenler (Faz 9 polish)**: `aip budget deposit/withdraw` (on-chain transfer), `aip listen` (webhook forwarder)
 
-## Faz 8 — Sıradaki iş (sıralı)
+## Faz 8 — Tamamlanan iş
 
-- [ ] `src/commands/mcp.ts` — `aip mcp` MCP server modu (stdio transport)
-- [ ] `@modelcontextprotocol/sdk` dep eklemek (parent monorepo `^1.29.0` kullanıyor)
-- [ ] Tool tanımları: `aip_agents_ls`, `aip_whois`, `aip_task_submit`, `aip_chat` (chat handle olarak değil tek-shot)
-- [ ] Each tool wraps existing CLI logic — no duplication
-- [ ] Test: MCP handshake response, tool list, dummy tool call
-- [ ] (Stretch) `aip tui` — ink-based dashboard; `aip try` — sıfır-kurulum demo
+- [x] `@modelcontextprotocol/sdk` ^1.29.0 dep eklendi (parent monorepo ile aynı versiyon)
+- [x] `src/commands/mcp.ts` — `aip mcp` MCP server, `StdioServerTransport` ile stdio modunda çalışır
+- [x] 3 tool kayıtlı (read-only, signing gerektirmeyen):
+  - `aip_agents_ls` (filtre: type, max_price_usdc, online_only, limit)
+  - `aip_agent_show` (DID ile tek agent detayı)
+  - `aip_whois` (DID veya URL — Faz 2 mantığı re-use)
+- [x] Help text Claude Desktop config snippet'ini içerir (kopyala-yapıştır kurulum)
+- [x] Stdin close / SIGINT / SIGTERM handler ile temiz shutdown
+- [x] End-to-end smoke test (child_process üzerinden bidirectional JSON-RPC): initialize OK, tools/list OK, tools/call OK (gerçek backend verisi döndü)
+- [x] **Ertelenenler (Faz 9 polish)**: `aip_task_submit` (cüzdan kilidi açma stdio'da zor), `aip tui` (ink dashboard), `aip try` (sıfır kurulum demo)
+
+## Faz 9 — Sıradaki iş (sıralı)
+
+- [ ] `packages/cli/README.md` polish — gerçek komut çıktılarından ekran görüntüleri/gif'ler (placeholder şu an roadmap)
+- [ ] Komut sayısı badge'ı, "Status" tablosunu Phase 0/8 → Phase 8/9 olarak güncelle
+- [ ] Cross-platform smoke test (Linux WSL ve mümkünse Windows)
+- [ ] `npm publish --dry-run` ile pre-publish kontrol
+- [ ] (Karar gerek) `@aip/cli` npm org'a erişim mi yoksa `aip-cli` (no scope) mi yayınlansın
+- [ ] aipagents.xyz sitesinde `/cli` alt sayfası — landing + komut listesi + Claude Desktop kurulumu
+- [ ] Tweet + Hacker News launch
+- [ ] `aip task submit` için MCP-uyumlu non-interaktif unlock yolu (`AIP_PASSPHRASE` env veya keyring entegrasyonu) — opsiyonel
 
 ---
 
