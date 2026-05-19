@@ -51,19 +51,23 @@ export class ApiClient {
     return u.toString();
   }
 
-  async get<T = unknown>(path: string, schema?: ZodTypeAny, opts: RequestOptions = {}): Promise<T> {
+  async get<S extends ZodTypeAny>(
+    path: string,
+    schema: S,
+    opts: RequestOptions = {},
+  ): Promise<z.infer<S>> {
     const res = await this.request("GET", path, opts);
-    return this.parseJson<T>(res, schema, path);
+    return this.parseJson(res, schema, path);
   }
 
-  async post<T = unknown>(
+  async post<S extends ZodTypeAny>(
     path: string,
     body: unknown,
-    schema?: ZodTypeAny,
+    schema: S,
     opts: RequestOptions = {},
-  ): Promise<T> {
+  ): Promise<z.infer<S>> {
     const res = await this.request("POST", path, { ...opts, body });
-    return this.parseJson<T>(res, schema, path);
+    return this.parseJson(res, schema, path);
   }
 
   async request(method: string, path: string, opts: RequestOptions = {}): Promise<RawResponse> {
@@ -114,7 +118,11 @@ export class ApiClient {
     }
   }
 
-  private async parseJson<T>(res: RawResponse, schema: ZodTypeAny | undefined, path: string): Promise<T> {
+  private async parseJson<S extends ZodTypeAny>(
+    res: RawResponse,
+    schema: S,
+    path: string,
+  ): Promise<z.infer<S>> {
     let payload: unknown;
     try {
       payload = await res.json();
@@ -128,7 +136,6 @@ export class ApiClient {
       const message = extractErrorMessage(payload) ?? `Request failed (status ${res.status})`;
       throw new NetworkError(message, res.status);
     }
-    if (!schema) return payload as T;
     const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       throw new ValidationError(
@@ -137,7 +144,7 @@ export class ApiClient {
           .join("; ")}`,
       );
     }
-    return parsed.data as T;
+    return parsed.data;
   }
 }
 

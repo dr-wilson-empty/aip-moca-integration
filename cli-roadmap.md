@@ -11,9 +11,9 @@
 |--|--|
 | **Branch** | `feat/cli` |
 | **PR** | [aip-beta#17](https://github.com/dr-wilson-empty/aip-beta/pull/17) (ready for review) |
-| **Aktif faz** | Faz 4 — Marketplace listeleme (sırada) |
-| **Aktif iş** | — (Faz 3 tamamlandı) |
-| **Son commit** | `129d0d7` — feat(cli): Phase 2 |
+| **Aktif faz** | Faz 5 — `chat` & `task submit` (sırada) |
+| **Aktif iş** | — (Faz 4 tamamlandı) |
+| **Son commit** | `b0ca12a` — feat(cli): Phase 3 |
 
 ---
 
@@ -25,8 +25,8 @@
 | 1 | Foundation (package, build, config, API client) | ✅ Tamam |
 | 2 | `aip whois` | ✅ Tamam |
 | 3 | `aip login` / `whoami` / `logout` | ✅ Tamam |
-| 4 | `aip agents ls` / `show` | 🟡 Sırada |
-| 5 | `aip chat` / `task submit` / `stream` | ⚪ Bekliyor |
+| 4 | `aip agents ls` / `show` | ✅ Tamam |
+| 5 | `aip chat` / `task submit` / `stream` | 🟡 Sırada |
 | 6 | `aip init` / `dev` | ⚪ Bekliyor |
 | 7 | `aip register` / `budget` / `explorer` / `listen` | ⚪ Bekliyor |
 | 8 | `aip mcp` / `tui` / `try` | ⚪ Bekliyor |
@@ -68,14 +68,27 @@
 - [x] `src/ui/wallet-report.ts` — markalı wallet kartı + login success ekranı
 - [x] `test/wallet.test.ts` — 20 test: generate, import (base58 + JSON), encrypt/decrypt round-trip, wrong passphrase, tamper detection, unique salt/IV, disk I/O round-trip, 0600 perms, NotFound, idempotent delete
 
-## Faz 4 — Sıradaki iş (sıralı)
+## Faz 4 — Tamamlanan iş
 
-- [ ] `src/core/api-client.ts`'a list/show metodları (typed)
-- [ ] `src/core/agent-types.ts` — backend list response için zod şeması (canonicalAgentDid, hosted vs on-chain)
-- [ ] `src/commands/agents.ts` — `aip agents ls` (table) + `aip agents show <did>` (rich card)
-- [ ] Filtreler: `--type Task|LLM|Execution`, `--max-price`, `--online-only`, `--limit N`
-- [ ] Cache: `~/.aip/cache/agents.json` TTL 60s (offline-friendly)
-- [ ] Test: list response parsing, filtre fonksiyonu, JSON output
+- [x] `src/core/api-client.ts` generic typing: `get<S extends ZodTypeAny>(path, schema) → Promise<z.infer<S>>`
+- [x] `src/core/agent-list.ts` — zod şemaları (Listed, ListResponse, Detail, Status), `applyFilters`, `cheapestPrice`
+- [x] `src/ui/agent-table.ts` — başlıksız ızgara tablo (cli-table3), `●/○/·` online indicator, on-chain/mcp tag chips
+- [x] `src/ui/agent-detail.ts` — rich card (status, version, endpoint, wallet, description, capability list)
+- [x] `src/commands/agents.ts` — `ls` (filter: type/max-price/online-only/limit/page/no-status/json) + `show <did>` (no-status/json)
+- [x] Friendly 404 → `aip agents ls` boş çağırıldığında "marketplace not reachable" mesajı + `AIP_API_URL` ipucu
+- [x] `test/agents.test.ts` — 13 test (şema, cheapestPrice, applyFilters: type, maxPrice, online, kombinasyon)
+- [x] Canlı smoke test: 6 agent listelendi, filtre çalışıyor, show ve JSON çıktısı temiz (localhost:3000 üzerinden)
+
+## Faz 5 — Sıradaki iş (sıralı)
+
+- [ ] `src/core/x402.ts` — x402 protokolü için ödeme header'ı kodlama/çözme, escrow tx oluşturma yardımcısı
+- [ ] `src/core/session.ts` — wallet signature ile auth session (Ed25519, 24h TTL); session cache `~/.aip/session.json`
+- [ ] `src/core/sse.ts` — SSE stream consumer (event/data parse, abort, reconnect)
+- [ ] `src/commands/task.ts` — `aip task submit <did> --capability X --input Y`, `--input-file`, `--wait`, `--json`
+- [ ] `src/commands/task.ts` — `aip task status <id>`, `aip task stream <id>`
+- [ ] `src/commands/chat.ts` — interaktif REPL: prompt loop, slash commands (`/exit`, `/save`, `/clear`), her turda x402 ödeme + SSE
+- [ ] Wallet unlock: ihtiyaç anında passphrase prompt, single-command için unlock cache (in-memory)
+- [ ] Test: x402 header serialize/deserialize, SSE event parser, session expiry
 
 ---
 
@@ -100,6 +113,9 @@
 | Keystore yolu | `~/.aip/keystore.json` (0600) |
 | Logout default davranışı | Hiçbir şey silmez — `--purge` gerekli + interaktif onay |
 | `aip login` passphrase | min 8 char, iki kez girilir, `--passphrase` flag yok (shell history güvenliği) |
+| API client tiplemesi | `get<S extends ZodTypeAny>` — schema'dan tip türetir, raw response için ayrı `request()` |
+| `agents ls` cache | Faz 9 polish — şu an her çağrı freshes, 60s cache uygulanabilir |
+| Cheapest-price filter | Bir capability USDC eşiği ≤ ise dahil; tüm caps eşiği aşmalı dışlamak için değil |
 
 ---
 
