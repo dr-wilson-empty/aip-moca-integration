@@ -99,18 +99,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({
-    did: "did:aip:platform:web-search",
-    name: "Web Search Agent",
-    version: "5.0.0",
-    endpoint: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/web/agent`,
-    type: "Task",
-    capabilities: [{
-      id: "web.search",
-      description: "Web Search",
-      pricing: { amount: "0.02", token: "USDC", network: "solana" },
-    }],
-  });
+  const { getWebSearchAgent } = await import("@/lib/mock/agentCards");
+  return NextResponse.json(getWebSearchAgent());
 }
 
 /* ------------------------------------------------------------------ */

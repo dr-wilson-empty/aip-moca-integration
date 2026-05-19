@@ -19,7 +19,7 @@ let _authorityKeypair: Keypair | null = null;
  * ESCROW_PRIVATE_KEY: base58 encoded — Phase 1'deki escrow wallet,
  * simdi PDA escrow'lar icin "authority" rolunde.
  */
-function getAuthorityKeypair(): Keypair {
+export function getAuthorityKeypair(): Keypair {
   if (_authorityKeypair) return _authorityKeypair;
 
   const key = process.env.ESCROW_PRIVATE_KEY;

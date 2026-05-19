@@ -4,6 +4,7 @@ import { fetchAgentsByOwner, deriveAgentRecordPDA } from "@/lib/solana/registry-
 import { getHostedAgentsByOwner } from "@/lib/hosted-agents";
 import { dbGetUIRegisteredDids, dbMarkAgentUIRegistered } from "@/lib/supabase/db";
 import type { MyAgentEntry, RegistrationSource, Capability } from "@/types/aip";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 
 const AGENT_TYPE_REVERSE: Record<number, string> = { 0: "LLM", 1: "Task", 2: "Execution" };
 
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       const onChainMatch = onChainRecords.find((r) => r.agentId === config.agentId);
 
       agents.push({
-        did: onChainMatch?.did ?? `did:aip:${config.ownerAddress.slice(0, 8)}:${config.agentId}`,
+        did: onChainMatch?.did ?? canonicalAgentDid(config.ownerAddress, config.agentId),
         name: config.name,
         version: "1.0.0",
         endpoint: `/api/hosted-agent?agentId=${config.agentId}`,
@@ -57,8 +58,15 @@ export async function GET(request: NextRequest) {
     for (const record of onChainRecords) {
       if (seenAgentIds.has(record.agentId)) continue;
 
-      let capabilities: Capability[] = [];
-      try { capabilities = JSON.parse(record.capabilitiesJson); } catch { /* skip */ }
+      // record.capabilities is decoded as Vec<{name, description}> from the
+      // registry program; the marketplace Capability shape needs an id and
+      // pricing — pricing lives off-chain, so surface base price_per_task.
+      const usdcPrice = (Number(record.pricePerTask) / 1_000_000).toFixed(2);
+      const capabilities: Capability[] = record.capabilities.map((c) => ({
+        id: c.name,
+        description: c.description,
+        pricing: { amount: usdcPrice, token: "USDC" as const, network: "solana" as const },
+      }));
 
       const source: RegistrationSource = uiRegisteredDids.has(record.did) ? "ui" : "external";
 

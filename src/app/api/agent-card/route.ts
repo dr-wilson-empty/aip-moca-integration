@@ -10,6 +10,7 @@ import {
 import { verifyDID } from "@/lib/identity/did";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { listHostedAgents, getHostedAgent, loadHostedAgentsFromDb } from "@/lib/hosted-agents";
+import { fetchAllOnChainAgents } from "@/lib/solana/registry-program";
 import { isDefaultOrchestrator } from "@/lib/orchestrator/default-orchestrator";
 
 // Demo ajanlarini yukle
@@ -27,15 +28,21 @@ export async function GET(request: NextRequest) {
   const list = request.nextUrl.searchParams.get("list");
 
   if (list === "true") {
-    // Sync from chain (await to get latest data)
+    // Sync from chain (await to get latest data) + collect fresh on-chain
+    // DIDs so the `onChain` flag below reflects actual program state
+    // rather than just DID prefix.
     await syncFromChain().catch(() => {});
+    const onChainDids = new Set<string>();
+    try {
+      for (const c of await fetchAllOnChainAgents()) onChainDids.add(c.did);
+    } catch { /* network blip — fall through with empty set */ }
 
     const agents = listCards();
 
     // Deduplicate by name — prefer hosted (platform) version over on-chain legacy
     const byName = new Map<string, typeof agents[0] & { onChain: boolean }>();
     for (const card of agents) {
-      const isOnChain = card.did.startsWith("did:aip:");
+      const isOnChain = onChainDids.has(card.did);
       const isHosted = card.endpoint.includes("/api/hosted-agent") || card.endpoint.includes("/api/web/agent");
       const existing = byName.get(card.name);
       // Prefer hosted version (current platform) over on-chain legacy (old localhost endpoints)
@@ -44,8 +51,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filter out private/orchestrator/deactivated hosted agents
-    await loadHostedAgentsFromDb();
+    // Force-refresh hosted_agents cache so deactivated rows disappear
+    // from the marketplace listing without requiring a server restart.
+    await loadHostedAgentsFromDb({ force: true });
     const privateAgentIds = new Set(
       listHostedAgents().filter((a) => a.isPublic === false).map((a) => a.agentId)
     );

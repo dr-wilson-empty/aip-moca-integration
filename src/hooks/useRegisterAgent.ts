@@ -9,6 +9,17 @@ import {
   TransactionInstruction,
   SystemProgram,
 } from "@solana/web3.js";
+import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+
+/**
+ * On-chain agent registry — browser-side instruction builder.
+ *
+ * Schema MUST stay in sync with:
+ *   - programs/aip-escrow/programs/aip-registry/src/lib.rs (Rust source of truth)
+ *   - src/lib/solana/registry-program.ts (server)
+ *   - packages/cli/src/core/registry.ts (CLI)
+ *   - packages/did-resolver/src/borsh.ts (read-side reference)
+ */
 
 const REGISTRY_PROGRAM_ID = new PublicKey(
   "CgchXu2dRV3r9E1YjRhp4kbeLLtv1Xz61yoerJzp1Vbc"
@@ -20,9 +31,7 @@ const DISCRIMINATORS = {
   deregister: Buffer.from([227, 208, 166, 164, 48, 69, 111, 1]),
 };
 
-/* ------------------------------------------------------------------ */
-/*  Borsh helpers                                                      */
-/* ------------------------------------------------------------------ */
+/* ---- Borsh helpers ---- */
 
 function borshString(s: string): Buffer {
   const utf8 = Buffer.from(s, "utf8");
@@ -32,11 +41,32 @@ function borshString(s: string): Buffer {
 }
 
 function borshU8(n: number): Buffer { return Buffer.from([n]); }
+
+function borshU64(n: bigint): Buffer {
+  const b = Buffer.alloc(8);
+  b.writeBigUInt64LE(n, 0);
+  return b;
+}
+
 function borshPubkey(pk: PublicKey): Buffer { return pk.toBuffer(); }
 
-/* ------------------------------------------------------------------ */
-/*  PDA + DID                                                          */
-/* ------------------------------------------------------------------ */
+interface OnChainCapability {
+  name: string;        // ≤ 32 chars
+  description: string; // ≤ 64 chars
+}
+
+function borshCapabilities(caps: OnChainCapability[]): Buffer {
+  const count = Buffer.alloc(4);
+  count.writeUInt32LE(caps.length, 0);
+  const parts: Buffer[] = [count];
+  for (const cap of caps) {
+    parts.push(borshString(cap.name));
+    parts.push(borshString(cap.description));
+  }
+  return Buffer.concat(parts);
+}
+
+/* ---- PDA ---- */
 
 function derivePDA(owner: PublicKey, agentId: string): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
@@ -46,15 +76,31 @@ function derivePDA(owner: PublicKey, agentId: string): PublicKey {
   return pda;
 }
 
-import { canonicalAgentDid } from "@/lib/identity/canonical-did";
+/* ---- AgentCard capabilities → on-chain ---- */
 
-function generateDid(ownerPubkey: string, agentId: string): string {
-  return canonicalAgentDid(ownerPubkey, agentId);
+function toOnChainCapabilities(
+  caps: Array<{ id: string; description: string; pricing: { amount: string; token: string; network: string } }>
+): OnChainCapability[] {
+  return caps.slice(0, 8).map((c) => ({
+    name: c.id.slice(0, 32),
+    description: c.description.slice(0, 64),
+  }));
 }
 
-/* ------------------------------------------------------------------ */
-/*  Shared sign + send                                                 */
-/* ------------------------------------------------------------------ */
+function derivePricePerTask(
+  caps: Array<{ pricing?: { amount?: string } }>
+): bigint {
+  if (caps.length === 0) return BigInt(0);
+  let min: number | null = null;
+  for (const cap of caps) {
+    const n = Number(cap.pricing?.amount ?? 0);
+    if (Number.isFinite(n) && (min === null || n < min)) min = n;
+  }
+  if (min === null || min <= 0) return BigInt(0);
+  return BigInt(Math.round(min * 1_000_000));
+}
+
+/* ---- Shared sign + send ---- */
 
 async function signAndSend(
   tx: Transaction,
@@ -70,9 +116,7 @@ async function signAndSend(
   return signature;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
+/* ---- Types ---- */
 
 export interface AgentParams {
   agentId: string; // unique slug, immutable
@@ -104,9 +148,10 @@ export function useAgentRegistry() {
       if (!publicKey || !signTransaction) { setError("Wallet not connected"); return null; }
       setLoading(true); setError(null);
       try {
-        const did = generateDid(publicKey.toBase58(), params.agentId);
+        const did = canonicalAgentDid(publicKey.toBase58(), params.agentId);
         const pda = derivePDA(publicKey, params.agentId);
-        const capabilitiesJson = JSON.stringify(params.capabilities);
+        const onChainCaps = toOnChainCapabilities(params.capabilities);
+        const pricePerTask = derivePricePerTask(params.capabilities);
 
         const data = Buffer.concat([
           DISCRIMINATORS.register,
@@ -116,7 +161,8 @@ export function useAgentRegistry() {
           borshString(params.endpoint),
           borshPubkey(new PublicKey(params.walletAddress)),
           borshU8(params.agentType),
-          borshString(capabilitiesJson),
+          borshCapabilities(onChainCaps),
+          borshU64(pricePerTask),
           borshString(params.version),
         ]);
 
@@ -153,7 +199,8 @@ export function useAgentRegistry() {
       setLoading(true); setError(null);
       try {
         const pda = derivePDA(publicKey, params.agentId);
-        const capabilitiesJson = JSON.stringify(params.capabilities);
+        const onChainCaps = toOnChainCapabilities(params.capabilities);
+        const pricePerTask = derivePricePerTask(params.capabilities);
 
         const data = Buffer.concat([
           DISCRIMINATORS.update,
@@ -161,7 +208,8 @@ export function useAgentRegistry() {
           borshString(params.endpoint),
           borshPubkey(new PublicKey(params.walletAddress)),
           borshU8(params.agentType),
-          borshString(capabilitiesJson),
+          borshCapabilities(onChainCaps),
+          borshU64(pricePerTask),
           borshString(params.version),
         ]);
 

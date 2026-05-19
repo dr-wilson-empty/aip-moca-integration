@@ -3,18 +3,26 @@ import { registerCard, syncFromChain } from "./agent-card-store";
 import { loadHostedAgentsFromDb, listHostedAgents, registerHostedAgent, getHostedAgent } from "@/lib/hosted-agents";
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 import { getAppUrl } from "@/lib/config/app-url";
-import { getAuthorityAddress } from "@/lib/payment/escrow";
+import { getAuthorityAddress, getAuthorityKeypair } from "@/lib/payment/escrow";
+import {
+  isAgentOnChain,
+  registerAgentOnChain,
+} from "@/lib/solana/registry-program";
+import type { AgentCard } from "@/types/aip";
 
 const gs = globalThis as typeof globalThis & {
   __aip_seeded?: boolean;
   __aip_chain_registered?: boolean;
+  __aip_onchain_seed_inflight?: Promise<void>;
 };
 let seeded = gs.__aip_seeded ?? false;
 
 /**
  * Seed platform agents + hosted agents from Supabase.
  * Demo agents (Summary, Data, Audit) are registered as hosted agents
- * so they run through the same /api/hosted-agent endpoint.
+ * so they run through the same /api/hosted-agent endpoint, and as of
+ * Önkoşul 0 / Modül B they are ALSO registered on-chain (idempotent —
+ * skips PDAs that already exist).
  */
 export function seedDemoAgents(): void {
   if (seeded) return;
@@ -87,4 +95,49 @@ export function seedDemoAgents(): void {
     gs.__aip_chain_registered = true;
     syncFromChain().catch(() => {});
   }
+
+  // Register demo agents on-chain (idempotent, background, single-flight).
+  if (!gs.__aip_onchain_seed_inflight) {
+    gs.__aip_onchain_seed_inflight = registerDemoAgentsOnChain(demoAgents).catch((err) => {
+      console.warn("[seed-agents] on-chain registration failed:", err?.message ?? err);
+    });
+  }
+}
+
+/**
+ * Register hosted demo agents on the AIP registry program if they
+ * aren't already there. Designed to be safe to call on every server
+ * boot: each PDA existence is checked first, and any failure on one
+ * agent doesn't abort the others.
+ *
+ * Requires `ESCROW_PRIVATE_KEY` — the platform authority signs and
+ * pays rent (≈0.0009 SOL per PDA on devnet).
+ */
+async function registerDemoAgentsOnChain(demoAgents: Record<string, AgentCard>): Promise<void> {
+  console.log("[seed-agents] starting on-chain registration check…");
+  let authorityKp;
+  try {
+    authorityKp = getAuthorityKeypair();
+  } catch (err) {
+    console.warn("[seed-agents] no authority keypair available:", err instanceof Error ? err.message : err);
+    return;
+  }
+  const ownerPubkey = authorityKp.publicKey.toBase58();
+  console.log(`[seed-agents] authority ${ownerPubkey}, checking ${Object.keys(demoAgents).length} agents…`);
+
+  for (const [agentId, card] of Object.entries(demoAgents)) {
+    try {
+      if (await isAgentOnChain(ownerPubkey, agentId)) {
+        console.log(`[seed-agents] ${agentId} already on-chain — skip`);
+        continue;
+      }
+      console.log(`[seed-agents] registering ${agentId}…`);
+      const sig = await registerAgentOnChain(authorityKp, agentId, card);
+      console.log(`[seed-agents] on-chain registered ${agentId} → tx ${sig}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[seed-agents] failed to register ${agentId} on-chain: ${msg}`);
+    }
+  }
+  console.log("[seed-agents] on-chain registration pass complete.");
 }

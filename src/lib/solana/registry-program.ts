@@ -2,6 +2,10 @@
  * AIP Agent Registry Program — TypeScript client.
  * One wallet can register multiple agents, each with a unique agent_id.
  * PDA seeds: ["agent", owner_pubkey, agent_id_bytes]
+ *
+ * Schema MUST stay in sync with:
+ *   - programs/aip-escrow/programs/aip-registry/src/lib.rs (Rust source of truth)
+ *   - packages/did-resolver/src/borsh.ts (read-side reference implementation)
  */
 import {
   PublicKey,
@@ -12,7 +16,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { getConnection } from "./connection";
-import type { AgentCard } from "@/types/aip";
+import type { AgentCard, Capability as AgentCardCapability } from "@/types/aip";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -39,7 +43,6 @@ const AGENT_TYPE_REVERSE: Record<number, string> = { 0: "LLM", 1: "Task", 2: "Ex
 
 import { canonicalAgentDid } from "@/lib/identity/canonical-did";
 
-/** Generate a deterministic DID from owner + agent_id */
 export function generateDid(ownerPubkey: string, agentId: string): string {
   return canonicalAgentDid(ownerPubkey, agentId);
 }
@@ -50,6 +53,43 @@ export function deriveAgentRecordPDA(owner: PublicKey, agentId: string): [Public
     [Buffer.from("agent"), owner.toBuffer(), Buffer.from(agentId)],
     REGISTRY_PROGRAM_ID
   );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Program-side Capability (matches Rust struct)                     */
+/*  Note: AgentCard.capabilities (web type) has {id, description,     */
+/*  pricing}. On-chain stores only {name, description} per the Rust   */
+/*  struct — pricing lives off-chain in the Agent Card.               */
+/* ------------------------------------------------------------------ */
+
+export interface OnChainCapability {
+  name: string;        // ≤ 32 chars
+  description: string; // ≤ 64 chars
+}
+
+function toOnChainCapabilities(caps: AgentCardCapability[]): OnChainCapability[] {
+  return caps.slice(0, 8).map((c) => ({
+    name: c.id.slice(0, 32),
+    description: c.description.slice(0, 64),
+  }));
+}
+
+/**
+ * Derive a single base price (in USDC micro-units) for the on-chain
+ * `price_per_task` field. The marketplace keeps per-capability pricing
+ * off-chain in the Agent Card — this is a single representative figure
+ * used by the registry account. We take the minimum across capabilities
+ * (cheapest entry point) and convert "USDC" string → u64 micro-USDC.
+ */
+function derivePricePerTask(caps: AgentCardCapability[]): bigint {
+  if (caps.length === 0) return BigInt(0);
+  let min: number | null = null;
+  for (const cap of caps) {
+    const n = Number(cap.pricing?.amount ?? 0);
+    if (Number.isFinite(n) && (min === null || n < min)) min = n;
+  }
+  if (min === null || min <= 0) return BigInt(0);
+  return BigInt(Math.round(min * 1_000_000));
 }
 
 /* ------------------------------------------------------------------ */
@@ -67,12 +107,30 @@ function borshU8(n: number): Buffer {
   return Buffer.from([n]);
 }
 
+function borshU64(n: bigint): Buffer {
+  const b = Buffer.alloc(8);
+  b.writeBigUInt64LE(n, 0);
+  return b;
+}
+
 function borshPubkey(pk: PublicKey): Buffer {
   return pk.toBuffer();
 }
 
+function borshCapabilities(caps: OnChainCapability[]): Buffer {
+  const count = Buffer.alloc(4);
+  count.writeUInt32LE(caps.length, 0);
+  const parts: Buffer[] = [count];
+  for (const cap of caps) {
+    parts.push(borshString(cap.name));
+    parts.push(borshString(cap.description));
+  }
+  return Buffer.concat(parts);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Instruction Builders                                                */
+/*  Argument order MUST match programs/aip-escrow/.../lib.rs           */
 /* ------------------------------------------------------------------ */
 
 export function buildRegisterAgentIx(params: {
@@ -83,7 +141,8 @@ export function buildRegisterAgentIx(params: {
   endpoint: string;
   walletAddress: PublicKey;
   agentType: number;
-  capabilitiesJson: string;
+  capabilities: OnChainCapability[];
+  pricePerTask: bigint;
   version: string;
 }): TransactionInstruction {
   const [agentRecord] = deriveAgentRecordPDA(params.owner, params.agentId);
@@ -96,7 +155,8 @@ export function buildRegisterAgentIx(params: {
     borshString(params.endpoint),
     borshPubkey(params.walletAddress),
     borshU8(params.agentType),
-    borshString(params.capabilitiesJson),
+    borshCapabilities(params.capabilities),
+    borshU64(params.pricePerTask),
     borshString(params.version),
   ]);
 
@@ -118,7 +178,8 @@ export function buildUpdateAgentIx(params: {
   endpoint: string;
   walletAddress: PublicKey;
   agentType: number;
-  capabilitiesJson: string;
+  capabilities: OnChainCapability[];
+  pricePerTask: bigint;
   version: string;
 }): TransactionInstruction {
   const [agentRecord] = deriveAgentRecordPDA(params.owner, params.agentId);
@@ -129,7 +190,8 @@ export function buildUpdateAgentIx(params: {
     borshString(params.endpoint),
     borshPubkey(params.walletAddress),
     borshU8(params.agentType),
-    borshString(params.capabilitiesJson),
+    borshCapabilities(params.capabilities),
+    borshU64(params.pricePerTask),
     borshString(params.version),
   ]);
 
@@ -160,7 +222,8 @@ export function buildDeregisterAgentIx(params: {
 }
 
 /* ------------------------------------------------------------------ */
-/*  On-chain Query                                                     */
+/*  On-chain Decoder                                                   */
+/*  Mirror of packages/did-resolver/src/borsh.ts — keep in sync.       */
 /* ------------------------------------------------------------------ */
 
 function readBorshString(buf: Buffer, offset: number): { value: string; newOffset: number } {
@@ -177,15 +240,21 @@ export interface ParsedAgentRecord {
   endpoint: string;
   walletAddress: string;
   agentType: number;
-  capabilitiesJson: string;
+  capabilities: OnChainCapability[];
+  pricePerTask: bigint;
   version: string;
   registeredAt: number;
   updatedAt: number;
+  bump: number;
 }
 
 function parseAgentRecord(data: Buffer): ParsedAgentRecord | null {
   try {
-    let offset = 8; // skip discriminator
+    // Verify Anchor account discriminator
+    for (let i = 0; i < 8; i++) {
+      if (data[i] !== AGENT_RECORD_DISCRIMINATOR[i]) return null;
+    }
+    let offset = 8;
 
     const owner = new PublicKey(data.subarray(offset, offset + 32)).toBase58();
     offset += 32;
@@ -208,8 +277,17 @@ function parseAgentRecord(data: Buffer): ParsedAgentRecord | null {
     const agentType = data[offset];
     offset += 1;
 
-    const capabilitiesJson = readBorshString(data, offset);
-    offset = capabilitiesJson.newOffset;
+    const capCount = data.readUInt32LE(offset);
+    offset += 4;
+    const capabilities: OnChainCapability[] = [];
+    for (let i = 0; i < capCount; i++) {
+      const n = readBorshString(data, offset); offset = n.newOffset;
+      const d = readBorshString(data, offset); offset = d.newOffset;
+      capabilities.push({ name: n.value, description: d.value });
+    }
+
+    const pricePerTask = data.readBigUInt64LE(offset);
+    offset += 8;
 
     const version = readBorshString(data, offset);
     offset = version.newOffset;
@@ -217,6 +295,9 @@ function parseAgentRecord(data: Buffer): ParsedAgentRecord | null {
     const registeredAt = Number(data.readBigInt64LE(offset));
     offset += 8;
     const updatedAt = Number(data.readBigInt64LE(offset));
+    offset += 8;
+
+    const bump = data[offset];
 
     return {
       owner,
@@ -226,19 +307,33 @@ function parseAgentRecord(data: Buffer): ParsedAgentRecord | null {
       endpoint: endpoint.value,
       walletAddress,
       agentType,
-      capabilitiesJson: capabilitiesJson.value,
+      capabilities,
+      pricePerTask,
       version: version.value,
       registeredAt,
       updatedAt,
+      bump,
     };
   } catch {
     return null;
   }
 }
 
+/**
+ * Hosted demo agents store a sentinel pricing entry off-chain (per
+ * capability). On-chain we only retain one base price; when converting
+ * back to a UI Agent Card we surface this as a single representative
+ * capability pricing line. Real per-capability pricing must be fetched
+ * from the agent's own /.well-known/agent.json.
+ */
 function recordToAgentCard(record: ParsedAgentRecord): AgentCard | null {
   try {
-    const capabilities = JSON.parse(record.capabilitiesJson);
+    const usdc = (Number(record.pricePerTask) / 1_000_000).toFixed(2);
+    const capabilities: AgentCardCapability[] = record.capabilities.map((c) => ({
+      id: c.name,
+      description: c.description,
+      pricing: { amount: usdc, token: "USDC" as const, network: "solana" as const },
+    }));
     return {
       did: record.did,
       name: record.name,
@@ -266,7 +361,6 @@ export async function fetchAllOnChainAgents(): Promise<(AgentCard & { onChain: b
   for (const { account } of accounts) {
     const record = parseAgentRecord(Buffer.from(account.data));
     if (!record) continue;
-    // Skip old-format records (pre agent_id migration)
     if (!record.did.startsWith("did:aip:")) continue;
     const card = recordToAgentCard(record);
     if (card) {
@@ -281,8 +375,6 @@ export async function fetchAgentsByOwner(ownerPubkey: string): Promise<(ParsedAg
   const connection = getConnection();
   const ownerBytes = new PublicKey(ownerPubkey).toBuffer();
 
-  // memcmp offset 0: 8-byte account discriminator (Anchor adds this automatically)
-  // memcmp offset 8: 32-byte owner pubkey (first field in AgentRecord after discriminator)
   const accounts = await connection.getProgramAccounts(REGISTRY_PROGRAM_ID, {
     filters: [
       { memcmp: { offset: 0, bytes: AGENT_RECORD_DISCRIMINATOR.toString("base64"), encoding: "base64" } },
@@ -308,7 +400,6 @@ export async function isAgentOnChain(ownerPubkey: string, agentId: string): Prom
   return account !== null;
 }
 
-// Legacy compat — check by DID (scans all accounts)
 export async function isAgentOnChainByDid(did: string): Promise<boolean> {
   const all = await fetchAllOnChainAgents();
   return all.some((a) => a.did === did);
@@ -324,7 +415,6 @@ export async function registerAgentOnChain(
   card: AgentCard
 ): Promise<string> {
   const connection = getConnection();
-  const capabilitiesJson = JSON.stringify(card.capabilities);
   const agentType = AGENT_TYPE_MAP[card.type] ?? 1;
   const did = generateDid(ownerKeypair.publicKey.toBase58(), agentId);
 
@@ -338,10 +428,14 @@ export async function registerAgentOnChain(
       ? new PublicKey(card.walletAddress)
       : ownerKeypair.publicKey,
     agentType,
-    capabilitiesJson,
+    capabilities: toOnChainCapabilities(card.capabilities),
+    pricePerTask: derivePricePerTask(card.capabilities),
     version: card.version,
   });
 
   const tx = new Transaction().add(ix);
   return sendAndConfirmTransaction(connection, tx, [ownerKeypair]);
 }
+
+/** Helpers exposed for callers building tx client-side (CLI/UI). */
+export { toOnChainCapabilities, derivePricePerTask };

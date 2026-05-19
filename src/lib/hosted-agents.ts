@@ -121,15 +121,31 @@ function toRow(config: HostedAgentConfig): DbHostedAgent {
   };
 }
 
-/** Load all hosted agents from Supabase into cache (called once on startup) */
-export async function loadHostedAgentsFromDb(): Promise<void> {
-  if (g.__aip_hosted_loaded && store.size > 0) return;
+/**
+ * Load hosted agents from Supabase into cache. By default this is a
+ * one-time bootstrap (skipped if the cache is already populated) so
+ * cold-start latency stays low. Pass `{ force: true }` to force a
+ * fresh read — useful for marketplace listing endpoints where stale
+ * `active=false` rows would otherwise still appear in the cache.
+ */
+export async function loadHostedAgentsFromDb(opts: { force?: boolean } = {}): Promise<void> {
+  if (!opts.force && g.__aip_hosted_loaded && store.size > 0) return;
   try {
     const sb = getSupabase();
     const { data } = await sb.from("hosted_agents").select("*").eq("active", true);
     if (data) {
+      // Rebuild from scratch so deactivated rows are evicted on force-reload
+      if (opts.force) store.clear();
+      const activeIds = new Set<string>();
       for (const row of data as DbHostedAgent[]) {
         store.set(row.agent_id, toConfig(row));
+        activeIds.add(row.agent_id);
+      }
+      if (opts.force) {
+        // Drop any in-memory entries that no longer correspond to an active DB row
+        for (const id of Array.from(store.keys())) {
+          if (!activeIds.has(id)) store.delete(id);
+        }
       }
     }
     g.__aip_hosted_loaded = true;
@@ -147,8 +163,18 @@ export async function registerHostedAgent(config: HostedAgentConfig): Promise<vo
   store.set(config.agentId, config);
   try {
     const sb = getSupabase();
-    await sb.from("hosted_agents").upsert(toRow(config), { onConflict: "agent_id" });
-  } catch { /* non-blocking */ }
+    const { error } = await sb.from("hosted_agents").upsert(toRow(config), { onConflict: "agent_id" });
+    if (error) {
+      // Non-throwing on purpose — the in-memory cache is already updated and
+      // serving the agent works for the lifetime of the process. The most
+      // common cause is a missing schema column (e.g. mcp_servers before the
+      // 2026-05-20 migration). Surface the error so operators see it instead
+      // of the previous silent swallow.
+      console.error(`[hosted-agents] Supabase upsert failed for ${config.agentId}: ${error.message} — agent will not survive a restart. Apply sql/2026-05-20-add-mcp-servers-column.sql if the message mentions a missing column.`);
+    }
+  } catch (err) {
+    console.error(`[hosted-agents] unexpected error registering ${config.agentId}:`, err);
+  }
 }
 
 export function getHostedAgent(agentId: string): HostedAgentConfig | null {
