@@ -11,9 +11,9 @@
 |--|--|
 | **Branch** | `feat/cli` |
 | **PR** | [aip-beta#17](https://github.com/dr-wilson-empty/aip-beta/pull/17) (ready for review) |
-| **Aktif faz** | Faz 6 — `aip init/dev` (sırada) |
-| **Aktif iş** | — (Faz 5b `chat` REPL tamamlandı) |
-| **Son commit** | `23ade4f` — feat(cli): Phase 5a |
+| **Aktif faz** | Faz 7 — `register/budget/explorer` (sırada) |
+| **Aktif iş** | — (Faz 6 `init` tamamlandı) |
+| **Son commit** | `af80bb7` — feat(cli): Phase 5b |
 
 ---
 
@@ -28,8 +28,8 @@
 | 4 | `aip agents ls` / `show` | ✅ Tamam |
 | 5a | `aip task submit` / `status` / `stream` (x402 + SSE) | ✅ Tamam |
 | 5b | `aip chat` REPL | ✅ Tamam |
-| 6 | `aip init` / `dev` | 🟡 Sırada |
-| 7 | `aip register` / `budget` / `explorer` / `listen` | ⚪ Bekliyor |
+| 6 | `aip init` (3 template) | ✅ Tamam |
+| 7 | `aip register` / `budget` / `explorer` / `listen` | 🟡 Sırada |
 | 8 | `aip mcp` / `tui` / `try` | ⚪ Bekliyor |
 | 9 | Polish, npm publish, launch | ⚪ Bekliyor |
 
@@ -104,13 +104,24 @@
 - [x] Slash `/save <path>` ile manuel export, `/cost` ile toplam USDC, `/clear` ekranı temizler ve header'ı yeniden yazar
 - [x] Non-TTY çağrı reddediliyor (script kullanıcılarını `aip task submit`'e yönlendirir)
 
-## Faz 6 — Sıradaki iş (sıralı)
+## Faz 6 — Tamamlanan iş
 
-- [ ] `src/commands/init.ts` — `aip init <name>` template seç (translator/summarizer/custom) → klasör + package.json + minimal SDK kullanan src/index.ts
-- [ ] Template'ler `@aip/agent-sdk`'yı kullansın (parent monorepo'daki paket); copy değil reference
-- [ ] `src/commands/dev.ts` — `aip dev` local agent'ı tunnel ile expose et (localtunnel veya cloudflared)
-- [ ] AgentCard linter: scaffold sonrası `/.well-known/agent.json` cevabını doğrula
-- [ ] Test: scaffold template validity, dev tunnel mock
+- [x] `src/commands/init.ts` — `aip init <name>` interaktif clack picker (echo / translator / summarizer) + non-interaktif flag (`--template`, `--port`, `--wallet`, `--force`)
+- [x] Üç template (echo: AI-bağımsız, translator: Haiku, summarizer: Haiku) — hepsi `aip-agent-sdk` üzerinden konuşur
+- [x] Tam proje iskeleti: `package.json`, `tsconfig.json`, `.gitignore`, `.env.example`, `README.md`, `src/index.ts`
+- [x] Akıllı varsayılanlar: dir adı slug → human name + kebab package name; non-TTY mode'da güvenli defaults
+- [x] Varolan dizin reddi + `--force` ile overwrite; sonraki adımları markalı bir başarı kartı ile yazar
+- [x] AI-template'ler için `.env.example` `ANTHROPIC_API_KEY` ister, echo template istemez (next-steps de buna uyumlu)
+- [x] `aip dev` (tunnel) Faz 9 polish'e ertelendi — yerel test için scaffold'ın README'si `cloudflared tunnel --url` ipucu veriyor
+
+## Faz 7 — Sıradaki iş (sıralı)
+
+- [ ] `src/core/registry.ts` — Anchor `register_agent` IDL'i + instruction builder (Phase 2 `did-resolver`'ın okuma tarafı zaten var, biz yazma tarafı ekliyoruz)
+- [ ] `src/commands/register.ts` — local agent'ın AgentCard'ını okur (`./aip-agent.json` veya `--card-file`), wallet ile imzalar, on-chain `register_agent` instruction'ı atar
+- [ ] `src/commands/budget.ts` — `deposit | withdraw | info` — POST `/api/budget` ile orchestrator budget yönetimi
+- [ ] `src/commands/explorer.ts` — tx/address için Solana Explorer URL üretir (`--open` ile tarayıcıda aç)
+- [ ] `src/commands/listen.ts` — Stripe-CLI tarzı: on-chain trigger + webhook'ları local URL'e forward eder
+- [ ] Test: register payload validation, budget RPC stub, explorer URL formatting
 
 ---
 

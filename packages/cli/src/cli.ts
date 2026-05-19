@@ -11,6 +11,7 @@ import { logoutCommand } from "./commands/logout.js";
 import { agentsCommand } from "./commands/agents.js";
 import { taskCommand } from "./commands/task.js";
 import { chatCommand } from "./commands/chat.js";
+import { initCommand } from "./commands/init.js";
 import { welcome } from "./ui/banner.js";
 
 class AipHelp extends Help {
@@ -75,6 +76,7 @@ export function buildProgram(): Command {
   program.addCommand(agentsCommand());
   program.addCommand(chatCommand());
   program.addCommand(taskCommand());
+  program.addCommand(initCommand());
   program.addCommand(whoisCommand());
   program.addCommand(configCommand());
   applyHelpRecursively(program);
