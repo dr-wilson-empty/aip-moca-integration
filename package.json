@@ -4,11 +4,11 @@
   "description": "Agent Internet Protocol — Frontend PoC",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "[ -z \"$ANTHROPIC_API_KEY\" ] && unset ANTHROPIC_API_KEY ; next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "[ -z \"$ANTHROPIC_API_KEY\" ] && unset ANTHROPIC_API_KEY ; next start",
     "lint": "next lint",
-    "agents": "cd packages/agents && npx tsx src/start.ts",
+    "agents": "[ -z \"$ANTHROPIC_API_KEY\" ] && unset ANTHROPIC_API_KEY ; cd packages/agents && npx tsx src/start.ts",
     "dev:full": "concurrently \"npm run dev\" \"npm run agents\"",
     "test": "vitest run",
     "test:watch": "vitest"
