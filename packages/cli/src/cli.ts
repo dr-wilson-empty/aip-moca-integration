@@ -40,11 +40,11 @@ class AipHelp extends Help {
 
     const lines: string[] = [];
     lines.push("");
-    // Header reads "AIP · <description>". We hand-capitalise the name
-    // because Commander's cmd.name() is the lowercase binary name and
-    // we want the brand mark uppercase in user-facing chrome.
-    const heading = cmd.parent ? c.brandBold("aip") : c.brandBold("AIP");
-    lines.push(`  ${heading} ${c.dim(glyph.dot)} ${c.dim(cmd.description() || "")}`);
+    // Header reads "AIP · <description>" everywhere (root help and
+    // sub-command help). Commander's cmd.name() is the lowercase
+    // binary name; the brand mark is uppercase in all user-facing
+    // chrome so we hand-write it instead of using cmd.name().
+    lines.push(`  ${c.brandBold("AIP")} ${c.dim(glyph.dot)} ${c.dim(cmd.description() || "")}`);
     lines.push("");
     lines.push(`  ${c.dim("Usage:")} ${c.value(helper.commandUsage(cmd))}`);
 
@@ -159,8 +159,20 @@ export function buildProgram(): Command {
   program.addCommand(configCommand());
   applyHelpRecursively(program);
 
-  program.action(() => {
+  program.action(async () => {
+    // When invoked from inside the interactive shell (which spawns
+    // child processes for each typed command), the AIP_IN_SHELL env
+    // marker tells us to just print the banner and exit instead of
+    // recursing into another shell loop.
     process.stdout.write(welcome());
+    if (
+      process.stdin.isTTY &&
+      process.stdout.isTTY &&
+      process.env.AIP_IN_SHELL !== "1"
+    ) {
+      const { runInteractiveShell } = await import("./ui/shell.js");
+      await runInteractiveShell();
+    }
   });
 
   return program;

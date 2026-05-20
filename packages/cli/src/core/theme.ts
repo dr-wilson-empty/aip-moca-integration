@@ -50,5 +50,5 @@ export const box = {
 };
 
 export function brandHeader(): string {
-  return c.brandBold("aip") + c.dim(" · agent internet protocol");
+  return c.brandBold("AIP") + c.dim(" · the Agent Internet Protocol");
 }
