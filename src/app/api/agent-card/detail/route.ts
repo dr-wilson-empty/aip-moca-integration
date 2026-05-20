@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllOnChainAgents } from "@/lib/solana/registry-program";
-import { getCardByDid, normalizeEndpoint } from "@/lib/protocol/agent-card-store";
+import { getCardByDid, normalizeEndpoint, enrichCapabilitiesFromHosted } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { getHostedAgent, loadHostedAgentsFromDb } from "@/lib/hosted-agents";
 
@@ -22,21 +22,26 @@ export async function GET(request: NextRequest) {
     const onChainAgents = await fetchAllOnChainAgents();
     const onChain = onChainAgents.find((a) => a.did === did);
     if (onChain) {
-      // Enrich with hosted agent description
       await loadHostedAgentsFromDb();
-      const normalizedEndpoint = normalizeEndpoint(onChain.endpoint);
-      const onChainMatch = normalizedEndpoint.match(/[?&]agentId=([^&]+)/)
+      const normalized = enrichCapabilitiesFromHosted({
+        ...onChain,
+        endpoint: normalizeEndpoint(onChain.endpoint),
+      });
+      const onChainMatch = normalized.endpoint.match(/[?&]agentId=([^&]+)/)
         || did.match(/:([^:]+)$/);
       const agentId = onChainMatch?.[1];
       const hostedInfo = agentId ? getHostedAgent(agentId) : null;
-      return NextResponse.json({ ...onChain, endpoint: normalizedEndpoint, description: hostedInfo?.description || undefined, source: "on-chain" });
+      return NextResponse.json({
+        ...normalized,
+        description: hostedInfo?.description || undefined,
+        source: "on-chain",
+      });
     }
   } catch { /* fallback to in-memory */ }
 
-  // Fallback to in-memory
+  // Fallback to in-memory (already enriched at sync time)
   const card = getCardByDid(did);
   if (card) {
-    // Enrich with hosted agent description if available
     await loadHostedAgentsFromDb();
     const match = card.endpoint.match(/[?&]agentId=([^&]+)/);
     const hosted = match ? getHostedAgent(match[1]) : null;

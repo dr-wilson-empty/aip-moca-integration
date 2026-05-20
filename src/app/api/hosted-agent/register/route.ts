@@ -11,6 +11,7 @@ import {
   type AITier,
 } from "@/lib/hosted-agents";
 import { registerCard } from "@/lib/protocol/agent-card-store";
+import { verifyWalletOwnership, isAuthError } from "@/lib/auth/wallet-auth";
 import type { AgentCard } from "@/types/aip";
 
 /**
@@ -60,6 +61,13 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Auth — require an Ed25519 signature from `ownerAddress`. Without this
+  // anyone who can scrape an agent's public owner wallet (which is in the
+  // marketplace) can register agents claiming to own that wallet, or
+  // simply impersonate other owners.
+  const authResult = verifyWalletOwnership(request, ownerAddress);
+  if (isAuthError(authResult)) return authResult;
 
   if (agentId.length > 32 || !/^[a-z0-9-]+$/.test(agentId)) {
     return NextResponse.json(
@@ -212,6 +220,12 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "agentId and ownerAddress required" }, { status: 400 });
   }
 
+  // Auth — the previous version trusted whatever `ownerAddress` the
+  // caller put in the body, which made impersonation trivial (the
+  // owner wallet is a public marketplace field).
+  const authResult = verifyWalletOwnership(request, ownerAddress);
+  if (isAuthError(authResult)) return authResult;
+
   const existing = getHostedAgent(agentId);
   if (!existing || existing.ownerAddress !== ownerAddress) {
     return NextResponse.json({ error: "Agent not found or not owned by you" }, { status: 404 });
@@ -232,6 +246,12 @@ export async function DELETE(request: NextRequest) {
   if (!agentId || !owner) {
     return NextResponse.json({ error: "agentId and owner required" }, { status: 400 });
   }
+
+  // Auth — without this, knowing an agent's public owner wallet
+  // (always visible in the marketplace) was enough to deactivate
+  // anyone's agent.
+  const authResult = verifyWalletOwnership(request, owner);
+  if (isAuthError(authResult)) return authResult;
 
   const existing = getHostedAgent(agentId);
   if (!existing || existing.ownerAddress !== owner) {

@@ -26,6 +26,7 @@ import {
   createTransferInstruction,
 } from "@solana/spl-token";
 import { getConnection } from "@/lib/solana/connection";
+import { dbHasDepositTxn } from "@/lib/supabase/agent-budgets";
 import {
   dbGetBudget,
   dbDepositBudget,
@@ -69,9 +70,21 @@ export async function getBudgetHistory(agentDid: string, limit = 50): Promise<Db
 }
 
 /**
- * Verify an on-chain USDC deposit to the platform authority wallet.
- * Checks the transaction signature to confirm the transfer happened.
- * Returns the deposited amount in USDC.
+ * Verify an on-chain USDC deposit to the platform authority wallet and
+ * credit the agent's budget.
+ *
+ * Hardened against a previous flaw where any confirmed signature was
+ * accepted — an attacker could scrape a random successful tx hash from
+ * the explorer and credit themselves arbitrary USDC. We now parse the
+ * tx and require:
+ *
+ *   1. Idempotency:   txHash hasn't been credited before
+ *   2. Confirmed + no `meta.err`
+ *   3. The tx contains an SPL Token transfer (Transfer or TransferChecked)
+ *   4. Mint = configured USDC mint
+ *   5. Destination = platform authority's USDC ATA
+ *   6. Source token-account owner = ownerWallet
+ *   7. Amount (raw, micro-USDC) = expectedAmount * 10^6
  */
 export async function verifyAndCreditDeposit(
   agentDid: string,
@@ -79,20 +92,111 @@ export async function verifyAndCreditDeposit(
   txHash: string,
   expectedAmount: number
 ): Promise<DbAgentBudget> {
-  const connection = getConnection();
+  // 1. Idempotency — refuse to credit the same on-chain tx twice.
+  if (await dbHasDepositTxn(txHash)) {
+    throw new Error(`Deposit already credited for this transaction: ${txHash}`);
+  }
 
-  // Verify the transaction exists and is confirmed
-  const txInfo = await connection.getTransaction(txHash, {
+  const connection = getConnection();
+  // 2. + structured parsing — getParsedTransaction returns parsed SPL
+  //    Token instructions so we don't have to decode raw bytes ourselves.
+  const txInfo = await connection.getParsedTransaction(txHash, {
     commitment: "confirmed",
     maxSupportedTransactionVersion: 0,
   });
-
   if (!txInfo) {
     throw new Error(`Transaction not found or not confirmed: ${txHash}`);
   }
-
   if (txInfo.meta?.err) {
-    throw new Error(`Transaction failed: ${JSON.stringify(txInfo.meta.err)}`);
+    throw new Error(`Transaction failed on-chain: ${JSON.stringify(txInfo.meta.err)}`);
+  }
+
+  // 3-7. Find a USDC transfer matching the expected sender/recipient/amount.
+  const mint = getUsdcMint();
+  const authorityPubkey = new PublicKey(process.env.ESCROW_PRIVATE_KEY ? "" : "");
+  // We need the authority's ATA; derive it lazily.
+  let authorityAta: PublicKey;
+  try {
+    const bs58 = (await import("bs58")).default;
+    if (!process.env.ESCROW_PRIVATE_KEY) throw new Error("ESCROW_PRIVATE_KEY not set");
+    const authorityKp = Keypair.fromSecretKey(bs58.decode(process.env.ESCROW_PRIVATE_KEY));
+    authorityAta = await getAssociatedTokenAddress(mint, authorityKp.publicKey);
+    void authorityPubkey;
+  } catch (err) {
+    throw new Error(
+      `Could not derive platform authority ATA: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
+  const expectedRawAmount = BigInt(Math.round(expectedAmount * Math.pow(10, USDC_DECIMALS)));
+
+  // Walk every parsed top-level instruction looking for a matching SPL
+  // Token transfer. We accept both `transfer` (legacy) and
+  // `transferChecked` (modern, mint-verified) variants.
+  const instructions = txInfo.transaction.message.instructions as Array<
+    | {
+        program?: string;
+        programId?: PublicKey;
+        parsed?: {
+          type: string;
+          info: Record<string, unknown>;
+        };
+      }
+    | { programId: PublicKey; data: string; accounts: PublicKey[] }
+  >;
+
+  let matched = false;
+  for (const ix of instructions) {
+    if (!("parsed" in ix) || !ix.parsed) continue;
+    if (ix.program !== "spl-token" && ix.program !== "spl-token-2022") continue;
+
+    const { type, info } = ix.parsed;
+    let txAuthority: string | undefined;
+    let txDestination: string | undefined;
+    let txMint: string | undefined;
+    let txAmountRaw: bigint | undefined;
+
+    if (type === "transferChecked") {
+      txAuthority = info.authority as string | undefined;
+      txDestination = info.destination as string | undefined;
+      txMint = info.mint as string | undefined;
+      const tokenAmount = info.tokenAmount as { amount?: string } | undefined;
+      if (tokenAmount?.amount) {
+        try { txAmountRaw = BigInt(tokenAmount.amount); } catch { /* skip */ }
+      }
+    } else if (type === "transfer") {
+      // Legacy SPL Transfer doesn't carry mint in the ix data — we infer
+      // by looking up the destination ATA's mint via the tx's account
+      // keys / postTokenBalances.
+      txAuthority = info.authority as string | undefined;
+      txDestination = info.destination as string | undefined;
+      try { txAmountRaw = BigInt((info.amount as string | number).toString()); } catch { /* skip */ }
+      // Mint comes from postTokenBalances if destination matches.
+      const postBalances = txInfo.meta?.postTokenBalances ?? [];
+      const balance = postBalances.find((b) => {
+        const acctKeys = txInfo.transaction.message.accountKeys as Array<{ pubkey: PublicKey }>;
+        return acctKeys[b.accountIndex]?.pubkey.toBase58() === txDestination;
+      });
+      txMint = balance?.mint;
+    } else {
+      continue;
+    }
+
+    if (txMint !== mint.toBase58()) continue;
+    if (txDestination !== authorityAta.toBase58()) continue;
+    if (txAuthority !== ownerWallet) continue;
+    if (txAmountRaw !== expectedRawAmount) continue;
+
+    matched = true;
+    break;
+  }
+
+  if (!matched) {
+    throw new Error(
+      "On-chain transfer does not match the claimed deposit. " +
+        `Expected: ${expectedAmount} USDC from ${ownerWallet} to the platform authority ATA. ` +
+        "Make sure you signed an SPL token transfer of the exact USDC amount to the platform wallet, not a SOL transfer or a different token."
+    );
   }
 
   logger.info("budget", "deposit_verified", {
@@ -102,7 +206,6 @@ export async function verifyAndCreditDeposit(
     txHash,
   });
 
-  // Credit the budget
   return dbDepositBudget(agentDid, ownerWallet, expectedAmount, txHash);
 }
 

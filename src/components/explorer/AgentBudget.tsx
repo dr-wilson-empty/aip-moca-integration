@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import BudgetDepositModal from "./BudgetDepositModal";
 import BudgetHistoryModal from "./BudgetHistoryModal";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 
 const DS = {
   bg: "#e6e5e0",
@@ -37,7 +38,7 @@ export default function AgentBudget({ agentDid }: { agentDid: string }) {
     const parsed = parseFloat(maxValue);
     if (isNaN(parsed) || parsed <= 0) return;
     setSaving(true);
-    try { await fetch("/api/budget", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentDid, maxPerTask: parsed }) }); loadBudget(); setEditingMax(false); } catch {}
+    try { await signedFetch("/api/budget", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentDid, maxPerTask: parsed }) }); loadBudget(); setEditingMax(false); } catch {}
     setSaving(false);
   };
 

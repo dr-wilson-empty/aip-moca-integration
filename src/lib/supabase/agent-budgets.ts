@@ -311,6 +311,27 @@ async function dbInsertBudgetTxn(txn: DbBudgetTxn): Promise<void> {
   if (error) console.error("[budget-txn] insert failed:", error.message);
 }
 
+/**
+ * Returns true if a deposit transaction with this on-chain tx_hash has
+ * already been credited. Used to prevent the same txHash being submitted
+ * twice (or worse, the same txHash being submitted by an attacker who
+ * scraped it from someone else's confirmed deposit).
+ */
+export async function dbHasDepositTxn(txHash: string): Promise<boolean> {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("agent_budget_txns")
+    .select("id")
+    .eq("tx_hash", txHash)
+    .eq("type", "deposit")
+    .limit(1);
+  if (error) {
+    console.error("[budget-txn] idempotency lookup failed:", error.message);
+    return false; // fail-open lookup is fine — chain verification still gates the credit
+  }
+  return (data?.length ?? 0) > 0;
+}
+
 /** Get transaction history for an agent's budget */
 export async function dbGetBudgetTxns(agentDid: string, limit = 50): Promise<DbBudgetTxn[]> {
   const sb = getSupabase();

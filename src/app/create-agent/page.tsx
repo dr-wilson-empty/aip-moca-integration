@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWalletStore } from "@/store/walletStore";
 import { useAgentBuilderStore, type BuilderStep } from "@/store/agentBuilderStore";
 import { useAgentRegistry } from "@/hooks/useRegisterAgent";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 
 /* ─── Design System ─── */
 const DS = {
@@ -184,7 +185,7 @@ export default function CreateAgentPage() {
     if (!address || !step3Valid) return;
     store.setPublishing(true);
     try {
-      const res = await fetch("/api/hosted-agent/register", {
+      const res = await signedFetch("/api/hosted-agent/register", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agentId: agentIdSlug, ownerAddress: address, name: store.name.trim(), description: store.description.trim(),

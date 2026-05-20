@@ -130,8 +130,10 @@ export async function POST(request: NextRequest) {
     // Mark as WORKING immediately
     hostedTasks.set(tid, { status: "WORKING" });
 
-    // Process asynchronously
-    processHostedTask(tid, config, input).catch((err) => {
+    // Process asynchronously — `capability` threaded through so the
+    // LLM is told which mode was requested (e.g. text.summarize vs
+    // text.classify) and won't quietly substitute one for the other.
+    processHostedTask(tid, config, input, capability).catch((err) => {
       hostedTasks.set(tid, {
         status: "FAILED",
         error: err instanceof Error ? err.message : String(err),
@@ -170,7 +172,8 @@ export async function POST(request: NextRequest) {
 async function processHostedTask(
   taskId: string,
   config: import("@/lib/hosted-agents").HostedAgentConfig,
-  input: string
+  input: string,
+  capability?: string,
 ): Promise<void> {
   try {
     let result: string;
@@ -196,11 +199,11 @@ async function processHostedTask(
         : "";
       result = mcpResult.text + toolInfo;
     } else if (config.provider === "anthropic") {
-      result = await callAnthropic(config, input);
+      result = await callAnthropic(config, input, capability);
     } else if (config.provider === "openai") {
-      result = await callOpenAI(config, input);
+      result = await callOpenAI(config, input, capability);
     } else {
-      result = await callAnthropic(config, input);
+      result = await callAnthropic(config, input, capability);
     }
 
     hostedTasks.set(taskId, { status: "COMPLETED", artifact: result });
@@ -214,9 +217,20 @@ async function processHostedTask(
   }
 }
 
+function buildCapabilityPreamble(
+  config: import("@/lib/hosted-agents").HostedAgentConfig,
+  capability: string | undefined,
+): string {
+  if (!capability) return "";
+  const cap = config.capabilities.find((c) => c.id === capability);
+  const desc = cap?.description ? ` (${cap.description})` : "";
+  return `Requested capability: ${capability}${desc}\nOnly do work consistent with this capability. If the user's input does not match it, say so instead of switching modes.`;
+}
+
 async function callAnthropic(
   config: import("@/lib/hosted-agents").HostedAgentConfig,
-  input: string
+  input: string,
+  capability?: string,
 ): Promise<string> {
   const apiKey = config.tier === "custom" && config.customApiKey
     ? config.customApiKey
@@ -232,7 +246,8 @@ async function callAnthropic(
     ? `${input}\n\n${enrichment.webContext}`
     : input;
 
-  const systemWithDate = `${getCurrentDateString()}\n\n${config.systemPrompt}`;
+  const preamble = buildCapabilityPreamble(config, capability);
+  const systemWithDate = [getCurrentDateString(), preamble, config.systemPrompt].filter(Boolean).join("\n\n");
 
   const client = new Anthropic({ apiKey });
 
@@ -249,7 +264,8 @@ async function callAnthropic(
 
 async function callOpenAI(
   config: import("@/lib/hosted-agents").HostedAgentConfig,
-  input: string
+  input: string,
+  capability?: string,
 ): Promise<string> {
   const apiKey = config.customApiKey;
   if (!apiKey) {
@@ -262,7 +278,8 @@ async function callOpenAI(
     ? `${input}\n\n${enrichment.webContext}`
     : input;
 
-  const systemWithDate = `${getCurrentDateString()}\n\n${config.systemPrompt}`;
+  const preamble = buildCapabilityPreamble(config, capability);
+  const systemWithDate = [getCurrentDateString(), preamble, config.systemPrompt].filter(Boolean).join("\n\n");
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",

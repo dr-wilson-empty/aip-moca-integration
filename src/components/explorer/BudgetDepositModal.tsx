@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount, createAssociatedTokenAccountInstruction, createTransferInstruction } from "@solana/spl-token";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 
 const DS = {
   bg: "#e6e5e0",
@@ -57,7 +58,7 @@ export default function BudgetDepositModal({ agentDid, onClose, onDeposited }: P
       setTxHash(sig); setStep("confirming");
       await connection.confirmTransaction(sig, "confirmed");
       setStep("crediting");
-      const res = await fetch("/api/budget", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentDid, ownerWallet: publicKey.toBase58(), amount: parsedAmount, txHash: sig }) });
+      const res = await signedFetch("/api/budget", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentDid, ownerWallet: publicKey.toBase58(), amount: parsedAmount, txHash: sig }) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to credit budget"); }
       setStep("done"); onDeposited();
     } catch (err) { setStep("error"); setErrorMsg(err instanceof Error ? err.message : "Deposit failed"); }

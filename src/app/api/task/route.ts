@@ -107,11 +107,29 @@ export async function POST(request: NextRequest) {
   }
 
   // Capability dogrulama
-  const hasCap = agentCard.capabilities.some((c) => c.id === capability);
-  if (!hasCap) {
+  const cap = agentCard.capabilities.find((c) => c.id === capability);
+  if (!cap) {
     return NextResponse.json(
       { error: `Agent ${agentCard.name} does not have capability: ${capability}` },
       { status: 400 }
+    );
+  }
+
+  // Pricing dogrulama — caller'in gonderdigi amount, agent'in ilan
+  // ettigi capability fiyatindan kucuk olamaz. Aksi takdirde kullanici
+  // 0.75 USDC'lik bir is icin 0.01 USDC ile escrow olusturup tam isi
+  // alabilir, platformun komisyon hesabi negatif aciga gider.
+  const advertised = parseFloat(cap.pricing.amount);
+  const requested = parseFloat(amount);
+  if (!Number.isFinite(requested) || requested <= 0) {
+    return NextResponse.json({ error: "amount must be a positive USDC number" }, { status: 400 });
+  }
+  if (requested + 1e-9 < advertised) {
+    return NextResponse.json(
+      {
+        error: `Amount ${requested} USDC is below the advertised price ${advertised} USDC for '${capability}'`,
+      },
+      { status: 400 },
     );
   }
 
@@ -306,8 +324,14 @@ export async function POST(request: NextRequest) {
     network: requirements.accepts[0].network,
   };
 
+  // Top-level `escrowTxHash` is what the CLI's `TaskCreatedSchema`
+  // expects (packages/cli/src/core/task-types.ts). Previously the
+  // value lived only on the `x-payment-response` header, which works
+  // but is brittle (caching middleware can strip headers). Surfacing
+  // it in the body matches the schema and gives the CLI a stable
+  // contract.
   return new NextResponse(
-    JSON.stringify({ ok: true, taskId, task }),
+    JSON.stringify({ ok: true, taskId, escrowTxHash, task }),
     {
       status: 201,
       headers: {

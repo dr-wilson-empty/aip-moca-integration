@@ -57,7 +57,9 @@ export async function GET(request: NextRequest) {
     const privateAgentIds = new Set(
       listHostedAgents().filter((a) => a.isPublic === false).map((a) => a.agentId)
     );
-    // Enrich cards with hosted agent descriptions
+    // Note: syncFromChain() above already enriched per-capability
+    // pricing via enrichCapabilitiesFromHosted, so `card.capabilities`
+    // is already correct. We only layer on description + hasMcp here.
     const hostedMap = new Map(listHostedAgents().map((h) => [h.agentId, h]));
     const all = Array.from(byName.values()).map((card) => {
       const m = card.endpoint.match(/[?&]agentId=([^&]+)/);

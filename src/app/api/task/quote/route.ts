@@ -63,6 +63,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Validate the capability exists on the agent and the requested
+  // amount matches the agent's advertised price for it. Without this
+  // check a caller could quote a 0.75 USDC capability at 0.01 USDC,
+  // sign an escrow for 0.01, and still receive the work — server
+  // would pay agent commission out of the missing 0.74.
+  const cap = agentCard.capabilities.find((c) => c.id === capability);
+  if (!cap) {
+    return NextResponse.json(
+      { error: `Capability '${capability}' not advertised by agent`, available: agentCard.capabilities.map((c) => c.id) },
+      { status: 400 },
+    );
+  }
+  const advertised = parseFloat(cap.pricing.amount);
+  const requested = parseFloat(amount);
+  if (!Number.isFinite(requested) || requested <= 0) {
+    return NextResponse.json({ error: "amount must be a positive USDC number" }, { status: 400 });
+  }
+  if (requested + 1e-9 < advertised) {
+    return NextResponse.json(
+      {
+        error: `Amount ${requested} USDC is below the advertised price ${advertised} USDC for '${capability}'`,
+      },
+      { status: 400 },
+    );
+  }
+
   // Pre-generate taskId — client needs this for PDA derivation
   const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 

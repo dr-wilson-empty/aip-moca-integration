@@ -9,6 +9,7 @@ import { useAgentStore } from "@/store/agentStore";
 import type { MyAgentEntry } from "@/types/aip";
 import AgentAnalytics from "./AgentAnalytics";
 import AgentBudget from "./AgentBudget";
+import { signedFetch } from "@/lib/auth/signed-fetch";
 
 const DS = {
   bg: "#e6e5e0",
@@ -132,7 +133,7 @@ export default function RegisterAgentForm({ onRegistered }: { onRegistered?: () 
 
   const handleDeleteHosted = async (id: string) => {
     if (!publicKey) return;
-    try { const res = await fetch(`/api/hosted-agent/register?agentId=${id}&owner=${publicKey.toBase58()}`, { method: "DELETE" }); if (res.ok) syncFromChain(publicKey.toBase58()); } catch {}
+    try { const res = await signedFetch(`/api/hosted-agent/register?agentId=${id}&owner=${publicKey.toBase58()}`, { method: "DELETE" }); if (res.ok) syncFromChain(publicKey.toBase58()); } catch {}
   };
 
   if (!publicKey) {

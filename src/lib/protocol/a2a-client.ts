@@ -173,7 +173,9 @@ async function executeHostedAgentDirect(
 
   const id = taskId || `ht_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const { executeHostedAgentDirect } = await import("@/lib/hosted-agent-executor");
-  const result = await executeHostedAgentDirect(config, input);
+  // Passing `capability` through so the executor can pin the LLM to
+  // the requested mode (e.g. text.summarize vs text.classify).
+  const result = await executeHostedAgentDirect(config, input, capability);
   return { taskId: id, ...result };
 }
 

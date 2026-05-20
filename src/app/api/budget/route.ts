@@ -83,6 +83,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Budget deposits are only available for Orchestrator Agents" }, { status: 400 });
   }
 
+  // Auth — the on-chain tx parser in verifyAndCreditDeposit only credits
+  // a deposit whose token-account authority matches `ownerWallet`, so a
+  // forged claim won't pass that gate. We still require an Ed25519
+  // signature from the same wallet here as a second factor and to keep
+  // rate-limiting / audit logs tied to a real caller, not an anonymous
+  // one.
+  const authResult = verifyWalletOwnership(request, ownerWallet);
+  if (isAuthError(authResult)) return authResult;
+
   try {
     const budget = await verifyAndCreditDeposit(agentDid, ownerWallet, txHash, amount);
     return NextResponse.json({ ok: true, budget }, { status: 201 });
@@ -117,6 +126,15 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  // Auth — only the budget's owner may change max_per_task. We look the
+  // owner up server-side so the client can't lie about who they are.
+  const existingBudget = await getAgentBudget(agentDid);
+  if (!existingBudget) {
+    return NextResponse.json({ error: "Budget not found" }, { status: 404 });
+  }
+  const authResult = verifyWalletOwnership(request, existingBudget.owner_wallet);
+  if (isAuthError(authResult)) return authResult;
+
   try {
     await updateMaxPerTask(agentDid, maxPerTask);
     return NextResponse.json({ ok: true });
@@ -135,9 +153,6 @@ export async function PATCH(request: NextRequest) {
  * Body: { agentDid: string, ownerWallet: string, amount: number }
  */
 export async function DELETE(request: NextRequest) {
-  const auth = verifyWalletOwnership(request, null);
-  if (isAuthError(auth)) return auth;
-
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -150,6 +165,16 @@ export async function DELETE(request: NextRequest) {
     ownerWallet?: string;
     amount?: number;
   };
+
+  // Auth must come AFTER body parse so we can pin it to the claimed
+  // ownerWallet — the previous `verifyWalletOwnership(request, null)`
+  // only checked that *some* valid wallet signed the request, not that
+  // it matched the budget owner.
+  if (!ownerWallet) {
+    return NextResponse.json({ error: "ownerWallet required" }, { status: 400 });
+  }
+  const auth = verifyWalletOwnership(request, ownerWallet);
+  if (isAuthError(auth)) return auth;
 
   if (!agentDid || !ownerWallet || !amount) {
     return NextResponse.json({ error: "agentDid, ownerWallet, amount required" }, { status: 400 });

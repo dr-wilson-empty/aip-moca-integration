@@ -164,7 +164,51 @@ export function verifyPaymentPayload(
       return { isValid: false, error: "Transaction does not contain initialize_escrow instruction" };
     }
 
-    // 9. Verify PDA accounts match the expected task_id
+    // 9. Decode and verify the instruction data — defends against a
+    //    client that builds a tx structured correctly but with the wrong
+    //    transfer amount. Without this we'd settle the user's malicious
+    //    1-lamport tx while the server records `record.amount =
+    //    accepted.amount` (1 USDC), then pays the agent 80% commission
+    //    out of platform funds.
+    //
+    //    Layout (post-discriminator):
+    //      u32 LE  taskId.length
+    //      bytes   taskId (utf8)
+    //      u64 LE  amount (micro-USDC)
+    //      i64 LE  deadline
+    let cursor = 8;
+    const data = programInstruction.data;
+    if (data.length < cursor + 4) {
+      return { isValid: false, error: "Instruction data truncated (taskId length)" };
+    }
+    const taskIdLen = data.readUInt32LE(cursor);
+    cursor += 4;
+    if (taskIdLen > 256 || data.length < cursor + taskIdLen + 8 + 8) {
+      return { isValid: false, error: "Instruction data malformed (taskId/amount/deadline)" };
+    }
+    const ixTaskId = data.subarray(cursor, cursor + taskIdLen).toString("utf8");
+    cursor += taskIdLen;
+    const ixAmount = data.readBigUInt64LE(cursor);
+    cursor += 8;
+    // deadline follows but we don't enforce it here — on-chain program does.
+
+    if (ixTaskId !== taskId) {
+      return { isValid: false, error: `Task ID mismatch: tx encodes '${ixTaskId}', accepted demands '${taskId}'` };
+    }
+    let expectedAmount: bigint;
+    try {
+      expectedAmount = BigInt(accepted.amount);
+    } catch {
+      return { isValid: false, error: `accepted.amount is not a valid integer: ${accepted.amount}` };
+    }
+    if (ixAmount !== expectedAmount) {
+      return {
+        isValid: false,
+        error: `Escrow amount mismatch: tx transfers ${ixAmount} (micro-USDC), payment requires ${expectedAmount}`,
+      };
+    }
+
+    // 10. Verify PDA accounts match the expected task_id
     const [expectedState] = deriveEscrowStatePDA(taskId);
     const [expectedVault] = deriveEscrowVaultPDA(taskId);
 
@@ -179,14 +223,14 @@ export function verifyPaymentPayload(
       return { isValid: false, error: "Escrow vault PDA mismatch" };
     }
 
-    // 10. Verify authority (account index 2)
+    // 11. Verify authority (account index 2)
     const authorityAccount = programInstruction.keys[2]?.pubkey;
     const expectedAuthority = new PublicKey(accepted.authority);
     if (!authorityAccount?.equals(expectedAuthority)) {
       return { isValid: false, error: "Authority mismatch" };
     }
 
-    // 11. Extract payer from instruction (account index 0)
+    // 12. Extract payer from instruction (account index 0)
     const payerAddress = programInstruction.keys[0]?.pubkey.toBase58();
 
     return {
