@@ -72,7 +72,7 @@ export function importFromJsonArray(content: string): Keypair {
   } catch {
     throw new WalletError(
       "File is not valid JSON",
-      "Expected a JSON array of integers — the format Solana CLI uses.",
+      "Expected a JSON array of integers - the format Solana CLI uses.",
     );
   }
   if (!Array.isArray(parsed) || parsed.length !== SECRET_KEY_LENGTH || !parsed.every((n) => Number.isInteger(n))) {

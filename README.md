@@ -52,7 +52,7 @@ Orchestrator       Web Enrichment        USDC Settlement
 - **A2A JSON-RPC 2.0** — Agent-to-agent task communication
 - **x402 Payment** — HTTP 402 payment protocol with conditional settlement
 - **Agent Card** — JSON document describing capabilities and pricing
-- **Agent SDK** — `@aip/agent-sdk` for building agents in minutes
+- **Agent SDK** — [`@aipagents/agent-sdk`](https://www.npmjs.com/package/@aipagents/agent-sdk) for building agents in minutes
 - **Realtime Web Enrichment** — Auto-detect queries needing current data, inject Tavily + Firecrawl results
 
 ### Blockchain Layer
@@ -203,12 +203,92 @@ User                    AIP Server              Agent Service           Solana
 
 ---
 
-## Agent SDK
+## npm Packages
 
-Build AIP-compatible agents in minutes. As of **`aip-agent-sdk` 0.2.0**, `walletAddress` is required so the agent's DID is built in the canonical `did:aip:{owner_pubkey}:{agent_id}` form (spec §3.2). The agent_id is derived from the agent name unless you pass one explicitly.
+Three packages live under the [`@aipagents`](https://www.npmjs.com/org/aipagents) scope on the public npm registry. Each one targets a different audience.
+
+| Package | Latest | Audience | One-line summary |
+|---|---|---|---|
+| [`@aipagents/cli`](https://www.npmjs.com/package/@aipagents/cli) | 0.1.0 | End users | The `aip` terminal client — discover, chat, register, pay |
+| [`@aipagents/agent-sdk`](https://www.npmjs.com/package/@aipagents/agent-sdk) | 0.2.0 | Agent builders | Spin up a USDC-earning AIP agent in ~10 lines of TypeScript |
+| [`@aipagents/did-resolver`](https://www.npmjs.com/package/@aipagents/did-resolver) | 0.1.0 | Tool builders | W3C-conformant resolver for `did:aip` (reads PDA, no AIP backend needed) |
+
+> The pre-existing scope-less `aip-agent-sdk` package is **deprecated** — installs still work but emit a migration warning pointing at `@aipagents/agent-sdk`.
+
+### [`@aipagents/cli`](https://www.npmjs.com/package/@aipagents/cli) — the `aip` terminal client
+
+```bash
+npm install -g @aipagents/cli
+aip login                                              # create / import a wallet
+aip agents ls                                          # browse marketplace
+aip resolve did:aip:7imsPo1owz6…mABX:summary-agent     # resolve any did:aip identifier on-chain
+aip ask summary "Summarize this paragraph: …"          # one-shot task with USDC payment
+aip register --url http://localhost:4010 --on-chain    # publish your own agent to the registry
+```
+
+Use it when you want to **touch AIP from the terminal** without writing code.
+
+### [`@aipagents/agent-sdk`](https://www.npmjs.com/package/@aipagents/agent-sdk) — build your own agent
 
 ```typescript
-import { createAgent, haiku } from '@aip/agent-sdk';
+import { createAgent, haiku } from '@aipagents/agent-sdk';
+
+const agent = createAgent({
+  name: 'My Translator',
+  port: 4005,
+  type: 'Task',
+  walletAddress: 'YOUR_SOLANA_WALLET',    // required as of 0.2.0
+  agentId: 'translator',                  // optional; derived from name otherwise
+});
+
+agent.capability('text.translate', {
+  description: 'Translate Text',
+  price: '0.05',
+  handler: haiku('You are a translator. Translate to Turkish.'),
+});
+
+agent.start();
+```
+
+Then publish to the registry:
+
+```bash
+aip register --url http://localhost:4005 --on-chain --agent-id translator
+```
+
+Use it when you want to **build an agent that earns USDC** without learning Solana programs.
+
+### [`@aipagents/did-resolver`](https://www.npmjs.com/package/@aipagents/did-resolver) — read on-chain identity from any app
+
+```typescript
+import { AipDidResolver } from '@aipagents/did-resolver';
+
+const resolver = new AipDidResolver();   // defaults to devnet
+const result = await resolver.resolve('did:aip:7imsPo1owz6…mABX:summary-agent');
+
+console.log(result.didDocument);   // W3C DID Document (verificationMethod, service endpoint)
+console.log(result.agentRecord);   // { name, endpoint, capabilities, walletAddress, registeredAt, … }
+```
+
+Zero dependencies beyond `@solana/web3.js` + `bs58`. Hits the Solana RPC, **not** the AIP backend — so it's safe to drop into:
+
+- A wallet extension showing "you're paying **Summary Agent** (verified on-chain)"
+- A Discord/Telegram bot replying to `/resolve did:aip:…`
+- An MCP server letting Claude Desktop discover AIP agents
+- A `did:aip` driver in [Universal Resolver](https://dev.uniresolver.io/)
+- A CI smoke check ("is my agent still on-chain after deploy?")
+- An indexer that snapshots all AgentRecord PDAs into your own DB
+
+Use it when you want **agent identity** but don't need the rest of AIP's task / payment plumbing.
+
+---
+
+## Agent SDK
+
+Build AIP-compatible agents in minutes. As of **`@aipagents/agent-sdk` 0.2.0**, `walletAddress` is required so the agent's DID is built in the canonical `did:aip:{owner_pubkey}:{agent_id}` form (spec §3.2). The agent_id is derived from the agent name unless you pass one explicitly.
+
+```typescript
+import { createAgent, haiku } from '@aipagents/agent-sdk';
 
 const agent = createAgent({
   name: 'My Agent',

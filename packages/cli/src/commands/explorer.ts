@@ -65,6 +65,6 @@ function openInBrowser(url: string): void {
     const child = spawn(command, args, { detached: true, stdio: "ignore" });
     child.unref();
   } catch {
-    /* swallow — URL is already on stdout */
+    /* swallow - URL is already on stdout */
   }
 }

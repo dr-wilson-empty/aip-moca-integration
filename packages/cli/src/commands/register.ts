@@ -158,7 +158,7 @@ async function runRegister(opts: RegisterOpts): Promise<void> {
     if (opts.deregisterFirst) {
       try {
         if (await isAgentOnChain(connection, owner, agentId)) {
-          log.step(`Existing PDA found — deregistering first…`);
+          log.step(`Existing PDA found - deregistering first…`);
           const sig = await deregisterAgentOnChain(connection, signer, agentId);
           log.success(`Deregistered (tx ${c.value(sig)})`);
         }

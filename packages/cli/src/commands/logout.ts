@@ -13,7 +13,7 @@ interface LogoutOptions {
 
 export function logoutCommand(): Command {
   return new Command("logout")
-    .description("Sign out — and optionally delete the keystore file")
+    .description("Sign out - and optionally delete the keystore file")
     .option("--purge", "Delete the keystore file from disk")
     .option("-y, --yes", "Skip the confirmation prompt (use with --purge)")
     .addHelpText(
@@ -34,7 +34,7 @@ async function runLogout(opts: LogoutOptions): Promise<void> {
   const exists = await keystoreExists();
 
   if (!exists) {
-    log.info("No keystore on disk — nothing to do.");
+    log.info("No keystore on disk - nothing to do.");
     return;
   }
 

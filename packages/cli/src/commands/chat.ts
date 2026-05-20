@@ -27,6 +27,7 @@ import {
 } from "../core/errors.js";
 import { explorerTxUrl } from "../core/format.js";
 import { resolveAgent } from "../core/agent-resolver.js";
+import { pickAgentInteractively } from "../core/interactive.js";
 
 interface ChatOpts {
   capability?: string;
@@ -204,7 +205,7 @@ async function runTurn(
     );
   }
 
-  // Backend's task.usdcSpent is sometimes empty/0 even on success — fall
+  // Backend's task.usdcSpent is sometimes empty/0 even on success - fall
   // back to the price we actually paid for this capability. If the task
   // ended in FAILED/CANCELLED the escrow program refunds, so don't count.
   const pricePaid = priceFor(session.agent, session.capabilityId);
@@ -366,25 +367,8 @@ async function fetchAgent(api: ApiClient, identifier: string): Promise<AgentDeta
 }
 
 async function pickAgent(api: ApiClient): Promise<AgentDetail> {
-  const listResp = await api.get("/api/agent-card", AgentListResponseSchema, {
-    query: { list: true },
-  });
-  if (listResp.agents.length === 0) {
-    throw new NotFoundError("No agents available on the marketplace");
-  }
-  const choice = await p.select({
-    message: "Pick an agent to chat with",
-    options: listResp.agents.map((a: ListedAgent) => ({
-      value: a.did,
-      label: `${a.name}  ${a.type}`,
-      hint: `${a.capabilities[0]?.pricing.amount ?? "?"} USDC`,
-    })),
-  });
-  if (p.isCancel(choice)) {
-    p.cancel("Cancelled.");
-    throw new AipError("Chat cancelled");
-  }
-  return fetchAgent(api, String(choice));
+  const did = await pickAgentInteractively(api, { message: "Pick an agent to chat with" });
+  return fetchAgent(api, did);
 }
 
 async function maybePersistTranscript(session: Session, opts: ChatOpts): Promise<void> {

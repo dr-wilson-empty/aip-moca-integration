@@ -68,11 +68,11 @@ ${c.dim("Examples:")}
     });
 
   cmd
-    .command("show <did>")
-    .description("Show full detail for one agent")
+    .command("show [did]")
+    .description("Show full detail for one agent (interactive picker if omitted)")
     .option("--no-status", "Skip the status ping")
     .option("--json", "Print the raw JSON detail")
-    .action(async (did: string, opts: ShowOpts) => {
+    .action(async (did: string | undefined, opts: ShowOpts) => {
       await runShow(did, opts);
     });
 
@@ -134,15 +134,27 @@ async function runList(opts: ListOpts): Promise<void> {
 
   if (listResp.totalPages && (listResp.page ?? 1) < listResp.totalPages) {
     log.raw(
-      `  ${c.dim("page")} ${listResp.page}/${listResp.totalPages} ${c.dim(`— next: aip agents ls --limit ${listResp.limit} --page ${(listResp.page ?? 1) + 1}`)}`,
+      `  ${c.dim("page")} ${listResp.page}/${listResp.totalPages} ${c.dim(`- next: aip agents ls --limit ${listResp.limit} --page ${(listResp.page ?? 1) + 1}`)}`,
     );
     log.blank();
   }
 }
 
-async function runShow(identifier: string, opts: ShowOpts): Promise<void> {
+async function runShow(identifier: string | undefined, opts: ShowOpts): Promise<void> {
   const config = await loadConfig();
   const client = new ApiClient({ baseUrl: config.apiUrl });
+
+  // No agent passed: fall back to the interactive marketplace picker.
+  if (!identifier) {
+    const { pickAgentInteractively, canPromptInteractively } = await import("../core/interactive.js");
+    if (!canPromptInteractively()) {
+      throw new ValidationError(
+        "No agent identifier specified",
+        "Pass an agent ref or DID, e.g. 'aip agents show summary'.",
+      );
+    }
+    identifier = await pickAgentInteractively(client, { message: "Pick an agent to show" });
+  }
 
   const spinner = startSpinner(`Fetching ${identifier}`);
   let agent;
@@ -158,7 +170,7 @@ async function runShow(identifier: string, opts: ShowOpts): Promise<void> {
     if (err instanceof NotFoundError) {
       throw new NotFoundError(
         `Agent not found: ${identifier}`,
-        "Use 'aip agents ls' to see what's available, or 'aip whois <did>' for a direct on-chain lookup.",
+        "Use 'aip agents ls' to see what's available, or 'aip resolve <did>' for a direct on-chain lookup.",
       );
     }
     rethrowFriendly(err, config.apiUrl);

@@ -154,7 +154,7 @@ async function main() {
     console.log(`    pda:         ${pda.toBase58()}`);
     console.log(`    did:         ${did}`);
 
-    // Step 6 — verify with whois behaviour: read account back, decode, compare
+    // Step 6 — verify with resolve behaviour: read account back, decode, compare
     console.log(`[6] Reading PDA back from devnet…`);
     const info = await connection.getAccountInfo(pda);
     if (!info) throw new Error("PDA empty after register.");

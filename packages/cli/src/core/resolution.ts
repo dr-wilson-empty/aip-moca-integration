@@ -1,58 +1,53 @@
-import { Command } from "commander";
+/**
+ * Shared identity-resolution logic for the CLI.
+ *
+ * `aip resolve` (the command) is a thin wrapper around `runResolution`,
+ * which classifies the input string (DID / URL / marketplace ref) and
+ * dispatches to the appropriate resolver — on-chain via
+ * `@aipagents/did-resolver`, off-chain via `probeAgentCard`, or
+ * marketplace-only fallback via the `/api/agent-card` backend.
+ *
+ * This file is the source of truth for the resolution pipeline. Tests
+ * and other commands that need to inspect an identifier should call
+ * `runResolution` rather than re-implementing the dispatch.
+ */
 import ora from "ora";
-import { loadConfig } from "../core/config.js";
-import { buildResolver, classifyIdentityInput } from "../core/resolver.js";
-import { probeAgentCard } from "../core/agent-card.js";
-import { ApiClient } from "../core/api-client.js";
-import { resolveAgent, isCanonicalAipDid, findMarketplaceAgent } from "../core/agent-resolver.js";
-import { NotFoundError, ValidationError } from "../core/errors.js";
-import { log } from "../core/logger.js";
-import { c } from "../core/theme.js";
-import { renderIdentityReport, type IdentityReport } from "../ui/card.js";
+import { loadConfig } from "./config.js";
+import { buildResolver, classifyIdentityInput } from "./resolver.js";
+import { probeAgentCard } from "./agent-card.js";
+import { ApiClient } from "./api-client.js";
+import { resolveAgent, isCanonicalAipDid, findMarketplaceAgent } from "./agent-resolver.js";
+import { NotFoundError, ValidationError } from "./errors.js";
+import { log } from "./logger.js";
+import { type IdentityReport } from "../ui/card.js";
 
-interface WhoisOptions {
+export interface ResolutionOptions {
   network?: "devnet" | "mainnet-beta";
   rpc?: string;
   json?: boolean;
 }
 
-export function whoisCommand(): Command {
-  return new Command("whois")
-    .description("Inspect an agent's identity by DID or URL")
-    .argument("<identifier>", "did:aip:… or http(s)://…")
-    .option(
-      "-n, --network <cluster>",
-      "Override network (devnet | mainnet-beta)",
-      (value: string) => {
-        if (value !== "devnet" && value !== "mainnet-beta") {
-          throw new ValidationError(`Unknown network '${value}'`, "Use 'devnet' or 'mainnet-beta'.");
-        }
-        return value;
-      },
-    )
-    .option("--rpc <url>", "Override Solana RPC endpoint for this call")
-    .option("--json", "Print machine-readable JSON instead of the rendered report")
-    .addHelpText(
-      "after",
-      `
-${c.dim("Examples:")}
-  $ aip whois did:aip:7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX:translator
-  $ aip whois https://my-agent.example.com
-  $ aip whois did:aip:… --network mainnet-beta --rpc https://rpc.example.com
-  $ aip whois https://my-agent.example.com --json | jq .capabilities
-`,
-    )
-    .action(async (identifier: string, opts: WhoisOptions) => {
-      const report = await runWhois(identifier, opts);
-      if (opts.json) {
-        log.raw(JSON.stringify(serializeReport(report), null, 2));
-      } else {
-        renderIdentityReport(report);
-      }
-    });
-}
+/**
+ * Inspect an identifier and return a structured report. The caller is
+ * responsible for rendering — see `ui/card.ts:renderIdentityReport` and
+ * `serializeIdentityReport` below.
+ */
+export async function runResolution(
+  identifier: string,
+  opts: ResolutionOptions,
+): Promise<IdentityReport> {
+  // Detect truncated DIDs — these usually come from copying a DID
+  // straight out of `aip agents ls`, which shortens long pubkeys
+  // for terminal display.
+  if (identifier.includes("…") || /\.{3,}/.test(identifier)) {
+    throw new ValidationError(
+      `This DID looks shortened (contains an ellipsis): '${identifier}'`,
+      "Terminal tables truncate long base58 pubkeys for display. " +
+      "Use the 'ref' column from `aip agents ls` instead, e.g. " +
+      "`aip resolve summary-agent` or `aip resolve web-search`.",
+    );
+  }
 
-async function runWhois(identifier: string, opts: WhoisOptions): Promise<IdentityReport> {
   const classified = classifyIdentityInput(identifier);
 
   if (classified.kind === "unknown") {
@@ -115,7 +110,7 @@ async function tryMarketplaceFallback(
 
 async function resolveAipDid(
   did: string,
-  opts: WhoisOptions,
+  opts: ResolutionOptions,
 ): Promise<IdentityReport> {
   if (!isCanonicalAipDid(did)) {
     const fallback = await tryMarketplaceFallback(did, "no-base58-owner");
@@ -148,7 +143,7 @@ async function resolveAipDid(
     try {
       pda = ctx.resolver.derivePda(did).pda.toBase58();
     } catch {
-      /* invalid DID format — pda stays undefined */
+      /* invalid DID format - pda stays undefined */
     }
 
     const errorCode =
@@ -184,7 +179,11 @@ function startSpinner(text: string): { stop: () => void } {
   return { stop: () => spinner.stop() };
 }
 
-function serializeReport(report: IdentityReport): unknown {
+/**
+ * Flatten the report into something safe for `JSON.stringify` — main
+ * concern is the bigints inside `AgentRecord`, which throw otherwise.
+ */
+export function serializeIdentityReport(report: IdentityReport): unknown {
   switch (report.kind) {
     case "on-chain":
       return {
@@ -205,5 +204,7 @@ function serializeReport(report: IdentityReport): unknown {
       return { kind: report.kind, input: report.input, probe: report.probe };
     case "unsupported-did":
       return { kind: report.kind, did: report.did, method: report.method };
+    case "marketplace-only":
+      return { kind: report.kind, did: report.did, card: report.card, reason: report.reason };
   }
 }

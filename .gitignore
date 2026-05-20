@@ -16,6 +16,9 @@ build/
 .env.test.local
 .env.production.local
 
+# npm auth — never commit publish tokens
+.npmrc
+
 # Debug logs
 npm-debug.log*
 yarn-debug.log*

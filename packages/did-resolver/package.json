@@ -1,5 +1,5 @@
 {
-  "name": "@aip/did-resolver",
+  "name": "@aipagents/did-resolver",
   "version": "0.1.0",
   "description": "Reference resolver for the did:aip W3C DID method (Solana-anchored agent identity)",
   "license": "MIT",
@@ -39,5 +39,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

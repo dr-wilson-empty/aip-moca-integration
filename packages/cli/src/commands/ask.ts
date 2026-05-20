@@ -13,7 +13,13 @@ import { rpcEndpointFor } from "../core/solana.js";
 import { log } from "../core/logger.js";
 import { c, glyph } from "../core/theme.js";
 import { explorerTxUrl } from "../core/format.js";
+import { renderMarkdownInline } from "../core/markdown.js";
 import { AipError, NotFoundError, ValidationError } from "../core/errors.js";
+import {
+  pickAgentInteractively,
+  promptForText,
+  canPromptInteractively,
+} from "../core/interactive.js";
 import ora from "ora";
 
 interface AskOptions {
@@ -63,13 +69,18 @@ async function runAsk(
   const config = await loadConfig();
   const api = new ApiClient({ baseUrl: config.apiUrl });
 
-  const { agentIdentifier, inlinePrompt } = inferArgs(first, second, config.defaultAgent);
+  let { agentIdentifier, inlinePrompt } = inferArgs(first, second, config.defaultAgent);
 
+  // If no agent was passed and no default is configured, fall back to
+  // an interactive picker - same UX as `aip chat` with no args.
   if (!agentIdentifier) {
-    throw new ValidationError(
-      "No agent specified and no default configured",
-      "Pass an agent (e.g. 'aip ask summary \"...\"') or set one: 'aip config set defaultAgent summary'.",
-    );
+    if (!canPromptInteractively()) {
+      throw new ValidationError(
+        "No agent specified and no default configured",
+        "Pass an agent (e.g. 'aip ask summary \"...\"') or set one: 'aip config set defaultAgent summary'.",
+      );
+    }
+    agentIdentifier = await pickAgentInteractively(api, { message: "Pick an agent to ask" });
   }
 
   const resolution = await resolveAgent(agentIdentifier, api);
@@ -101,6 +112,18 @@ async function runAsk(
     );
   }
 
+  // If no prompt was passed and no --input-file, ask interactively.
+  if (!inlinePrompt && !opts.inputFile) {
+    if (!canPromptInteractively()) {
+      throw new ValidationError(
+        "No prompt provided",
+        `Pass it inline ('aip ask ${agentIdentifier} "metin"') or via --input-file.`,
+      );
+    }
+    inlinePrompt = await promptForText(`Prompt for ${agent.name}`, {
+      placeholder: "What would you like to ask?",
+    });
+  }
   const promptText = await readPrompt(inlinePrompt, opts.inputFile);
   const amount = opts.amount ?? capability.pricing.amount;
 
@@ -176,10 +199,13 @@ function inferArgs(
     return { agentIdentifier: first, inlinePrompt: second };
   }
   if (first === undefined) {
+    // No args: caller will either fall through to interactive picker or
+    // (if defaultAgent is set) use that.
     return { agentIdentifier: defaultAgent };
   }
   // Heuristic: if the single arg has whitespace or quotes, treat it as a prompt
-  // and rely on defaultAgent. Otherwise treat it as an agent identifier.
+  // and rely on defaultAgent. Otherwise treat it as an agent identifier - the
+  // prompt will be asked for interactively if missing.
   if (/\s/.test(first) || first.length > 64) {
     return { agentIdentifier: defaultAgent, inlinePrompt: first };
   }
@@ -233,8 +259,12 @@ function printResponse(
     : (serverSpent > 0 ? serverSpent : parseFloat(amountPaid) || 0).toFixed(4);
   log.raw(`  ${c.success(glyph.success)} ${c.success(task.state)}  ${c.dim(`(${actualSpent} USDC spent)`)}`);
   log.blank();
-  for (const line of (artifact || "(no output)").trim().split("\n")) {
-    log.raw(`  ${c.value(line)}`);
+  // Pass the artifact through the inline markdown renderer so common
+  // patterns like `**bold**`, `## headings`, and `- bullets` come out
+  // as ANSI styles instead of raw punctuation.
+  const rendered = renderMarkdownInline(artifact || "(no output)").trim();
+  for (const line of rendered.split("\n")) {
+    log.raw(`  ${line}`);
   }
   log.blank();
   if (escrowTxHash) {

@@ -13,6 +13,19 @@ export function shortenDid(did: string): string {
   return shortenAddress(did, 24, 8);
 }
 
+/**
+ * Extract a short, copy-pasteable reference token from a DID.
+ *
+ * For did:aip:<owner>:<agent_id> this returns the agent_id, which is
+ * exactly what the marketplace shortname resolver expects. Falls back
+ * to the whole DID if it doesn't have the expected segment structure.
+ */
+export function refFromDid(did: string): string {
+  const parts = did.split(":");
+  if (parts.length < 3) return did;
+  return parts[parts.length - 1] ?? did;
+}
+
 export function lamportsToSol(lamports: bigint): string {
   const whole = lamports / 1_000_000_000n;
   const frac = lamports % 1_000_000_000n;

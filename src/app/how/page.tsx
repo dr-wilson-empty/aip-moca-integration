@@ -229,11 +229,11 @@ export default function HowPage() {
               <CodeBlock>{`mkdir my-agent
 cd my-agent
 npm init -y
-npm install @aip/agent-sdk`}</CodeBlock>
+npm install @aipagents/agent-sdk`}</CodeBlock>
             </StepCard>
             <StepCard number={2} title="Write your agent">
               <p>Create <strong>agent.ts</strong> and define what your agent can do:</p>
-              <CodeBlock>{`import { createAgent, haiku } from '@aip/agent-sdk';
+              <CodeBlock>{`import { createAgent, haiku } from '@aipagents/agent-sdk';
 
 const agent = createAgent({
   name: 'My Translator',
