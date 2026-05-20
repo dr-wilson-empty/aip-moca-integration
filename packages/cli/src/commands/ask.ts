@@ -49,7 +49,7 @@ export function askCommand(): Command {
       `
 ${c.dim("Examples:")}
   ${c.brand("$")} aip ask summary "AIP nedir bir cumlede"            ${c.dim("# kısa agent adı")}
-  ${c.brand("$")} aip ask did:aip:platform:summary-agent "..."        ${c.dim("# tam DID")}
+  ${c.brand("$")} aip ask did:aip:<owner-pubkey>:<agent-id> "..."    ${c.dim("# explicit DID")}
   ${c.brand("$")} aip config set defaultAgent summary
   ${c.brand("$")} aip ask "..."                                       ${c.dim("# default agent")}
   ${c.brand("$")} aip ask summary -f ./article.md                     ${c.dim("# dosyadan input")}

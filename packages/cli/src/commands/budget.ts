@@ -42,8 +42,9 @@ export function budgetCommand(): Command {
       "after",
       `
 ${c.dim("Examples:")}
-  $ aip budget info did:aip:platform:summary-agent
-  $ aip budget info did:aip:platform:summary-agent --history
+  $ aip budget info summary-agent
+  $ aip budget info did:aip:<owner-pubkey>:<agent-id>
+  $ aip budget info did:aip:<owner-pubkey>:<agent-id> --history
   $ aip budget info --owner 7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX
   $ aip budget info <did> --json
 

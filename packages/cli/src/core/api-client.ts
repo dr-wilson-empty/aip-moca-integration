@@ -47,7 +47,7 @@ export class ApiClient {
     } catch {
       throw new ValidationError(
         `Could not build a URL from baseUrl='${this.baseUrl}' + path='${path}'`,
-        "Fix with: aip config set apiUrl http://localhost:3000  (or your real backend URL).",
+        "Fix with: aip config set apiUrl https://app.aipagents.xyz  (or set AIP_API_URL env var to override).",
       );
     }
     if (query) {

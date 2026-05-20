@@ -47,9 +47,10 @@ export function taskCommand(): Command {
       "after",
       `
 ${c.dim("Examples:")}
-  $ aip task submit did:aip:platform:summary-agent \\
+  $ aip task submit summary-agent \\
       --capability text.summarize --input "AIP is the agent internet protocol"
-  $ aip task submit <did> --capability x --input-file ./prompt.md --wait
+  $ aip task submit did:aip:<owner-pubkey>:<agent-id> \\
+      --capability text.summarize --input-file ./prompt.md --wait
   $ aip task status task_xxx
   $ aip task stream task_xxx          ${c.dim("# tail live SSE log")}
 `,
