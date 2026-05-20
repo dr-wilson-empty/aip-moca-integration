@@ -5,7 +5,7 @@ import { NotFoundError, ValidationError } from "./errors.js";
 
 /**
  * Checks whether a DID is in canonical did:aip:<owner-pubkey>:<agent-id>
- * form — that is, the owner segment decodes to a 32-byte base58 pubkey.
+ * form - that is, the owner segment decodes to a 32-byte base58 pubkey.
  * Returns false for placeholders like 'platform' / 'sdk' / truncated keys.
  */
 export function isCanonicalAipDid(did: string): boolean {
@@ -68,7 +68,7 @@ export async function resolveAgent(input: string, api: ApiClient): Promise<Resol
     });
   } catch (err) {
     throw new NotFoundError(
-      `Could not look up '${trimmed}' — marketplace API unreachable`,
+      `Could not look up '${trimmed}' - marketplace API unreachable`,
       (err as Error).message,
     );
   }
@@ -91,7 +91,7 @@ export async function resolveAgent(input: string, api: ApiClient): Promise<Resol
     .join("\n");
   throw new ValidationError(
     `'${trimmed}' matches ${matches.length} agents:\n${list}`,
-    "Be more specific — type more of the name, or paste the full DID.",
+    "Be more specific - type more of the name, or paste the full DID.",
   );
 }
 
@@ -110,12 +110,12 @@ function normalize(s: string): string {
 
 /**
  * Score-based matcher. Lower scores win; ties yield multiple matches.
- *   1 — exact agentId (last DID segment), case-insensitive
- *   2 — exact name, case-insensitive
- *   3 — agentId starts with input
- *   4 — name starts with input
- *   5 — agentId contains input
- *   6 — name contains input
+ *   1 - exact agentId (last DID segment), case-insensitive
+ *   2 - exact name, case-insensitive
+ *   3 - agentId starts with input
+ *   4 - name starts with input
+ *   5 - agentId contains input
+ *   6 - name contains input
  */
 function matchAgents(agents: ListedAgent[], input: string): ListedAgent[] {
   const q = normalize(input);

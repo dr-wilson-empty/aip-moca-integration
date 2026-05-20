@@ -28,7 +28,7 @@ export async function unlockKeypair(opts: UnlockOptions = {}): Promise<Keypair> 
   }
 
   const headline = opts.prompt
-    ? `${opts.prompt} — enter your wallet passphrase`
+    ? `${opts.prompt} - enter your wallet passphrase`
     : `Enter the wallet passphrase for ${c.dim(keystore.publicKey)}`;
   const passphrase = await p.password({
     message: headline,
