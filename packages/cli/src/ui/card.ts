@@ -187,7 +187,7 @@ function renderOnChainMissing({ did, pda, cluster, reason }: OnChainMissingRepor
     ],
     "decode-failed": [
       "The on-chain account exists but its data could not be decoded.",
-      "Likely a registry program version mismatch — the agent may need to be re-registered.",
+      "Likely a registry program version mismatch - the agent may need to be re-registered.",
     ],
   };
 
@@ -221,7 +221,7 @@ function renderUrlProbe({ input, probe }: UrlReport): void {
     log.raw(
       `  ${c.dim("This agent published an AgentCard but is not necessarily registered on-chain.")}`,
     );
-    log.raw(`  ${c.dim("Run 'aip whois ' + did to verify on-chain identity.")}`);
+    log.raw(`  ${c.dim("Run 'aip resolve ' + did to verify on-chain identity.")}`);
     log.blank();
     return;
   }

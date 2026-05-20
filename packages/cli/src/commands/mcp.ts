@@ -21,7 +21,7 @@ interface McpOpts {
 
 export function mcpCommand(): Command {
   return new Command("mcp")
-    .description("Run aip as an MCP server (stdio transport) — for Claude Desktop, Cursor, Cline, etc.")
+    .description("Run aip as an MCP server (stdio transport) - for Claude Desktop, Cursor, Cline, etc.")
     .option("--api-url <url>", "Override the AIP backend the tools call (defaults to config)")
     .addHelpText(
       "after",
@@ -118,7 +118,7 @@ async function runMcp(opts: McpOpts): Promise<void> {
   );
 
   server.tool(
-    "aip_whois",
+    "aip_resolve",
     "Inspect an agent's identity by DID or URL. did:aip:* → on-chain resolution. URL → /.well-known/agent.json probe.",
     {
       identifier: z

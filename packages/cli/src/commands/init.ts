@@ -26,7 +26,7 @@ interface RenderContext {
 export function initCommand(): Command {
   return new Command("init")
     .description("Scaffold a new AIP agent project")
-    .argument("<name>", "Project directory name (also used as package name)")
+    .argument("[name]", "Project directory name (also used as package name). Prompted if omitted.")
     .option("-t, --template <id>", "Template: echo | translator | summarizer")
     .option("-p, --port <number>", "Default HTTP port")
     .option("-w, --wallet <pubkey>", "Solana wallet address for payouts")
@@ -40,13 +40,25 @@ ${c.dim("Examples:")}
   $ aip init my-agent --wallet 7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX
 
 ${c.dim("Templates:")}
-  ${c.brand("echo")}         Minimal agent, no AI dependency — perfect for protocol testing
+  ${c.brand("echo")}         Minimal agent, no AI dependency - perfect for protocol testing
   ${c.brand("translator")}   Uses Claude Haiku to translate text between languages
   ${c.brand("summarizer")}   Uses Claude Haiku to summarize input
 `,
     )
-    .action(async (name: string, opts: InitOpts) => {
-      await runInit(name, opts);
+    .action(async (name: string | undefined, opts: InitOpts) => {
+      let resolvedName = name;
+      if (!resolvedName) {
+        const { promptForText, canPromptInteractively } = await import("../core/interactive.js");
+        if (!canPromptInteractively()) {
+          throw new AipError(
+            "No project name provided",
+            undefined,
+            "Pass a name, e.g. 'aip init my-bot'.",
+          );
+        }
+        resolvedName = await promptForText("Project name", { placeholder: "my-agent" });
+      }
+      await runInit(resolvedName, opts);
     });
 }
 
@@ -227,7 +239,7 @@ function renderPackageJson(ctx: RenderContext): string {
       {
         name: ctx.packageName,
         version: "0.1.0",
-        description: `${ctx.agentName} — built on the Agent Internet Protocol`,
+        description: `${ctx.agentName} - built on the Agent Internet Protocol`,
         private: true,
         type: "module",
         main: "dist/index.js",
@@ -310,13 +322,13 @@ ${ctx.template !== "echo" ? "cp .env.example .env  # then fill in ANTHROPIC_API_
 
 The agent will bind on port \`${ctx.port}\` and expose:
 
-- \`GET  /.well-known/agent.json\` — discoverable Agent Card
-- \`POST /a2a\` — A2A JSON-RPC task endpoint
+- \`GET  /.well-known/agent.json\` - discoverable Agent Card
+- \`POST /a2a\` - A2A JSON-RPC task endpoint
 
 ## Discover from anywhere
 
 \`\`\`bash
-aip whois http://localhost:${ctx.port}
+aip resolve http://localhost:${ctx.port}
 \`\`\`
 
 ## Register on-chain
@@ -325,7 +337,7 @@ Once the agent is reachable from the public internet (use a tunnel like
 \`cloudflared tunnel --url http://localhost:${ctx.port}\`), register it:
 
 \`\`\`bash
-aip register   # phase 7 of @aip/cli — coming soon
+aip register   # phase 7 of @aip/cli - coming soon
 \`\`\`
 
 ## Customizing
@@ -391,7 +403,7 @@ agent.capability("text.translate", {
   handler: haiku(
     "You are a precise translation agent. " +
       "The user will provide a phrase, optionally prefixed with a target language " +
-      "('to French: ...'). Output the translation only — no explanations, no " +
+      "('to French: ...'). Output the translation only - no explanations, no " +
       "quotation marks, no source-language echo."
   ),
 });
@@ -419,7 +431,7 @@ agent.capability("text.summarize", {
   price: "0.10",
   handler: haiku(
     "You are a summarization specialist. " +
-      "Produce a single concise paragraph — under 80 words — that captures the " +
+      "Produce a single concise paragraph - under 80 words - that captures the " +
       "key points of the input. Preserve the input's original language."
   ),
 });

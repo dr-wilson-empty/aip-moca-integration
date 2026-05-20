@@ -56,8 +56,8 @@ ${c.dim("Examples:")}
     );
 
   cmd
-    .command("submit <did>")
-    .description("Submit a task to an agent (pays via x402 escrow)")
+    .command("submit [did]")
+    .description("Submit a task to an agent (pays via x402 escrow). Interactive picker if did omitted.")
     .option("-c, --capability <id>", "Capability id (defaults to the first one the agent advertises)")
     .option("-i, --input <text>", "Inline input text")
     .option("-f, --input-file <path>", "Read input from a file (use '-' for stdin)")
@@ -66,7 +66,7 @@ ${c.dim("Examples:")}
     .option("--json", "Print machine-readable JSON")
     .option("-n, --network <cluster>", "Override Solana cluster")
     .option("--rpc <url>", "Override Solana RPC endpoint")
-    .action(async (did: string, opts: SubmitOpts) => {
+    .action(async (did: string | undefined, opts: SubmitOpts) => {
       await runSubmit(did, opts);
     });
 
@@ -90,10 +90,22 @@ ${c.dim("Examples:")}
   return cmd;
 }
 
-async function runSubmit(identifier: string, opts: SubmitOpts): Promise<void> {
+async function runSubmit(identifier: string | undefined, opts: SubmitOpts): Promise<void> {
   const config = await loadConfig();
   const cluster = opts.network ?? config.network;
   const api = new ApiClient({ baseUrl: config.apiUrl });
+
+  // No agent: marketplace picker.
+  if (!identifier) {
+    const { pickAgentInteractively, canPromptInteractively } = await import("../core/interactive.js");
+    if (!canPromptInteractively()) {
+      throw new ValidationError(
+        "No agent identifier specified",
+        "Pass an agent ref or DID, e.g. 'aip task submit summary -i \"...\"'.",
+      );
+    }
+    identifier = await pickAgentInteractively(api, { message: "Pick an agent to submit to" });
+  }
 
   const lookupSpinner = startSpinner(`Looking up ${identifier}`);
   let agent: AgentDetail;
@@ -248,10 +260,16 @@ async function fetchTask(api: ApiClient, taskId: string): Promise<Task> {
 async function readInput(opts: SubmitOpts): Promise<string> {
   if (opts.input !== undefined) return opts.input;
   if (opts.inputFile === undefined) {
-    throw new ValidationError(
-      "Either --input or --input-file is required",
-      "Pass the prompt inline with --input \"...\" or use --input-file path (or '-' for stdin).",
-    );
+    // No input flags - prompt interactively if we have a TTY, otherwise
+    // bail out with the same error script users used to see.
+    const { promptForText, canPromptInteractively } = await import("../core/interactive.js");
+    if (!canPromptInteractively()) {
+      throw new ValidationError(
+        "Either --input or --input-file is required",
+        "Pass the prompt inline with --input \"...\" or use --input-file path (or '-' for stdin).",
+      );
+    }
+    return promptForText("Task input", { placeholder: "What should the agent do?" });
   }
   if (opts.inputFile === "-") {
     const chunks: Buffer[] = [];

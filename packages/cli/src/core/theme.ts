@@ -13,9 +13,12 @@ function pick(fn: ChalkInstance): (s: string) => string {
   return noColor ? identity : (s: string) => fn(s);
 }
 
+/** Brand color: soft mint, matches the aipagents.xyz palette (#E7FEEE). */
+const BRAND_HEX = "#A8E6BB";
+
 export const c = {
-  brand: pick(chalk.cyan),
-  brandBold: pick(chalk.cyan.bold),
+  brand: pick(chalk.hex(BRAND_HEX)),
+  brandBold: pick(chalk.hex(BRAND_HEX).bold),
   success: pick(chalk.green),
   warning: pick(chalk.yellow),
   error: pick(chalk.red),
@@ -43,7 +46,7 @@ export const glyph = {
 export const box = {
   borderStyle: "round" as const,
   padding: { top: 0, bottom: 0, left: 1, right: 1 },
-  borderColor: "cyan" as const,
+  borderColor: BRAND_HEX,
 };
 
 export function brandHeader(): string {

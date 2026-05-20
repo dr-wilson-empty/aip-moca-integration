@@ -1,7 +1,7 @@
 import Table from "cli-table3";
 import { c, glyph } from "../core/theme.js";
 import { log } from "../core/logger.js";
-import { shortenDid } from "../core/format.js";
+import { shortenDid, refFromDid } from "../core/format.js";
 import { cheapestPrice, type AgentStatus, type ListedAgent } from "../core/agent-list.js";
 
 function statusGlyph(s: AgentStatus | undefined): string {
@@ -11,7 +11,7 @@ function statusGlyph(s: AgentStatus | undefined): string {
 
 function priceLabel(agent: ListedAgent): string {
   const min = cheapestPrice(agent);
-  if (!Number.isFinite(min)) return c.dim("—");
+  if (!Number.isFinite(min)) return c.dim("-");
   return `${c.success(min.toFixed(2))} ${c.dim("USDC")}`;
 }
 
@@ -37,6 +37,7 @@ export function renderAgentTable(
     head: [
       c.dim(""),
       c.dim("name"),
+      c.dim("ref"),
       c.dim("type"),
       c.dim("caps"),
       c.dim("from"),
@@ -67,6 +68,7 @@ export function renderAgentTable(
     table.push([
       statusGlyph(statusByDid?.get(agent.did)),
       c.value(agent.name),
+      c.brand(refFromDid(agent.did)),
       c.dim(agent.type),
       c.value(String(agent.capabilities.length)),
       priceLabel(agent),
@@ -88,5 +90,6 @@ export function renderAgentTable(
     log.blank();
     log.raw(`  ${c.dim(glyph.bullet)} ${c.value(String(agents.length))} ${c.dim("agents")}`);
   }
+  log.raw(`  ${c.dim("tip: copy the")} ${c.brand("ref")} ${c.dim("column to use any command, e.g.")} ${c.value("aip resolve <ref>")}`);
   log.blank();
 }

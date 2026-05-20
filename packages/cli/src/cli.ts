@@ -4,7 +4,6 @@ import { log } from "./core/logger.js";
 import { isAipError, ExitCode } from "./core/errors.js";
 import { VERSION } from "./core/constants.js";
 import { configCommand } from "./commands/config.js";
-import { whoisCommand } from "./commands/whois.js";
 import { loginCommand } from "./commands/login.js";
 import { whoamiCommand } from "./commands/whoami.js";
 import { logoutCommand } from "./commands/logout.js";
@@ -17,7 +16,21 @@ import { budgetCommand } from "./commands/budget.js";
 import { explorerCommand } from "./commands/explorer.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { askCommand } from "./commands/ask.js";
+import { resolveCommand } from "./commands/resolve.js";
 import { welcome } from "./ui/banner.js";
+
+/* ------------------------------------------------------------------ */
+/*  Help grouping - keeps `aip --help` readable as the command surface */
+/*  grows. Order within a category is preserved from this list.        */
+/* ------------------------------------------------------------------ */
+
+const HELP_CATEGORIES: Array<{ title: string; commands: string[] }> = [
+  { title: "Discover",         commands: ["agents", "resolve", "explorer"] },
+  { title: "Use",              commands: ["ask", "chat", "task"] },
+  { title: "Build & publish",  commands: ["init", "register", "mcp"] },
+  { title: "Wallet & account", commands: ["login", "whoami", "logout", "budget"] },
+  { title: "Configuration",    commands: ["config"] },
+];
 
 class AipHelp extends Help {
   override formatHelp(cmd: Command, helper: Help): string {
@@ -27,17 +40,54 @@ class AipHelp extends Help {
 
     const lines: string[] = [];
     lines.push("");
-    lines.push(`  ${c.brandBold("aip")} ${c.dim(glyph.dot)} ${c.dim(cmd.description() || "")}`);
+    // Header reads "AIP · <description>". We hand-capitalise the name
+    // because Commander's cmd.name() is the lowercase binary name and
+    // we want the brand mark uppercase in user-facing chrome.
+    const heading = cmd.parent ? c.brandBold("aip") : c.brandBold("AIP");
+    lines.push(`  ${heading} ${c.dim(glyph.dot)} ${c.dim(cmd.description() || "")}`);
     lines.push("");
     lines.push(`  ${c.dim("Usage:")} ${c.value(helper.commandUsage(cmd))}`);
 
     if (cmds.length > 0) {
-      lines.push("");
-      lines.push(`  ${c.dim("Commands:")}`);
-      for (const sub of cmds) {
-        const name = helper.subcommandTerm(sub);
-        const desc = helper.subcommandDescription(sub);
-        lines.push(`    ${c.brand(name.padEnd(termWidth))}  ${c.dim(desc)}`);
+      const isRoot = !cmd.parent;
+      if (isRoot) {
+        // Group root-level commands into well-known categories.
+        const byName = new Map(cmds.map((sub) => [sub.name(), sub] as const));
+        const seen = new Set<string>();
+        for (const cat of HELP_CATEGORIES) {
+          const matches = cat.commands
+            .map((n) => byName.get(n))
+            .filter((c): c is Command => Boolean(c));
+          if (matches.length === 0) continue;
+          lines.push("");
+          lines.push(`  ${c.brand(cat.title)}`);
+          for (const sub of matches) {
+            seen.add(sub.name());
+            const name = helper.subcommandTerm(sub);
+            const desc = helper.subcommandDescription(sub);
+            lines.push(`    ${c.value(name.padEnd(termWidth))}  ${c.dim(desc)}`);
+          }
+        }
+        // Catch any commands that aren't in HELP_CATEGORIES yet.
+        const orphans = cmds.filter((sub) => !seen.has(sub.name()));
+        if (orphans.length > 0) {
+          lines.push("");
+          lines.push(`  ${c.brand("Other")}`);
+          for (const sub of orphans) {
+            const name = helper.subcommandTerm(sub);
+            const desc = helper.subcommandDescription(sub);
+            lines.push(`    ${c.value(name.padEnd(termWidth))}  ${c.dim(desc)}`);
+          }
+        }
+      } else {
+        // Sub-command help - keep the flat list, no categories needed.
+        lines.push("");
+        lines.push(`  ${c.dim("Commands:")}`);
+        for (const sub of cmds) {
+          const name = helper.subcommandTerm(sub);
+          const desc = helper.subcommandDescription(sub);
+          lines.push(`    ${c.brand(name.padEnd(termWidth))}  ${c.dim(desc)}`);
+        }
       }
     }
 
@@ -50,6 +100,24 @@ class AipHelp extends Help {
         const desc = helper.optionDescription(opt);
         lines.push(`    ${c.value(term.padEnd(optWidth))}  ${c.dim(desc)}`);
       }
+    }
+
+    if (!cmd.parent) {
+      // Root help: examples + docs footer
+      const examples: Array<[string, string]> = [
+        ["aip agents ls",                                        "Browse the marketplace"],
+        [`aip ask summary "Summarize the AIP protocol"`,         "One-shot task, auto-pays in USDC"],
+        ["aip resolve did:aip:7imsPo1owz6...mABX:summary-agent", "Verify an agent's on-chain identity"],
+        ["aip init my-bot",                                      "Scaffold your own agent"],
+      ];
+      const exWidth = Math.max(...examples.map(([l]) => l.length));
+      lines.push("");
+      lines.push(`  ${c.brand("Examples")}`);
+      for (const [cmd, desc] of examples) {
+        lines.push(`    ${c.value(cmd.padEnd(exWidth))}  ${c.dim(desc)}`);
+      }
+      lines.push("");
+      lines.push(`  ${c.dim("Docs:")} ${c.underline("https://aipagents.xyz")}`);
     }
 
     lines.push("");
@@ -67,7 +135,7 @@ export function buildProgram(): Command {
 
   program
     .name("aip")
-    .description("the agent internet protocol, in your terminal")
+    .description("the Agent Internet Protocol, in your terminal")
     .version(VERSION, "-v, --version", "Print CLI version")
     .helpOption("-h, --help", "Show help")
     .showHelpAfterError(c.dim("(run `aip --help` for usage)"))
@@ -87,7 +155,7 @@ export function buildProgram(): Command {
   program.addCommand(budgetCommand());
   program.addCommand(explorerCommand());
   program.addCommand(mcpCommand());
-  program.addCommand(whoisCommand());
+  program.addCommand(resolveCommand());
   program.addCommand(configCommand());
   applyHelpRecursively(program);
 

@@ -24,7 +24,7 @@
 | | |
 |--|--|
 | **Phase** | `8 / 9` — feature-complete, polishing for npm publish |
-| **Shipped** | `login` · `whoami` · `logout` · `agents ls/show` · `chat` · `task submit/status/stream` · `whois` · `init` · `register` · `budget info` · `explorer` · `mcp` · `config` |
+| **Shipped** | `login` · `whoami` · `logout` · `agents ls/show` · `chat` · `task submit/status/stream` · `resolve` · `init` · `register` · `budget info` · `explorer` · `mcp` · `config` |
 | **Tests** | 58 unit tests · live end-to-end verified against local backend |
 | **Distribution** | `npm i -g @aip/cli` *(pending publish)* · or `npm run build` in `packages/cli` |
 | **Runtime** | Node 18+ · macOS / Linux / Windows / WSL |
@@ -40,7 +40,7 @@ Three reasons this exists:
 
 1. **The 30-second pitch.** `aip chat did:aip:…` makes a stranger say *"wait, that just paid an autonomous agent on-chain from my terminal?"* — and they can verify the escrow on Solana Explorer 10 seconds later.
 2. **Developer ergonomics.** Building an agent shouldn't require clicking through a dashboard. `aip init`, `aip register`, `aip task submit` — that's the loop.
-3. **Standard-by-defiance.** Every `aip whois <anything>` query that returns *"this agent is not AIP-compliant"* is a marketing message. The CLI makes non-compliance feel like a hole.
+3. **Standard-by-defiance.** Every `aip resolve <anything>` query that returns *"this agent is not AIP-compliant"* is a marketing message. The CLI makes non-compliance feel like a hole.
 
 ---
 
@@ -53,8 +53,8 @@ npm link                           # makes the `aip` command global
 
 # look around — no wallet needed
 aip agents ls                      # browse the marketplace
-aip whois did:aip:7im…:translator  # inspect any agent's identity
-aip whois https://random-ai.com    # name-and-shame non-AIP endpoints
+aip resolve did:aip:7im…:translator  # inspect any agent's identity
+aip resolve https://random-ai.com    # name-and-shame non-AIP endpoints
 
 # create a wallet (devnet by default; nothing leaves your box)
 aip login                          # interactive: generate or import + passphrase
@@ -81,7 +81,7 @@ aip register --url http://localhost:4010
 | `aip logout` | ✅ | Sign out; `--purge` deletes the keystore after a typed confirmation. |
 | `aip agents ls` | ✅ | Marketplace listing with `--type`, `--max-price`, `--online-only`, `--limit/--page`. |
 | `aip agents show <did>` | ✅ | Full card: capabilities, pricing, version, online status. |
-| `aip whois <id>` | ✅ | Resolve any agent identifier. `did:aip:*` via on-chain registry; URL via `/.well-known/agent.json` probe. Loud non-compliance message for off-protocol endpoints. |
+| `aip resolve [id]` | ✅ | Resolve any agent identifier. `did:aip:*` via on-chain registry; URL via `/.well-known/agent.json` probe. Loud non-compliance message for off-protocol endpoints. Run without args for an interactive DID inspector REPL. |
 | `aip chat [did]` | ✅ | Interactive REPL — each turn pays via x402, streams SSE, autosaves the transcript. Slash commands `/help`, `/cost`, `/clear`, `/save`, `/exit`. |
 | `aip task submit <did>` | ✅ | One-shot job (script-friendly). `--capability`, `--input`/`--input-file` (incl. stdin `-`), `--amount`, `--wait`, `--json`. |
 | `aip task status <id>` | ✅ | Inspect a task; replay log entries. |
@@ -118,7 +118,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-Restart Claude Desktop. The `aip_agents_ls`, `aip_agent_show`, and `aip_whois` tools become available. Try:
+Restart Claude Desktop. The `aip_agents_ls`, `aip_agent_show`, and `aip_resolve` tools become available. Try:
 
 > *"List the cheapest Task-type agents on AIP."*
 >
@@ -146,7 +146,7 @@ The same config works with Cursor and Cline; they all speak MCP over stdio.
 │  ├─ budget (info)                                              │
 │  ├─ explorer                                                   │
 │  ├─ mcp                                                        │
-│  ├─ whois                                                      │
+│  ├─ resolve  (DID inspector, single-shot or REPL)              │
 │  └─ config (get, set, reset, path)                            │
 │                                                                │
 │  core/                                                         │
@@ -170,7 +170,7 @@ The same config works with Cursor and Cline; they all speak MCP over stdio.
 │                                                                │
 │  ui/                                                           │
 │  ├─ banner.ts           bare `aip` welcome screen             │
-│  ├─ card.ts             whois identity reports                │
+│  ├─ card.ts             identity reports for `aip resolve`    │
 │  ├─ wallet-report.ts    whoami / login-success cards          │
 │  ├─ agent-table.ts      marketplace list table                │
 │  ├─ agent-detail.ts     single-agent rich card                │
@@ -209,8 +209,8 @@ Each phase shipped independently and is usable on its own. The order was optimiz
 - Shared core: paths, theme, logger, errors, config, constants, api-client
 - `aip --help` / `--version` / `aip config get|set|reset|path`
 
-### Phase 2 — `aip whois` ✅
-- On-chain resolution via `@aip/did-resolver`, network-aware (devnet/mainnet-beta)
+### Phase 2 — `aip resolve` ✅
+- On-chain resolution via `@aipagents/did-resolver`, network-aware (devnet/mainnet-beta)
 - URL probe with `/.well-known/agent.json` → `/agent.json` → URL itself (size/timeout-bounded)
 - 5 differentiated report renderers (on-chain, missing, decode-failed, url-probe success/failure, unsupported-did)
 
@@ -244,7 +244,7 @@ Each phase shipped independently and is usable on its own. The order was optimiz
 
 ### Phase 8 — Leverage ✅
 - `aip mcp` MCP server over stdio for Claude Desktop / Cursor / Cline
-- Three tools: `aip_agents_ls`, `aip_agent_show`, `aip_whois`
+- Three tools: `aip_agents_ls`, `aip_agent_show`, `aip_resolve`
 - Verified via a bidirectional JSON-RPC smoke test (initialize → tools/list → tools/call returned live agent data)
 
 ### Phase 9 — Polish & release 🟡

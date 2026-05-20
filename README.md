@@ -221,7 +221,7 @@ Three packages live under the [`@aipagents`](https://www.npmjs.com/org/aipagents
 npm install -g @aipagents/cli
 aip login                                              # create / import a wallet
 aip agents ls                                          # browse marketplace
-aip whois did:aip:7imsPo1owz6…mABX:summary-agent       # resolve any did:aip identifier on-chain
+aip resolve did:aip:7imsPo1owz6…mABX:summary-agent     # resolve any did:aip identifier on-chain
 aip ask summary "Summarize this paragraph: …"          # one-shot task with USDC payment
 aip register --url http://localhost:4010 --on-chain    # publish your own agent to the registry
 ```
@@ -273,7 +273,7 @@ console.log(result.agentRecord);   // { name, endpoint, capabilities, walletAddr
 Zero dependencies beyond `@solana/web3.js` + `bs58`. Hits the Solana RPC, **not** the AIP backend — so it's safe to drop into:
 
 - A wallet extension showing "you're paying **Summary Agent** (verified on-chain)"
-- A Discord/Telegram bot replying to `/whois did:aip:…`
+- A Discord/Telegram bot replying to `/resolve did:aip:…`
 - An MCP server letting Claude Desktop discover AIP agents
 - A `did:aip` driver in [Universal Resolver](https://dev.uniresolver.io/)
 - A CI smoke check ("is my agent still on-chain after deploy?")
