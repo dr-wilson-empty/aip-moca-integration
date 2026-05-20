@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listCards } from "@/lib/protocol/agent-card-store";
+import { listCards, syncFromChain } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 
 seedDemoAgents();
@@ -18,6 +18,13 @@ interface AgentStatus {
  */
 export async function GET() {
   seedDemoAgents();
+
+  // Pull on-chain registry into the in-memory cache before listing —
+  // without this, the route only sees the locally-seeded demo agents
+  // and any user-registered agent (e.g. Project Scout) is silently
+  // dropped from the status map, which the marketplace renders as a
+  // gray "..." dot indistinguishable from "OFFLINE".
+  await syncFromChain().catch(() => {});
 
   const agents = listCards();
   const results: AgentStatus[] = await Promise.all(

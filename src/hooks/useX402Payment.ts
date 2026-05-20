@@ -22,6 +22,13 @@ const ESCROW_PROGRAM_ID = new PublicKey(
   "59kc3swV6j6NqvhJoKKXAw1uWqGisY2txtf3LLM9Myhz"
 );
 
+// SPL Memo v2 — attaches human-readable text to the tx so Phantom shows
+// "AIP escrow · task <id> · <amount> USDC" in the signature preview
+// instead of an opaque "interacts with unknown program" warning.
+const MEMO_PROGRAM_ID = new PublicKey(
+  "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+);
+
 // initialize_escrow discriminator: sha256("global:initialize_escrow")[0..8]
 const INIT_ESCROW_DISCRIMINATOR = Buffer.from([243, 160, 77, 153, 11, 92, 48, 209]);
 
@@ -186,6 +193,16 @@ export function useX402Payment() {
           feePayer: publicKey,
           blockhash,
           lastValidBlockHeight,
+        });
+
+        // Memo first — Phantom's tx preview surfaces this to the user so
+        // they see "AIP escrow · task xxx · 0.05 USDC" instead of a bare
+        // "unknown program" warning.
+        const memoText = `AIP escrow · task ${taskId} · ${(Number(amount) / 1e6).toFixed(2)} USDC`;
+        tx.add({
+          programId: MEMO_PROGRAM_ID,
+          keys: [],
+          data: Buffer.from(memoText, "utf8"),
         });
 
         // initialize_escrow instruction

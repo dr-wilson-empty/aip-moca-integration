@@ -3,6 +3,36 @@ import {
   fetchAllOnChainAgents,
   isAgentOnChainByDid,
 } from "@/lib/solana/registry-program";
+import { getAppUrl } from "@/lib/config/app-url";
+
+/**
+ * Hosted-agent endpoints get baked into the on-chain PDA at registration
+ * time. Demo agents seeded during local dev were committed with a
+ * `http://localhost:3000` host; that value lives on Solana forever. When
+ * the live server later syncs from chain, the stale host would otherwise
+ * overwrite the correct in-memory endpoint, leaving the marketplace
+ * showing localhost URLs and the status route marking them offline.
+ *
+ * For any endpoint that is unambiguously a hosted-agent dispatch URL
+ * (carries `?agentId=` or matches the platform web-agent path) we
+ * rewrite the host to the current `getAppUrl()` value. External agents
+ * (no `?agentId=`, custom domains) are left untouched.
+ */
+function normalizeEndpoint(endpoint: string): string {
+  const isHostedDispatch =
+    endpoint.includes("/api/hosted-agent") || endpoint.includes("/api/web/agent");
+  if (!isHostedDispatch) return endpoint;
+  try {
+    const url = new URL(endpoint);
+    const appUrl = new URL(getAppUrl());
+    if (url.host === appUrl.host) return endpoint;
+    url.protocol = appUrl.protocol;
+    url.host = appUrl.host;
+    return url.toString();
+  } catch {
+    return endpoint;
+  }
+}
 
 /**
  * Hybrid Agent Card store — in-memory cache + on-chain registry.
@@ -51,7 +81,8 @@ export function removeCard(did: string): boolean {
 export async function syncFromChain(): Promise<number> {
   try {
     const onChainCards = await fetchAllOnChainAgents();
-    for (const card of onChainCards) {
+    for (const rawCard of onChainCards) {
+      const card = { ...rawCard, endpoint: normalizeEndpoint(rawCard.endpoint) };
       // Remove any in-memory card with the same endpoint (avoid duplicates)
       const toRemove: string[] = [];
       cardsByDid.forEach((existing, existingDid) => {

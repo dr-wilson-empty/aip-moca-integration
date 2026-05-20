@@ -18,6 +18,10 @@ import { USDC_MINT } from "./solana.js";
 
 const USDC_DECIMALS = 6;
 const ESCROW_PROGRAM_ID = new PublicKey("59kc3swV6j6NqvhJoKKXAw1uWqGisY2txtf3LLM9Myhz");
+// SPL Memo v2 — attaches a human-readable label so wallet UIs (Phantom,
+// Solflare, Backpack) show "AIP escrow · task X · N USDC" in the
+// signature preview instead of just an unknown-program warning.
+const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 const INIT_ESCROW_DISCRIMINATOR = Buffer.from([243, 160, 77, 153, 11, 92, 48, 209]);
 const DEFAULT_DEADLINE_SECONDS = 300;
 
@@ -150,6 +154,15 @@ export async function submitTaskWithPayment(
 
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
   const tx = new Transaction({ feePayer: payer, blockhash, lastValidBlockHeight });
+
+  // Memo instruction (rendered by wallet UIs in the sign preview).
+  const memoText = `AIP escrow · task ${taskId} · ${(Number(amount) / 10 ** USDC_DECIMALS).toFixed(2)} USDC`;
+  tx.add({
+    programId: MEMO_PROGRAM_ID,
+    keys: [],
+    data: Buffer.from(memoText, "utf8"),
+  });
+
   tx.add({
     programId: ESCROW_PROGRAM_ID,
     keys: [
