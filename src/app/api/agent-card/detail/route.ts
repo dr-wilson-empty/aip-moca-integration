@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllOnChainAgents } from "@/lib/solana/registry-program";
-import { getCardByDid } from "@/lib/protocol/agent-card-store";
+import { getCardByDid, normalizeEndpoint } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 import { getHostedAgent, loadHostedAgentsFromDb } from "@/lib/hosted-agents";
 
@@ -24,11 +24,12 @@ export async function GET(request: NextRequest) {
     if (onChain) {
       // Enrich with hosted agent description
       await loadHostedAgentsFromDb();
-      const onChainMatch = onChain.endpoint?.match(/[?&]agentId=([^&]+)/)
+      const normalizedEndpoint = normalizeEndpoint(onChain.endpoint);
+      const onChainMatch = normalizedEndpoint.match(/[?&]agentId=([^&]+)/)
         || did.match(/:([^:]+)$/);
       const agentId = onChainMatch?.[1];
       const hostedInfo = agentId ? getHostedAgent(agentId) : null;
-      return NextResponse.json({ ...onChain, description: hostedInfo?.description || undefined, source: "on-chain" });
+      return NextResponse.json({ ...onChain, endpoint: normalizedEndpoint, description: hostedInfo?.description || undefined, source: "on-chain" });
     }
   } catch { /* fallback to in-memory */ }
 

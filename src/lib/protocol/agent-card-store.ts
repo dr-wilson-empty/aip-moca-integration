@@ -18,16 +18,23 @@ import { getAppUrl } from "@/lib/config/app-url";
  * rewrite the host to the current `getAppUrl()` value. External agents
  * (no `?agentId=`, custom domains) are left untouched.
  */
-function normalizeEndpoint(endpoint: string): string {
+export function normalizeEndpoint(endpoint: string): string {
   const isHostedDispatch =
     endpoint.includes("/api/hosted-agent") || endpoint.includes("/api/web/agent");
   if (!isHostedDispatch) return endpoint;
   try {
     const url = new URL(endpoint);
     const appUrl = new URL(getAppUrl());
-    if (url.host === appUrl.host) return endpoint;
+    if (url.protocol === appUrl.protocol && url.hostname === appUrl.hostname && url.port === appUrl.port) {
+      return endpoint;
+    }
+    // `URL.host` setter preserves the existing port when the assigned
+    // value omits one, so we update protocol / hostname / port
+    // individually to make sure stale `:3000` from a localhost URL is
+    // fully wiped (otherwise we end up with `app.aipagents.xyz:3000`).
     url.protocol = appUrl.protocol;
-    url.host = appUrl.host;
+    url.hostname = appUrl.hostname;
+    url.port = appUrl.port;
     return url.toString();
   } catch {
     return endpoint;

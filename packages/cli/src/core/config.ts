@@ -5,7 +5,7 @@ import { paths, ensureRoot } from "./paths.js";
 import { ConfigError } from "./errors.js";
 
 export const ConfigSchema = z.object({
-  apiUrl: z.string().url().default("https://aipagents.xyz"),
+  apiUrl: z.string().url().default("https://app.aipagents.xyz"),
   network: z.enum(["devnet", "mainnet-beta"]).default("devnet"),
   rpcUrl: z.string().url().optional(),
   defaultAgent: z.string().optional(),
