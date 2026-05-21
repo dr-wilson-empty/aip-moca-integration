@@ -48,6 +48,21 @@ export default function TaskForm() {
 
   useTaskSSE(activeTaskId);
 
+  // Reset the task output + form fields whenever the user switches to
+  // a different agent. Without this, navigating from the marketplace
+  // "new task" button shows the previous agent's artifact and tx
+  // links, which is confusing (it looks like the old run was
+  // executed against the new agent).
+  useEffect(() => {
+    resetTask();
+    setActiveTaskId(null);
+    taskAddedRef.current = false;
+    setInput("");
+    setSelectedCapId(counterpartCard?.capabilities[0]?.id ?? "");
+  // resetTask is a stable zustand setter; depending only on the agent did.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counterpartCard?.did]);
+
   useEffect(() => {
     if ((taskState === "COMPLETED" || taskState === "FAILED") && !taskAddedRef.current && activeTaskId) {
       taskAddedRef.current = true;

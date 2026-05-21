@@ -184,6 +184,12 @@ export default function CreateAgentPage() {
   const handlePublish = async () => {
     if (!address || !step3Valid) return;
     store.setPublishing(true);
+    // Track whether the backend register landed so we can roll it back
+    // if the on-chain step later fails. Without this rollback the
+    // agent stays live on the marketplace even when the user rejected
+    // the Phantom prompt for the on-chain tx, which is misleading
+    // (it looks like a real published agent but `onChain: false`).
+    let backendRegistered = false;
     try {
       const res = await signedFetch("/api/hosted-agent/register", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -198,6 +204,7 @@ export default function CreateAgentPage() {
         }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed to register hosted agent"); }
+      backendRegistered = true;
       const data = await res.json();
       const sig = await registerOnChain({
         agentId: agentIdSlug, name: store.name.trim(), endpoint: data.endpoint, agentType: 1,
@@ -205,7 +212,19 @@ export default function CreateAgentPage() {
         capabilities: store.capabilities.map((c) => ({ id: c.id.trim(), description: c.description.trim(), pricing: { amount: c.amount, token: "USDC", network: "solana" } })),
       });
       store.setPublished(sig || "hosted-only");
-    } catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
+    } catch (err) {
+      if (backendRegistered) {
+        // Best-effort rollback - if this fails the agent is left in a
+        // marketplace-only state that the user can clean up via the
+        // dashboard delete flow. Either way we report the original
+        // error to the user, not the rollback outcome.
+        await signedFetch(
+          `/api/hosted-agent/register?agentId=${encodeURIComponent(agentIdSlug)}&owner=${encodeURIComponent(address)}`,
+          { method: "DELETE" },
+        ).catch(() => {});
+      }
+      store.setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (

@@ -234,11 +234,33 @@ async function runCreate(opts: CreateOpts): Promise<void> {
         onChainResult = { signature: result.signature, pda: result.pda };
         log.success(`On-chain PDA ${c.value(result.pda)}`);
       } catch (err) {
-        log.warn(
-          `On-chain register failed: ${err instanceof Error ? err.message : String(err)}. ` +
-            "The marketplace entry is still live; you can retry the on-chain step with " +
-            `'aip register --on-chain --agent-id ${draft.agentId}'.`,
-        );
+        // Roll the marketplace entry back so the agent does not stay
+        // live without an on-chain PDA. Without this the marketplace
+        // ends up with `onChain: false` agents that look published but
+        // never landed on Solana. If the rollback itself fails we keep
+        // the original error in the foreground.
+        const message = err instanceof Error ? err.message : String(err);
+        const rollbackHeaders = buildAipAuthHeaders(keypair);
+        const url = `/api/hosted-agent/register?agentId=${encodeURIComponent(draft.agentId)}&owner=${encodeURIComponent(ownerAddress)}`;
+        let rolledBack = false;
+        try {
+          const delRes = await api.request("DELETE", url, { headers: rollbackHeaders });
+          rolledBack = delRes.status >= 200 && delRes.status < 300;
+        } catch {
+          /* swallow */
+        }
+        if (rolledBack) {
+          log.warn(
+            `On-chain register failed: ${message}. Marketplace entry rolled back. ` +
+              `Try again with 'aip create' once you've resolved the issue (RPC, balance, etc).`,
+          );
+        } else {
+          log.warn(
+            `On-chain register failed: ${message}. Marketplace entry could not be ` +
+              `cleaned up automatically; delete it manually with the dashboard or ` +
+              `'aip register --on-chain --agent-id ${draft.agentId}' to retry.`,
+          );
+        }
       }
     }
   }
