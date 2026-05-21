@@ -25,6 +25,7 @@ const KNOWN_COMMANDS = new Set([
   "budget",
   "chat",
   "config",
+  "create",
   "explorer",
   "init",
   "login",

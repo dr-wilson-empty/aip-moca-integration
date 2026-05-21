@@ -17,6 +17,7 @@ import { explorerCommand } from "./commands/explorer.js";
 import { mcpCommand } from "./commands/mcp.js";
 import { askCommand } from "./commands/ask.js";
 import { resolveCommand } from "./commands/resolve.js";
+import { createCommand } from "./commands/create.js";
 import { welcome } from "./ui/banner.js";
 
 /* ------------------------------------------------------------------ */
@@ -27,7 +28,7 @@ import { welcome } from "./ui/banner.js";
 const HELP_CATEGORIES: Array<{ title: string; commands: string[] }> = [
   { title: "Discover",         commands: ["agents", "resolve", "explorer"] },
   { title: "Use",              commands: ["ask", "chat", "task"] },
-  { title: "Build & publish",  commands: ["init", "register", "mcp"] },
+  { title: "Build & publish",  commands: ["create", "init", "register", "mcp"] },
   { title: "Wallet & account", commands: ["login", "whoami", "logout", "budget"] },
   { title: "Configuration",    commands: ["config"] },
 ];
@@ -156,6 +157,7 @@ export function buildProgram(): Command {
   program.addCommand(explorerCommand());
   program.addCommand(mcpCommand());
   program.addCommand(resolveCommand());
+  program.addCommand(createCommand());
   program.addCommand(configCommand());
   applyHelpRecursively(program);
 

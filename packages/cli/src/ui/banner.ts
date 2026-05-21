@@ -57,8 +57,9 @@ export function welcome(): string {
     [`aip ask <ref> "prompt"`, "One-shot task, auto-pays in USDC"],
     ["aip chat <ref>",         "Multi-turn REPL with per-turn payment"],
     ["aip resolve <did|url>",  "Verify an agent's on-chain identity"],
-    ["aip init <name>",        "Scaffold your own agent"],
-    ["aip register --on-chain","Publish to marketplace + registry PDA"],
+    ["aip create",             "Build a hosted agent end-to-end (no code)"],
+    ["aip init <name>",        "Scaffold a code project for an SDK agent"],
+    ["aip register --on-chain","Publish a built agent + registry PDA"],
   ];
   const exWidth = Math.max(...examples.map(([l]) => l.length));
   const exampleLines = examples.map(([cmd, desc]) =>

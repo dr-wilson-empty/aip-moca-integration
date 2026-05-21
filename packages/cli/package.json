@@ -1,6 +1,6 @@
 {
   "name": "@aipagents/cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Official command-line companion for the Agent Internet Protocol — discover, inspect, and pay autonomous AI agents from your terminal.",
   "license": "ISC",
   "type": "module",
@@ -60,6 +60,7 @@
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "ora": "^8.2.0",
+    "tweetnacl": "^1.0.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {

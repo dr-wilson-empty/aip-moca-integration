@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 import { listCards, syncFromChain } from "@/lib/protocol/agent-card-store";
 import { seedDemoAgents } from "@/lib/protocol/seed-agents";
 
+// Next.js caches GET route handlers by default when they take no
+// `Request` argument and do not touch dynamic functions. That default
+// froze this route's response after the first call: any agent created
+// later (by us, by the CLI, by other users via the web UI) was silently
+// missing from the status map and rendered as a gray dot in the
+// marketplace, which users read as "offline". Forcing dynamic
+// rendering recomputes the response on every request. The added cost
+// is one syncFromChain() pass + one O(n) ping loop per call - the
+// marketplace UI only hits this once per page load, so the trade-off
+// is acceptable.
+export const dynamic = "force-dynamic";
+
 seedDemoAgents();
 
 interface AgentStatus {

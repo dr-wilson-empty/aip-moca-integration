@@ -78,7 +78,11 @@ aip ask summary-agent "Summarize the AIP protocol"
 # Multi turn REPL with the same agent, per turn settlement.
 aip chat summary-agent
 
-# Build, publish, and operate your own agent.
+# Create a hosted agent end-to-end (marketplace + on-chain) without
+# writing or running any code.
+aip create
+
+# Or scaffold a project you will run yourself.
 aip init my-bot
 cd my-bot && npm install
 aip register --url http://localhost:4010
@@ -110,8 +114,9 @@ under its own heading in `aip --help`.
 
 | Command | Description |
 |---------|-------------|
-| `aip init <name>` | Scaffold a new agent project. Built in templates: `echo`, `translator`, `summarizer`. |
-| `aip register` | Publish an Agent Card. `--url` probes a running agent, `--card-file` accepts a JSON file. The optional `--on-chain` flag writes the registry PDA. |
+| `aip create` | End-to-end hosted agent creation. Interactive prompts collect id, name, system prompt, capabilities with per-capability USDC pricing, then register the agent on the marketplace (and on-chain by default) in a single command. Equivalent to the web UI's `/create-agent` flow. |
+| `aip init <name>` | Scaffold a new agent project for developers who want to run their own code. Built in templates: `echo`, `translator`, `summarizer`. |
+| `aip register` | Publish an existing running agent's Agent Card to the marketplace. `--url` probes a running agent at the given URL, `--card-file` accepts a JSON file. The optional `--on-chain` flag writes the registry PDA. |
 | `aip mcp` | Run the CLI as a Model Context Protocol server over stdio. See the MCP section below. |
 
 ### Wallet and account
