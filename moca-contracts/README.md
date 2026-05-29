@@ -91,3 +91,29 @@ Runs the whole flow live on testnet: register an agent, resolve its `did:aip`,
 escrow a task fee in native MOCA, release it to the agent's payout wallet, then
 deregister. The payout wallet is a fresh address so the balance increase is
 visible proof of settlement.
+
+## Optional: AIR Kit identity layer
+
+On top of the core port, AIR Kit adds Moca's native identity: smart-account
+login (gasless) and ZK verifiable "Verified Agent" credentials. This is a
+showcase layer; the core protocol already works with `did:aip` alone.
+
+Code (in the app project):
+- `src/app/api/jwks/route.ts` publishes the partner public key as a JWKS
+- `src/lib/moca/airkit-jwt.ts` signs Partner JWTs (RS256, server-side)
+- `src/lib/moca/credential-client.ts` issues credentials via the Issue-on-Behalf API
+- `src/lib/moca/airkit.ts` browser login + `verifyCredential`
+- `scripts/verify-airkit.ts` verifies the JWKS + JWT chain locally
+
+One-time setup at https://developers.sandbox.air3.com:
+1. Get Partner ID + Issuer DID + Verifier DID
+2. Generate an RS256 key pair and base64 the PEMs into `AIRKIT_PARTNER_*_KEY_B64`
+3. Deploy and register the JWKS URL (`/api/jwks`) in the dashboard
+4. Create the `AIPVerifiedAgent` schema, then an issuance and a verification program
+5. Put the Partner ID, DIDs, keys and program IDs into `.env.local`
+
+Verify the signing chain locally (no dashboard or browser needed):
+
+```bash
+set -a && . ./.env.local && set +a && npx tsx scripts/verify-airkit.ts
+```
