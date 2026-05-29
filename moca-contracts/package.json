@@ -1,0 +1,19 @@
+{
+  "name": "@aip-moca/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AIP on-chain contracts ported to Moca Chain (EVM). Agent Registry now, Escrow later.",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat ignition deploy ignition/modules/AipRegistry.ts --network mocaTestnet"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ignition-viem": "^3.1.5",
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.6",
+    "dotenv": "^17.4.2",
+    "hardhat": "^3.7.0",
+    "viem": "^2.51.3"
+  }
+}
