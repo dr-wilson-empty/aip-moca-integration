@@ -1,0 +1,50 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-0a38ec907e5dd2bc2004de26e2f2bdf509b418b9",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.7.0"
+  },
+  "userSourceNameMap": {
+    "contracts/AipEscrow.sol": "project/contracts/AipEscrow.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "london",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": [],
+      "viaIR": true
+    },
+    "sources": {
+      "project/contracts/AipEscrow.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.24;\n\n/// @title AIP Escrow — Moca Chain port (native MOCA)\n/// @notice Conditional payment primitive for the Agent Internet Protocol.\n///         Locks funds on task submission, releases to the agent (payee) on\n///         completion, refunds the payer on failure, or lets the payer reclaim\n///         after a deadline.\n///\n///         Port of the Solana Anchor `aip_escrow` program. Differences:\n///           - value is native MOCA (msg.value), not an SPL/ERC-20 token, so\n///             there is no mint, no token account and no approve step.\n///           - the Solana vault PDA becomes funds held by this contract, keyed\n///             by keccak256(taskId).\n///         Authorization matches the Solana program exactly: the `authority`\n///         (server) releases or refunds; the `payer` can cancel only after the\n///         deadline; every transition requires the escrow to be Locked.\ncontract AipEscrow {\n    // ------------------------------------------------------------------\n    //  Types\n    // ------------------------------------------------------------------\n\n    /// None (0) means \"no escrow\" (default for an unused mapping slot).\n    enum Status {\n        None,\n        Locked,\n        Released,\n        Refunded,\n        Cancelled\n    }\n\n    struct Escrow {\n        string taskId;\n        address payer;\n        address payee;\n        address authority; // server wallet: can release / refund\n        uint256 amount; // native MOCA, in wei\n        uint64 deadline; // unix seconds; payer can cancel at/after this\n        uint64 createdAt;\n        Status status;\n    }\n\n    uint256 public constant MAX_TASK_ID_LEN = 64;\n\n    // ------------------------------------------------------------------\n    //  Storage\n    // ------------------------------------------------------------------\n\n    mapping(bytes32 => Escrow) private escrows;\n    bytes32[] private allKeys; // append-only (escrows are never deleted, only transitioned)\n\n    // ------------------------------------------------------------------\n    //  Events\n    // ------------------------------------------------------------------\n\n    event EscrowInitialized(\n        bytes32 indexed key,\n        string taskId,\n        address indexed payer,\n        address indexed payee,\n        address authority,\n        uint256 amount,\n        uint64 deadline\n    );\n    event EscrowReleased(bytes32 indexed key, string taskId, address indexed payee, uint256 amount);\n    event EscrowRefunded(bytes32 indexed key, string taskId, address indexed payer, uint256 amount);\n    event EscrowCancelled(bytes32 indexed key, string taskId, address indexed payer, uint256 amount);\n\n    // ------------------------------------------------------------------\n    //  Errors (mirror EscrowError)\n    // ------------------------------------------------------------------\n\n    error InvalidAmount();\n    error TaskIdTooLong();\n    error InvalidDeadline();\n    error EscrowExists();\n    error EscrowNotFound();\n    error NotLocked();\n    error Unauthorized();\n    error DeadlineNotReached();\n    error TransferFailed();\n    error Reentrancy();\n\n    // ------------------------------------------------------------------\n    //  Reentrancy guard (manual, no external dependency)\n    // ------------------------------------------------------------------\n\n    uint256 private _lock = 1;\n    modifier nonReentrant() {\n        if (_lock != 1) revert Reentrancy();\n        _lock = 2;\n        _;\n        _lock = 1;\n    }\n\n    // ------------------------------------------------------------------\n    //  Key derivation\n    // ------------------------------------------------------------------\n\n    /// @dev Solana equivalent: PDA from [\"escrow\", task_id].\n    function escrowKey(string memory taskId) public pure returns (bytes32) {\n        return keccak256(abi.encode(taskId));\n    }\n\n    // ------------------------------------------------------------------\n    //  Mutations\n    // ------------------------------------------------------------------\n\n    /// Lock msg.value for a task. payer = msg.sender. authority may release/refund.\n    function initializeEscrow(string calldata taskId, address payee, address authority, uint64 deadline)\n        external\n        payable\n    {\n        if (msg.value == 0) revert InvalidAmount();\n        uint256 len = bytes(taskId).length;\n        if (len == 0 || len > MAX_TASK_ID_LEN) revert TaskIdTooLong();\n        if (deadline <= block.timestamp) revert InvalidDeadline();\n\n        bytes32 key = escrowKey(taskId);\n        if (escrows[key].status != Status.None) revert EscrowExists();\n\n        escrows[key] = Escrow({\n            taskId: taskId,\n            payer: msg.sender,\n            payee: payee,\n            authority: authority,\n            amount: msg.value,\n            deadline: deadline,\n            createdAt: uint64(block.timestamp),\n            status: Status.Locked\n        });\n        allKeys.push(key);\n\n        emit EscrowInitialized(key, taskId, msg.sender, payee, authority, msg.value, deadline);\n    }\n\n    /// Release locked funds to the payee. Only the authority can call.\n    function releaseEscrow(string calldata taskId) external nonReentrant {\n        Escrow storage e = _locked(taskId);\n        if (msg.sender != e.authority) revert Unauthorized();\n\n        e.status = Status.Released; // effect before interaction (CEI)\n        uint256 amount = e.amount;\n        address payee = e.payee;\n        _send(payee, amount);\n\n        emit EscrowReleased(escrowKey(taskId), taskId, payee, amount);\n    }\n\n    /// Refund locked funds to the payer. Only the authority can call.\n    function refundEscrow(string calldata taskId) external nonReentrant {\n        Escrow storage e = _locked(taskId);\n        if (msg.sender != e.authority) revert Unauthorized();\n\n        e.status = Status.Refunded;\n        uint256 amount = e.amount;\n        address payer = e.payer;\n        _send(payer, amount);\n\n        emit EscrowRefunded(escrowKey(taskId), taskId, payer, amount);\n    }\n\n    /// Reclaim funds to the payer after the deadline. Only the payer can call.\n    function cancelEscrow(string calldata taskId) external nonReentrant {\n        Escrow storage e = _locked(taskId);\n        if (msg.sender != e.payer) revert Unauthorized();\n        if (block.timestamp < e.deadline) revert DeadlineNotReached();\n\n        e.status = Status.Cancelled;\n        uint256 amount = e.amount;\n        address payer = e.payer;\n        _send(payer, amount);\n\n        emit EscrowCancelled(escrowKey(taskId), taskId, payer, amount);\n    }\n\n    // ------------------------------------------------------------------\n    //  Views\n    // ------------------------------------------------------------------\n\n    function getEscrow(string calldata taskId) external view returns (Escrow memory) {\n        bytes32 key = escrowKey(taskId);\n        if (escrows[key].status == Status.None) revert EscrowNotFound();\n        return escrows[key];\n    }\n\n    function escrowStatus(string calldata taskId) external view returns (Status) {\n        return escrows[escrowKey(taskId)].status;\n    }\n\n    function totalEscrows() external view returns (uint256) {\n        return allKeys.length;\n    }\n\n    function getAllKeys() external view returns (bytes32[] memory) {\n        return allKeys;\n    }\n\n    // ------------------------------------------------------------------\n    //  Internal\n    // ------------------------------------------------------------------\n\n    /// Load an escrow that must exist and be Locked.\n    function _locked(string calldata taskId) private view returns (Escrow storage e) {\n        e = escrows[escrowKey(taskId)];\n        if (e.status == Status.None) revert EscrowNotFound();\n        if (e.status != Status.Locked) revert NotLocked();\n    }\n\n    function _send(address to, uint256 amount) private {\n        (bool ok, ) = payable(to).call{value: amount}(\"\");\n        if (!ok) revert TransferFailed();\n    }\n}\n"
+      }
+    }
+  }
+}
