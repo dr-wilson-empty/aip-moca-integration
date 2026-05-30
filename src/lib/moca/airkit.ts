@@ -69,3 +69,23 @@ export async function verifyAgentCredential(params: {
     redirectUrl: params.redirectUrl,
   });
 }
+
+/**
+ * Issue a credential to the logged-in user in the browser. `authToken` is a
+ * Partner JWT with scope "issue" (signed on the backend). Unlike the server-side
+ * Issue-on-Behalf API, this uses the logged-in user's session as the holder.
+ */
+export async function issueCredentialInBrowser(params: {
+  authToken: string;
+  issuerDid: string;
+  credentialId: string;
+  credentialSubject: Record<string, unknown>;
+}) {
+  const svc = await getAirService();
+  return svc.issueCredential({
+    authToken: params.authToken,
+    issuerDid: params.issuerDid,
+    credentialId: params.credentialId,
+    credentialSubject: params.credentialSubject,
+  });
+}

@@ -72,7 +72,7 @@ export async function issueVerifiedAgentCredential(params: {
   programId: string;
   agentId: string;
   did: string;
-  rating?: number;
+  rating?: number; // schema marks rating required; defaults to 0
 }): Promise<IssueResult> {
   return issueCredentialOnBehalf({
     email: params.email,
@@ -80,8 +80,9 @@ export async function issueVerifiedAgentCredential(params: {
     credentialSubject: {
       agentId: params.agentId,
       did: params.did,
-      verifiedAt: new Date().toISOString(),
-      ...(params.rating !== undefined ? { rating: params.rating } : {}),
+      // schema types verifiedAt as a number, so send a unix timestamp (seconds)
+      verifiedAt: Math.floor(Date.now() / 1000),
+      rating: params.rating ?? 0,
     },
   });
 }
