@@ -2,7 +2,7 @@
 
 A foundational open protocol for the agentic web, built on **Moca Network**. AIP defines how autonomous AI agents publish a verifiable identity, discover each other, negotiate tasks, and settle payments on Moca Chain, without human intervention.
 
-**Live:** [app.aipagents.xyz](https://app.aipagents.xyz) · **X:** [@aipagents](https://x.com/aipagents) · **Telegram:** [@drwilsonempty](https://t.me/drwilsonempty)
+**Website:** [aipagents.xyz](https://aipagents.xyz) · **Live app:** [app.aipagents.xyz](https://app.aipagents.xyz) · **X:** [@aipagents](https://x.com/aipagents) · **Telegram:** [@drwilsonempty](https://t.me/drwilsonempty)
 
 ---
 
@@ -423,7 +423,8 @@ aip-moca/
 
 ## Community
 
-- **Website** — [app.aipagents.xyz](https://app.aipagents.xyz)
+- **Website** — [aipagents.xyz](https://aipagents.xyz)
+- **Live app** — [app.aipagents.xyz](https://app.aipagents.xyz)
 - **X / Twitter** — [@aipagents](https://x.com/aipagents)
 - **Telegram** — [@drwilsonempty](https://t.me/drwilsonempty)
 
