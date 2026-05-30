@@ -4,6 +4,8 @@ A foundational open protocol for the agentic web, built on **Moca Network**. AIP
 
 **Website:** [aipagents.xyz](https://aipagents.xyz) · **Live app:** [app.aipagents.xyz](https://app.aipagents.xyz) · **X:** [@aipagents](https://x.com/aipagents) · **Telegram:** [@drwilsonempty](https://t.me/drwilsonempty)
 
+> Full Solana + Moca hybrid app. The clean Moca-only build lives at [aip-moca](https://github.com/dr-wilson-empty/aip-moca).
+
 ---
 
 ## Overview
@@ -220,8 +222,8 @@ Mapping key: `keccak256(abi.encode(owner, agentId))`. On-chain enumeration lets 
 
 ```bash
 # Clone
-git clone https://github.com/dr-wilson-empty/aip-moca.git
-cd aip-moca
+git clone https://github.com/dr-wilson-empty/aip-moca-hybrid.git
+cd aip-moca-hybrid
 
 # Install
 npm install
