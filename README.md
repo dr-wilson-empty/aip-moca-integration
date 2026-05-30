@@ -1,135 +1,211 @@
-# Agent Internet Protocol (AIP)
+# Agent Internet Protocol (AIP) on Moca Network
 
-A foundational open protocol for the agentic web. AIP defines how autonomous AI agents discover each other, negotiate tasks, and settle payments — without human intervention.
+A foundational open protocol for the agentic web, built on **Moca Network**. AIP defines how autonomous AI agents publish a verifiable identity, discover each other, negotiate tasks, and settle payments on Moca Chain, without human intervention.
 
-**Live:** [aipagents.xyz](https://aipagents.xyz/) · **Deploy:** [aipagents.up.railway.app](https://aipagents.up.railway.app/) · **X:** [@aipagents](https://x.com/aipagents) · **Telegram:** [@drwilsonempty](https://t.me/drwilsonempty)
+**Live:** [app.aipagents.xyz](https://app.aipagents.xyz) · **X:** [@aipagents](https://x.com/aipagents) · **Telegram:** [@drwilsonempty](https://t.me/drwilsonempty)
 
 ---
 
 ## Overview
 
-The internet has standards for documents (HTTP) and messaging (SMTP). What it lacks is a standard for autonomous agents to find each other, communicate, negotiate, and transact. AIP is that missing layer.
+The internet has standards for documents (HTTP) and messaging (SMTP). What it lacks is a standard for autonomous agents to find each other, prove who they are, communicate, negotiate, and transact. AIP is that missing layer, and it runs on Moca Network: an identity-first, EVM-compatible Layer 1.
 
 | Protocol | Purpose |
 |----------|---------|
 | HTTP | Document transfer |
 | SMTP | Email messaging |
-| **AIP** | **Agent communication, negotiation, and payment** |
+| **AIP** | **Agent identity, discovery, negotiation, and payment** |
 
-AIP composes existing standards (W3C DID, A2A, x402, MCP) rather than replacing them. The `did:aip` method is being formalized in the W3C `did-extensions` registry, and the on-chain primitive is under discussion as a Solana application-standard sRFC. See [Standardization](#standardization).
+AIP composes existing standards (W3C DID, A2A, x402, MCP) rather than replacing them, and anchors agent identity and payments on Moca Chain. Moca is purpose-built for identity, so an agent's DID, its on-chain record, and its verifiable credentials all live natively on the same chain that settles its payments.
+
+---
+
+## Why Moca
+
+Moca Chain is an EVM-compatible Layer 1 whose entire reason for being is **identity**. That makes it the natural home for an agent protocol:
+
+- **Identity-native** — agents are first-class identity holders (DID + on-chain record + verifiable credentials), not an afterthought bolted onto a payment chain.
+- **EVM-compatible** — standard Ethereum tooling (Solidity, viem, Hardhat, MetaMask) works out of the box.
+- **AIR Kit** — Moca's SDK gives every agent and user a smart account (account abstraction), gasless transactions via a paymaster, and zero-knowledge verifiable credentials.
+- **Sub-second, consumer-scale** — fast finality suited to autonomous agent-to-agent activity.
 
 ---
 
 ## Core Primitives
 
-- **Agent Identity** — Each agent holds a DID (Decentralized Identifier). Self-sovereign, cryptographically verifiable, no central authority. Format: `did:aip:{owner_pubkey}:{agent_id}` — the full base58-encoded Solana public key followed by an owner-scoped slug. See the [did:aip Method Specification §3.2](standards/did-aip-method-spec.md) for the formal ABNF.
-- **Task Handshake** — JSON-RPC 2.0 message format for agents to discover each other, negotiate task terms, delegate work, and deliver results.
-- **Conditional Payment** — On-chain PDA escrow that locks USDC at task submission and releases automatically upon verified completion. Expired escrows are auto-refunded after one hour.
-- **Wallet Authentication** — Ed25519 signature-based session auth. Users sign once on wallet connect; all protected API routes verify ownership.
+- **Agent Identity (DID)** — Each agent holds a Decentralized Identifier. Self-sovereign, cryptographically verifiable, no central authority. Format: `did:aip:{owner_address}:{agent_id}`, an EVM address followed by an owner-scoped slug. Resolves to a W3C DID Document straight from the Moca registry. See [Identity & DID on Moca](#identity--did-on-moca).
+- **Task Handshake** — JSON-RPC 2.0 message format for agents to discover each other, negotiate task terms, delegate work, and deliver results (A2A).
+- **Conditional Payment** — On-chain escrow that locks native MOCA at task submission and releases automatically on verified completion; the payer can reclaim funds after a deadline (trustless timelock).
+- **Verifiable Credentials** — Through Moca AIR Kit, an agent can carry a zero-knowledge "Verified Agent" credential, letting a verifier confirm reputation or status without ever seeing the raw data.
+- **Smart-Account Auth** — Users and agents log in with a Moca AIR smart account (gasless, account abstraction) instead of managing raw keys.
 
 ---
 
 ## Architecture
 
 ```
-Agent Layer        Protocol Layer        Blockchain Layer
+Agent Layer        Protocol Layer        Moca Chain Layer
 -----------        --------------        ----------------
-LLM Agents         A2A JSON-RPC 2.0      Solana Programs
-Task Agents   -->  x402 HTTP Payment --> PDA Escrow
-Execution Agents   SSE Streaming         On-chain Registry
-Digital Twin       Agent SDK             DID Identity
-Orchestrator       Web Enrichment        USDC Settlement
+LLM Agents         A2A JSON-RPC 2.0      AipRegistry (identity)
+Task Agents   -->  x402 HTTP Payment --> AipEscrow (native MOCA)
+Execution Agents   SSE Streaming         did:aip resolver
+Digital Twin       MCP Bridge            AIR Kit (smart account + ZK credentials)
+Orchestrator       Web Enrichment        MOCA settlement
 ```
 
 ### Agent Layer
-- **LLM Agents** — General-purpose reasoning (Claude Haiku)
+- **LLM Agents** — General-purpose reasoning (Claude)
 - **Task Agents** — Specialized capabilities (summarize, audit, data retrieval)
 - **Execution Agents** — On-chain and off-chain actions
 - **Digital Twin** — Personal AI assistant that auto-selects agents
 - **Orchestrator Agents** — Autonomously delegate sub-tasks to other agents using their own budget
 
-### Protocol Layer
+### Protocol Layer (chain-agnostic)
 - **A2A JSON-RPC 2.0** — Agent-to-agent task communication
 - **x402 Payment** — HTTP 402 payment protocol with conditional settlement
 - **Agent Card** — JSON document describing capabilities and pricing
-- **Agent SDK** — [`@aipagents/agent-sdk`](https://www.npmjs.com/package/@aipagents/agent-sdk) for building agents in minutes
-- **Realtime Web Enrichment** — Auto-detect queries needing current data, inject Tavily + Firecrawl results
+- **MCP Bridge** — Expose agents to Claude Desktop, or import external MCP servers as agents
+- **Realtime Web Enrichment** — Auto-detect queries needing current data, inject live search results
 
-### Blockchain Layer
-- **Escrow Program** — PDA vault with `initialize` / `release` / `refund` / `cancel`
-- **Registry Program** — On-chain agent discovery (`register` / `update` / `deregister`)
-- **DID Identity** — `did:aip:{owner_pubkey}:{agent_id}` canonical format (full 32-byte base58 Solana pubkey)
-- **USDC Settlement** — SPL Token transfers on Solana
-
----
-
-## Architecture: Two-Layer Agent Registration
-
-AIP keeps agent identity on two complementary layers:
-
-| Layer | What it stores | Source of truth for |
-|-------|----------------|---------------------|
-| **On-chain registry** (`AgentRecord` PDA on Solana) | Canonical DID, owner pubkey, endpoint, capabilities (name + description), base price, version | Identity, ownership, deregistration |
-| **Off-chain marketplace** (Supabase + in-memory cache) | Per-capability pricing, hosted-agent prompts, MCP server config, visibility flags, search index | UX, discovery, A2A routing |
-
-Hosted demo agents (Summary / Data / Audit / Web Search) register on-chain at server start under the platform authority wallet. User agents created from the No-Code Builder or `aip register --on-chain` write to both layers atomically (on-chain first; marketplace second).
-
-The full schema lives in [`programs/aip-escrow/programs/aip-registry/src/lib.rs`](programs/aip-escrow/programs/aip-registry/src/lib.rs) and is consumed by:
-
-- [`src/lib/solana/registry-program.ts`](src/lib/solana/registry-program.ts) — server-side encode/decode
-- [`src/hooks/useRegisterAgent.ts`](src/hooks/useRegisterAgent.ts) — browser-side (Phantom)
-- [`packages/cli/src/core/registry.ts`](packages/cli/src/core/registry.ts) — CLI tx builder
-- [`packages/did-resolver/src/borsh.ts`](packages/did-resolver/src/borsh.ts) — standalone read-side reference
-
-All four MUST stay in sync. The diagnostic script [`scripts/audit-onchain-agents.ts`](scripts/audit-onchain-agents.ts) verifies that on-chain accounts decode under the current schema.
+### Moca Chain Layer
+- **AipRegistry** — On-chain agent discovery (`registerAgent` / `updateAgent` / `deregisterAgent`)
+- **AipEscrow** — Native-MOCA escrow with `initialize` / `release` / `refund` / `cancel`
+- **did:aip resolver** — Reads the registry, returns a W3C DID Document
+- **AIR Kit** — Smart-account login (gasless) and ZK Verified Agent credentials
+- **MOCA settlement** — Native value transfer on Moca Chain
 
 ---
 
-## Solana Programs (Devnet)
+## Moca Chain Deployments (Testnet)
 
-All programs are live on Solana Devnet and verifiable on-chain.
+All contracts are live on Moca Chain Testnet (EVM chain ID `222888`) and verifiable on-chain.
 
 | Component | Address | Explorer |
 |-----------|---------|----------|
-| **Escrow Program** | `59kc3swV6j6NqvhJoKKXAw1uWqGisY2txtf3LLM9Myhz` | [View](https://explorer.solana.com/address/59kc3swV6j6NqvhJoKKXAw1uWqGisY2txtf3LLM9Myhz?cluster=devnet) |
-| **Registry Program** | `CgchXu2dRV3r9E1YjRhp4kbeLLtv1Xz61yoerJzp1Vbc` | [View](https://explorer.solana.com/address/CgchXu2dRV3r9E1YjRhp4kbeLLtv1Xz61yoerJzp1Vbc?cluster=devnet) |
-| **Authority Wallet** | `7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX` | [View](https://explorer.solana.com/address/7imsPo1owz6arqjqHpHvEfNgTepXnm9vtjmHQoVWmABX?cluster=devnet) |
-| **USDC Mint (Devnet)** | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` | [View](https://explorer.solana.com/address/4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU?cluster=devnet) |
+| **AipRegistry** | `0x6caea13e7d5fbC4bDa28414C9aa97799fac68c36` | [View](https://testnet-scan.mocachain.org/address/0x6caea13e7d5fbC4bDa28414C9aa97799fac68c36) |
+| **AipEscrow** | `0xFe362801345513fC7f46050199DdE08bf7B998F1` | [View](https://testnet-scan.mocachain.org/address/0xFe362801345513fC7f46050199DdE08bf7B998F1) |
 
-### Escrow Program Instructions
+| Network | Value |
+|---------|-------|
+| Chain ID | `222888` (`0x366a8`) |
+| RPC | `https://rpc.testnet.mocachain.dev` |
+| Explorer | `https://testnet-scan.mocachain.org` |
+| Faucet | `https://faucet.mocachain.org` |
+| Native token | `MOCA` |
 
-| Instruction | Description |
-|-------------|-------------|
-| `initialize_escrow` | Lock USDC in PDA vault (payer signs) |
-| `release_escrow` | Transfer to agent on task completion (authority signs) |
-| `refund_escrow` | Return to payer on task failure (authority signs) |
-| `cancel_escrow` | Payer reclaims after deadline (trustless timelock) |
+**AIR Credential (Verified Agent)**
 
-### Registry Program Instructions
+| Item | Value |
+|------|-------|
+| Schema | `AIP Verified Agent` |
+| Schema ID | `01KSTZMKX4CK7WH4NHZQRJ` |
+| Issuance program | `c294h0g1lhijuhdr66a6jw` |
+| Attributes | `agentId` (string), `did` (string), `verifiedAt` (number), `rating` (number) |
 
-| Instruction | Description |
-|-------------|-------------|
-| `register_agent` | Create on-chain agent record (PDA per `owner`+`agent_id`) |
-| `update_agent` | Update mutable agent data (owner only) |
-| `deregister_agent` | Close PDA, return rent (owner only) |
-| `force_close_legacy` | Raw-byte close for accounts written under an older schema that `deregister_agent` can no longer deserialize. Authorized to the platform key only (hardcoded in the program). Used once during the canonical-DID migration to clear stale PDAs. |
+---
 
-**AgentRecord schema** (Borsh, 1366 bytes):
+## Identity & DID on Moca
+
+Identity is the heart of AIP, and Moca is an identity chain, so this is where the two fit together most tightly. An AIP agent's identity is expressed in three complementary layers, all on Moca.
+
+### 1. The `did:aip` identifier
+
+Every agent has a Decentralized Identifier in the form:
+
+```
+did:aip:0x8a277c1f8b520c55cbb438e23dd916e0d11d435e:summary-agent
+        └────────── owner EVM address ──────────┘ └── agent id ──┘
+```
+
+- **owner address** — the EVM account that controls the agent (the only key that can update or deregister it).
+- **agent id** — an owner-scoped slug (1–32 chars), so one wallet can own many agents.
+
+The DID is self-sovereign and cryptographically verifiable: there is no central registrar, and ownership is enforced on-chain by the registry contract.
+
+### 2. On-chain record (AipRegistry)
+
+The DID resolves against `AipRegistry`. Each agent is a record keyed by `keccak256(owner, agentId)` holding the canonical DID, endpoint, capabilities, payout wallet, price, agent type, and timestamps. Because the record lives on Moca, anyone can verify an agent's identity and metadata directly from the chain, with no AIP backend in the loop.
+
+### 3. Resolution to a W3C DID Document
+
+The resolver ([`src/lib/moca/resolver.ts`](src/lib/moca/resolver.ts)) reads the registry and returns a W3C DID Core 1.0 document with an EVM-native verification method:
+
+```jsonc
+{
+  "@context": ["https://www.w3.org/ns/did/v1", "https://w3id.org/security/suites/secp256k1recovery-2020/v2", "https://aip.network/ns/agent/v1"],
+  "id": "did:aip:0x8a27…:summary-agent",
+  "verificationMethod": [{
+    "id": "did:aip:0x8a27…:summary-agent#controller",
+    "type": "EcdsaSecp256k1RecoveryMethod2020",
+    "controller": "did:aip:0x8a27…:summary-agent",
+    "blockchainAccountId": "eip155:222888:0x5019…"   // CAIP-10 account on Moca Chain
+  }],
+  "service": [{ "type": "AIPAgentEndpoint", "serviceEndpoint": "https://…" }]
+}
+```
+
+```typescript
+import { AipMocaResolver } from "@/lib/moca/resolver";
+
+const resolver = new AipMocaResolver();              // defaults to Moca testnet + the deployed registry
+const result = await resolver.resolve("did:aip:0x8a27…:summary-agent");
+
+result.didDocument;   // W3C DID Document (secp256k1, eip155:222888)
+result.agentRecord;   // { name, endpoint, capabilities, walletAddress, registeredAt, … }
+```
+
+### 4. Moca-native identity with AIR Kit
+
+On top of `did:aip`, AIP uses Moca **AIR Kit** for the parts only an identity chain can offer:
+
+- **AIR smart account** — users and agents authenticate with a gasless smart account (account abstraction). Login returns a Moca smart-account address; no seed-phrase juggling, no gas tokens to hold.
+- **AIR Credentials** — an agent can be issued a zero-knowledge **Verified Agent** credential (schema `AIP Verified Agent`). A verifier can then confirm "this agent is verified / has rating ≥ N" via a ZK proof, without ever seeing the underlying data. This maps AIP's reputation model onto Moca's privacy-preserving credential system.
+- **Moca AIR ID** — agent DIDs interoperate with Moca's universal identity (`did:air:…`), so an AIP agent's identity is portable across the wider Moca ecosystem.
+
+The AIR Kit pieces live in [`src/lib/moca/airkit.ts`](src/lib/moca/airkit.ts) (browser login + verify), [`src/lib/moca/airkit-jwt.ts`](src/lib/moca/airkit-jwt.ts) (Partner JWT signing), [`src/lib/moca/credential-client.ts`](src/lib/moca/credential-client.ts) (issuance), and the JWKS endpoint at [`src/app/api/jwks/route.ts`](src/app/api/jwks/route.ts).
+
+---
+
+## Contracts
+
+The Solidity contracts live in [`moca-contracts/`](moca-contracts), a standalone Hardhat 3 project. See [`moca-contracts/README.md`](moca-contracts/README.md) for build and deploy details.
+
+### AipEscrow (native MOCA)
+
+| Function | Description |
+|----------|-------------|
+| `initializeEscrow` | Lock `msg.value` (native MOCA) for a task; payer is the sender |
+| `releaseEscrow` | Transfer to the agent on completion (authority only) |
+| `refundEscrow` | Return to the payer on failure (authority only) |
+| `cancelEscrow` | Payer reclaims after the deadline (trustless timelock) |
+
+Transfers use checks-effects-interactions ordering plus a reentrancy guard; every transition requires the escrow to be `Locked`.
+
+### AipRegistry
+
+| Function | Description |
+|----------|-------------|
+| `registerAgent` | Create an on-chain agent record (keyed by `owner` + `agentId`) |
+| `updateAgent` | Update mutable agent data (owner only) |
+| `deregisterAgent` | Remove the record (owner only) |
+
+**AgentRecord schema**
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `owner` | `Pubkey` | Immutable, PDA seed |
-| `agent_id` | `String` (≤32) | Immutable, PDA seed |
-| `did` | `String` (≤100) | Canonical `did:aip:{owner}:{agent_id}` |
-| `name`, `endpoint`, `version` | `String` | Mutable metadata |
-| `wallet_address` | `Pubkey` | Hot signing key (may differ from owner) |
-| `agent_type` | `AgentType` | Enum: `Llm`, `Task`, `Execution` |
-| `capabilities` | `Vec<Capability>` | Max 8, structured |
-| `price_per_task` | `u64` | Lamports |
-| `registered_at`, `updated_at` | `i64` | Cluster timestamps |
-| `bump` | `u8` | PDA bump seed |
+| `owner` | `address` | Immutable, part of the key |
+| `agentId` | `string` (≤32) | Immutable, part of the key |
+| `did` | `string` (≤100) | Canonical `did:aip:{owner}:{agentId}` |
+| `name`, `endpoint`, `version` | `string` | Mutable metadata |
+| `walletAddress` | `address` | Payout key (may differ from owner) |
+| `agentType` | `enum` | `LLM`, `Task`, `Execution` |
+| `capabilities` | `Capability[]` | Max 8 (name + description) |
+| `pricePerTask` | `uint256` | micro-USDC units (indicative) |
+| `registeredAt`, `updatedAt` | `uint64` | Block timestamps |
 
-PDA seeds: `["agent", owner_pubkey, agent_id]`.
+Mapping key: `keccak256(abi.encode(owner, agentId))`. On-chain enumeration lets the marketplace and resolver list agents without an off-chain indexer.
+
+34 unit tests (registry + escrow, including client↔contract key parity) pass, and each contract was verified live on testnet with a full lifecycle.
 
 ---
 
@@ -137,195 +213,76 @@ PDA seeds: `["agent", owner_pubkey, agent_id]`.
 
 ### Prerequisites
 - Node.js 20+
-- [Phantom wallet](https://phantom.app/) (Devnet mode)
-- Devnet SOL (for transaction fees)
-- Devnet USDC (for payments) — mint: `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
+- [MetaMask](https://metamask.io/) (or any EVM wallet) with Moca testnet added (chain ID `222888`, RPC `https://rpc.testnet.mocachain.dev`)
+- Test `MOCA` from the [faucet](https://faucet.mocachain.org)
 
 ### Setup
 
 ```bash
 # Clone
-git clone https://github.com/Agent-Internet-Protocol/aip-website.git
-cd aip-website
+git clone https://github.com/dr-wilson-empty/aip-moca.git
+cd aip-moca
 
 # Install
 npm install
 
 # Configure
 cp .env.example .env.local
-# Fill in: Solana RPC, USDC mint, escrow key, Anthropic key, Supabase, Tavily, Firecrawl
+# Fill in: Moca RPC, AIR Kit (Partner ID + Issuer/Verifier DID + keys), Anthropic, Supabase
 
-# Start web app + demo agents in one command
-npm run dev:full
+# Run the web app
+npm run dev
 ```
 
-Web app runs at `http://localhost:3000`. Demo agents on ports 4001–4003.
+### Contracts & demo
 
-### Usage Flow
+```bash
+cd moca-contracts
+npm install
+npm run compile          # solc 0.8.24, evmVersion london, viaIR
+npm test                 # 34 tests
 
-1. Connect Phantom wallet at `/connect` (signs auth session automatically)
-2. Browse agents at `/marketplace` (sort by price/rating, filter by type, live status)
-3. Compare agents side-by-side (shared and unique capabilities)
-4. Use **Digital Twin** at `/twin` — describe what you need in plain language
-5. Or use **Orchestrator** mode — autonomous sub-task delegation
-6. Create your own agents at `/create-agent` (No-Code Builder with 5 templates)
-7. Register agents on-chain at `/my-agents` (per-agent analytics: tasks, revenue, daily activity)
-8. Set up **Automations** at `/automations` — scheduled / webhook / on-chain triggers
-9. View protocol lifecycle at `/dashboard`, task history at `/log` (CSV export available)
+# from the project root, with DEPLOYER_PRIVATE_KEY set:
+npx tsx scripts/demo.ts  # register → resolve did:aip → escrow a task fee → release → cleanup
+```
+
+The demo runs the whole flow live on Moca testnet: an agent registers, gets resolved by its `did:aip`, a task fee is escrowed in native MOCA, and the funds are released to the agent's payout wallet.
 
 ---
 
 ## Protocol Flow
 
 ```
-User                    AIP Server              Agent Service           Solana
- |                         |                        |                     |
- |-- Connect Wallet ------>|                        |                     |
- |   (Ed25519 session sign)|                        |                     |
- |-- Select Agent -------->|                        |                     |
- |-- Submit Task --------->|                        |                     |
- |                         |-- x402 Quote --------->|                     |
- |<-- 402 Payment Required-|                        |                     |
- |-- Sign in Phantom ----->|                        |                     |
- |                         |-- Verify Payer Match ->|                     |
- |                         |-- Settle on-chain ---->|       initialize_escrow
- |                         |-- task/create (HTTP) ->|                     |
- |                         |<- status: WORKING -----|                     |
- |                         |                        |-- Claude Haiku      |
- |                         |                        |   + Web Enrichment  |
- |<-- SSE: processing -----|                        |                     |
- |                         |-- task/status (poll) ->|                     |
- |                         |<- COMPLETED + artifact-|                     |
- |                         |                        |       release_escrow
- |<-- SSE: completed ------|                        |                     |
- |                         |                        |       USDC → Agent
+User                    AIP Server              Agent Service           Moca Chain
+ |                         |                        |                       |
+ |-- AIR login ----------->|                        |                       |
+ |   (smart account)       |                        |                       |
+ |-- Select Agent -------->|                        |                       |
+ |-- Submit Task --------->|                        |                       |
+ |                         |-- x402 Quote --------->|                       |
+ |<-- 402 Payment Required-|                        |                       |
+ |-- Approve payment ----->|                        |                       |
+ |                         |-- Settle on-chain ---->|     initializeEscrow  |
+ |                         |-- task/create (HTTP) ->|                       |
+ |                         |<- status: WORKING -----|                       |
+ |                         |                        |-- Claude + Web Data   |
+ |<-- SSE: processing -----|                        |                       |
+ |                         |<- COMPLETED + artifact-|                       |
+ |                         |                        |     releaseEscrow     |
+ |<-- SSE: completed ------|                        |     MOCA → Agent      |
 ```
-
----
-
-## npm Packages
-
-Three packages live under the [`@aipagents`](https://www.npmjs.com/org/aipagents) scope on the public npm registry. Each one targets a different audience.
-
-| Package | Latest | Audience | One-line summary |
-|---|---|---|---|
-| [`@aipagents/cli`](https://www.npmjs.com/package/@aipagents/cli) | 0.1.0 | End users | The `aip` terminal client — discover, chat, register, pay |
-| [`@aipagents/agent-sdk`](https://www.npmjs.com/package/@aipagents/agent-sdk) | 0.2.0 | Agent builders | Spin up a USDC-earning AIP agent in ~10 lines of TypeScript |
-| [`@aipagents/did-resolver`](https://www.npmjs.com/package/@aipagents/did-resolver) | 0.1.0 | Tool builders | W3C-conformant resolver for `did:aip` (reads PDA, no AIP backend needed) |
-
-> The pre-existing scope-less `aip-agent-sdk` package is **deprecated** — installs still work but emit a migration warning pointing at `@aipagents/agent-sdk`.
-
-### [`@aipagents/cli`](https://www.npmjs.com/package/@aipagents/cli) — the `aip` terminal client
-
-```bash
-npm install -g @aipagents/cli
-aip login                                              # create / import a wallet
-aip agents ls                                          # browse marketplace
-aip resolve did:aip:7imsPo1owz6…mABX:summary-agent     # resolve any did:aip identifier on-chain
-aip ask summary "Summarize this paragraph: …"          # one-shot task with USDC payment
-aip register --url http://localhost:4010 --on-chain    # publish your own agent to the registry
-```
-
-Use it when you want to **touch AIP from the terminal** without writing code.
-
-### [`@aipagents/agent-sdk`](https://www.npmjs.com/package/@aipagents/agent-sdk) — build your own agent
-
-```typescript
-import { createAgent, haiku } from '@aipagents/agent-sdk';
-
-const agent = createAgent({
-  name: 'My Translator',
-  port: 4005,
-  type: 'Task',
-  walletAddress: 'YOUR_SOLANA_WALLET',    // required as of 0.2.0
-  agentId: 'translator',                  // optional; derived from name otherwise
-});
-
-agent.capability('text.translate', {
-  description: 'Translate Text',
-  price: '0.05',
-  handler: haiku('You are a translator. Translate to Turkish.'),
-});
-
-agent.start();
-```
-
-Then publish to the registry:
-
-```bash
-aip register --url http://localhost:4005 --on-chain --agent-id translator
-```
-
-Use it when you want to **build an agent that earns USDC** without learning Solana programs.
-
-### [`@aipagents/did-resolver`](https://www.npmjs.com/package/@aipagents/did-resolver) — read on-chain identity from any app
-
-```typescript
-import { AipDidResolver } from '@aipagents/did-resolver';
-
-const resolver = new AipDidResolver();   // defaults to devnet
-const result = await resolver.resolve('did:aip:7imsPo1owz6…mABX:summary-agent');
-
-console.log(result.didDocument);   // W3C DID Document (verificationMethod, service endpoint)
-console.log(result.agentRecord);   // { name, endpoint, capabilities, walletAddress, registeredAt, … }
-```
-
-Zero dependencies beyond `@solana/web3.js` + `bs58`. Hits the Solana RPC, **not** the AIP backend — so it's safe to drop into:
-
-- A wallet extension showing "you're paying **Summary Agent** (verified on-chain)"
-- A Discord/Telegram bot replying to `/resolve did:aip:…`
-- An MCP server letting Claude Desktop discover AIP agents
-- A `did:aip` driver in [Universal Resolver](https://dev.uniresolver.io/)
-- A CI smoke check ("is my agent still on-chain after deploy?")
-- An indexer that snapshots all AgentRecord PDAs into your own DB
-
-Use it when you want **agent identity** but don't need the rest of AIP's task / payment plumbing.
-
----
-
-## Agent SDK
-
-Build AIP-compatible agents in minutes. As of **`@aipagents/agent-sdk` 0.2.0**, `walletAddress` is required so the agent's DID is built in the canonical `did:aip:{owner_pubkey}:{agent_id}` form (spec §3.2). The agent_id is derived from the agent name unless you pass one explicitly.
-
-```typescript
-import { createAgent, haiku } from '@aipagents/agent-sdk';
-
-const agent = createAgent({
-  name: 'My Agent',
-  port: 4005,
-  type: 'Task',
-  walletAddress: 'YOUR_SOLANA_WALLET', // base58 Ed25519 pubkey, required
-  agentId: 'translator',                // optional; otherwise derived from name
-});
-
-agent.capability('text.translate', {
-  description: 'Translate Text',
-  price: '0.05',
-  handler: haiku('You are a translator. Translate to Turkish.'),
-});
-
-agent.start();
-```
-
-Then publish it:
-
-```bash
-aip register --url http://localhost:4005 --on-chain --agent-id translator
-```
-
-`--on-chain` writes the AgentRecord PDA via the registry program (your wallet signs and pays rent), then publishes the card to the marketplace. Drop the flag for marketplace-only publication.
 
 ---
 
 ## Digital Twin
 
-Your personal AI assistant at `/twin`. Describe what you need in natural language — Twin handles the rest.
+Your personal AI assistant at `/twin`. Describe what you need in natural language; Twin handles the rest.
 
 - **Single task** — "Summarize the AIP protocol" → Twin selects Summary Agent → executes → returns result
-- **Multi-agent pipeline** — "Fetch Bitcoin price and give investment advice" → Twin chains Web Search → Summary Agent → sequential execution
-- **Orchestrator mode** — "Research Solana ecosystem" → Research Assistant autonomously delegates to web search and data agents using its budget
+- **Multi-agent pipeline** — "Fetch the BTC price and give investment advice" → Twin chains Web Search → Summary Agent
+- **Orchestrator mode** — "Research the Moca ecosystem" → an assistant autonomously delegates to web search and data agents using its budget
 
-**Features:** AI-powered agent matching, pipeline orchestration, orchestrator delegation, realtime web enrichment (Tavily + Firecrawl), date-aware system prompts, user preferences (language, detail level), per user-agent memory (max 20 entries), Supabase-persisted chat history.
+Features: AI-powered agent matching, pipeline orchestration, realtime web enrichment, date-aware prompts, user preferences, per user-agent memory, persisted chat history.
 
 ---
 
@@ -333,140 +290,95 @@ Your personal AI assistant at `/twin`. Describe what you need in natural languag
 
 Create AI agents without writing code at `/create-agent`:
 
-1. **Identity** — Name, template (Translator, Summarizer, Code Reviewer, Data Analyst, Content Writer, Custom)
-2. **Behavior** — System prompt, capabilities, pricing
-3. **AI Provider** — Platform (Anthropic) or your own API key (encrypted at rest with AES-256-GCM)
-4. **Orchestration** — Enable autonomous delegation to other agents
-5. **Publish** — Live on marketplace + optional on-chain registration
-
-Hosted agents run on the platform's infrastructure. Revenue split: 80% agent owner, 20% platform (platform tier only).
+1. **Identity** — name, template (Translator, Summarizer, Code Reviewer, Data Analyst, Content Writer, Custom)
+2. **Behavior** — system prompt, capabilities, pricing
+3. **AI Provider** — platform (Anthropic) or your own key (encrypted at rest, AES-256-GCM)
+4. **Orchestration** — enable autonomous delegation to other agents
+5. **Publish** — live on the marketplace + optional on-chain registration on Moca
 
 ---
 
 ## Automations
 
-Scheduled recurring tasks at `/automations`. Three trigger types:
+Scheduled recurring tasks at `/automations`:
 
 | Type | How it works |
 |------|-------------|
 | **Schedule** | Cron-based (1min / 5min / hourly / daily / weekly) |
 | **Webhook** | External HTTP POST with HMAC-SHA256 signature verification |
-| **On-chain** | Solana balance monitoring (USDC transfers to a watched address) |
+| **On-chain** | Moca balance monitoring (MOCA transfers to a watched address) |
 
-Per-automation spending limit with daily/weekly/monthly periods. Concurrency guard prevents overlapping executions.
-
----
-
-## Budget System
-
-Agent budgets enable autonomous agent-to-agent payments without human wallet signing.
-
-| Operation | Description |
-|-----------|-------------|
-| **Deposit** | Transfer USDC to platform wallet, credit agent budget |
-| **Spend** | Agent delegates task, budget reserved atomically |
-| **Refund** | Failed task returns budget (automatic) |
-| **Withdraw** | Owner withdraws budget back to wallet (SPL transfer) |
-
-All budget operations use Supabase RPC functions for atomicity (prevents race conditions).
+Per-automation spending limits with daily/weekly/monthly periods, plus a concurrency guard.
 
 ---
 
 ## Security
 
-### Wallet Authentication
-- Ed25519 session-based signing (24h window)
-- All protected routes verify wallet ownership
-- GET requests allow graceful degradation (unsigned access to own data)
-- POST / PATCH / DELETE require valid signature
+### Authentication
+- AIR smart-account login (account abstraction, gasless)
+- Protected routes verify ownership; GET allows graceful degradation, writes require a valid signature
 
 ### Data Protection
 - Custom API keys encrypted at rest (AES-256-GCM)
-- SSRF protection: IPv4/IPv6 private ranges, DNS rebinding, octal/hex notation
-- Content Security Policy headers
+- SSRF protection (private IP ranges, DNS rebinding, octal/hex notation)
+- Content Security Policy headers (AIR Kit origins allow-listed)
 - Webhook HMAC-SHA256 verification (timing-safe)
-- Payload size limits: 100 KB webhooks, 10 MB file uploads
-- Agent endpoint URL validation (http/https only)
+- Payload size limits; agent endpoint URL validation (http/https only)
 
 ### Payment Security
-- x402 payer cross-check — transaction signer must match caller address
-- Escrow settlement ownership — only payer/payee can release/refund
-- Atomic budget operations via Supabase RPC
-- Auto-refund expired escrows (1 hour timeout)
-- Task ID PDA seed length validation (max 64 bytes)
+- x402 payer cross-check; escrow release/refund restricted to the authority, cancel to the payer
+- Native transfers use checks-effects-interactions + a reentrancy guard
+- Trustless timelock: the payer can reclaim an escrow after its deadline
+
+### Credential Auth
+- Partner JWTs signed server-side (RS256); the private key never reaches the browser
+- Public JWKS endpoint (`/api/jwks`) so Moca AIR Kit can verify our tokens
 
 ---
 
-## Standardization
+## Identity Standardization
 
-AIP is being formalized as an open standard through two parallel tracks.
-
-### W3C `did:aip` DID Method Specification
-
-A complete W3C DID Core 1.0 conformant method specification for the `did:aip` identifier scheme. Submitted to the W3C `did-extensions` registry for formal registration.
-
-- Method spec: [`standards/did-aip-method-spec.md`](standards/did-aip-method-spec.md)
-- W3C registration PR: [w3c/did-extensions#704](https://github.com/w3c/did-extensions/pull/704)
-- Reference resolver: [`@aip/did-resolver`](packages/did-resolver) (zero anchor dependency, manual Borsh decode)
-
-### Solana Request for Comments (sRFC)
-
-The on-chain registry primitive backing `did:aip` is proposed as an application-level standard in the Solana Foundation sRFC forum, positioned as a complementary identity layer to existing agent-trust proposals (SAP, SATI).
-
-- sRFC discussion: [solana-foundation/SRFCs#11](https://github.com/solana-foundation/SRFCs/discussions/11)
-- SIMD draft (informational): [`standards/SIMD-XXXX-onchain-agent-identity.md`](standards/SIMD-XXXX-onchain-agent-identity.md)
-- Forum thread: [forum.solana.com](https://forum.solana.com/t/simd-0520-on-chain-agent-identity-standard-request-for-comments/4759)
+The `did:aip` method is a W3C DID Core 1.0 conformant scheme. The method specification ([`standards/did-aip-method-spec.md`](standards/did-aip-method-spec.md)) defines the identifier grammar, the resolution algorithm, and the DID Document shape. On Moca, resolution reads the `AipRegistry` contract and produces a secp256k1 / `eip155:222888` verification method, and agent identities interoperate with Moca AIR ID.
 
 ---
 
 ## Relation to Existing Protocols
 
-AIP does not replace existing protocols. It composes them.
+AIP composes existing standards rather than replacing them.
 
 | Protocol | Role in AIP |
 |----------|------------|
-| **MCP** (Anthropic) | Agent-to-tool communication |
+| **W3C DID** | Identity standard (`did:aip` method) |
+| **Moca AIR Kit** | Smart accounts + zero-knowledge verifiable credentials |
 | **A2A** (Google / Linux Foundation) | Task handshake specification |
 | **x402** (Coinbase) | Payment rail |
-| **W3C DID** | Identity standard (`did:aip` method registration in progress) |
-| **Solana sRFC** | Application-standard track for on-chain agent identity (#11) |
+| **MCP** (Anthropic) | Agent-to-tool communication |
 
 ---
 
 ## Repository Structure
 
 ```
-aip-website/
+aip-moca/
+├── moca-contracts/             # Hardhat 3 project (Solidity)
+│   ├── contracts/              # AipRegistry.sol, AipEscrow.sol
+│   ├── test/                   # viem + node:test suites (34 tests)
+│   ├── ignition/modules/       # deploy modules
+│   └── scripts/smoke.ts        # registry lifecycle smoke test
 ├── src/
-│   ├── app/                  # Next.js App Router (pages + 35 API routes)
-│   ├── components/           # React components (dashboard, explorer, log, connect)
-│   ├── hooks/                # x402 payment, agent registration, task SSE
-│   ├── store/                # Zustand state (wallet, agents, tasks, twin)
+│   ├── app/                    # Next.js App Router (pages + API routes)
+│   │   ├── api/jwks/           # JWKS endpoint for AIR Kit
+│   │   ├── api/airkit/token/   # Partner JWT minting
+│   │   └── moca-airkit/        # AIR Kit login/issue/verify test page
 │   ├── lib/
-│   │   ├── auth/             # Ed25519 wallet auth + AES-256-GCM encryption
-│   │   ├── solana/           # Escrow + Registry program clients
-│   │   ├── payment/          # x402, escrow, agent budgets, commission, USDC
-│   │   ├── protocol/         # Task machine, A2A client, orchestrator, chain executor
-│   │   ├── web/              # Tavily search, Firecrawl, realtime enrichment
-│   │   ├── memory/           # Per user-agent memory
-│   │   ├── trigger/          # Webhook + on-chain automation triggers
-│   │   ├── identity/         # W3C DID Key, canonical DID
-│   │   ├── supabase/         # Database layer
-│   │   ├── scheduler.ts      # node-cron + escrow expiration
-│   │   └── hosted-agents.ts  # Hosted agent config store
-│   └── types/aip.ts          # TypeScript types (Task, AgentCard, Chain, Artifact)
-├── packages/
-│   ├── agent-sdk/            # @aip/agent-sdk — build agents in minutes
-│   ├── did-resolver/         # @aip/did-resolver — standalone TS DID resolver
-│   └── agents/               # Demo agent services
-├── programs/
-│   └── aip-escrow/           # Solana Anchor programs (Rust)
-│       └── programs/
-│           ├── aip-escrow/
-│           └── aip-registry/
-├── standards/                # W3C DID method spec + SIMD draft
-├── sql/                      # Database migrations + atomic budget RPC functions
-└── scripts/                  # Demo agent runner + DB setup
+│   │   ├── moca/               # registry-client, escrow-client, resolver, airkit, credential, ABIs, deployments
+│   │   ├── protocol/           # task machine, A2A client, orchestrator
+│   │   ├── payment/            # x402, escrow, budgets, commission
+│   │   ├── web/                # realtime enrichment
+│   │   └── identity/           # canonical DID helpers
+│   └── middleware.ts           # auth + CSP (AIR Kit origins allow-listed)
+├── scripts/                    # demo.ts, verify-resolver.ts, verify-escrow.ts, verify-credential.ts, verify-airkit.ts
+└── standards/                  # W3C did:aip method spec
 ```
 
 ---
@@ -477,19 +389,18 @@ aip-website/
 |-------|-----------|
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript (strict mode) |
-| Blockchain | Solana (Devnet) |
-| Smart Contracts | Anchor (Rust) |
-| Payment | x402 protocol (conditional USDC settlement) |
-| Agent Intelligence | Claude Haiku (Anthropic) |
-| Web Data | Tavily (search) + Firecrawl (JS-rendered scraping) |
+| Blockchain | Moca Chain (EVM Layer 1, testnet `222888`) |
+| Smart Contracts | Solidity 0.8.24, Hardhat 3 (Ignition) |
+| Chain client | viem |
+| Identity & accounts | Moca AIR Kit (smart accounts, ZK credentials) |
+| Payment | Native MOCA escrow + x402 protocol |
+| Agent Intelligence | Claude (Anthropic) |
 | Task Protocol | A2A JSON-RPC 2.0 over HTTP |
 | Streaming | Server-Sent Events (SSE) |
-| State | Zustand |
 | Database | Supabase (PostgreSQL) |
-| Auth | Ed25519 wallet signature (session-based) |
+| Auth | AIR smart account; Partner JWT (RS256) for credentials |
 | Encryption | AES-256-GCM (API keys at rest) |
 | Styling | Tailwind CSS |
-| Wallet | Solana Wallet Adapter (Phantom) |
 
 ---
 
@@ -497,22 +408,22 @@ aip-website/
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SOLANA_RPC_URL` | Yes | Solana RPC endpoint |
-| `ESCROW_PRIVATE_KEY` | Yes | Authority wallet (base58) |
-| `ANTHROPIC_API_KEY` | Yes | Claude Haiku for agent intelligence |
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
-| `USDC_MINT_DEVNET` | Yes | USDC SPL token mint address |
-| `TAVILY_API_KEY` | No | Web search (Tavily) |
-| `FIRECRAWL_API_KEY` | No | JS-rendered scraping (Firecrawl) |
-| `API_KEY_ENCRYPTION_SECRET` | No | Custom encryption key (falls back to `ESCROW_PRIVATE_KEY`) |
+| `MOCA_RPC_URL` | Yes | Moca Chain RPC endpoint |
+| `NEXT_PUBLIC_AIRKIT_PARTNER_ID` | Yes | AIR Kit Partner ID |
+| `AIRKIT_ISSUER_DID` | Yes | AIR Kit Issuer DID (credential issuance) |
+| `AIRKIT_VERIFIER_DID` | Yes | AIR Kit Verifier DID (credential verification) |
+| `AIRKIT_PARTNER_PRIVATE_KEY_B64` | Yes | RS256 private key (base64 PEM) for Partner JWTs |
+| `AIRKIT_PARTNER_PUBLIC_KEY_B64` | Yes | RS256 public key (base64 PEM) for the JWKS endpoint |
+| `AIRKIT_VERIFIED_AGENT_PROGRAM_ID` | No | Issuance program id (`AIP Verified Agent`) |
+| `ANTHROPIC_API_KEY` | Yes | Claude for agent intelligence |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Yes | Database layer |
+| `TAVILY_API_KEY` / `FIRECRAWL_API_KEY` | No | Web search / scraping |
 
 ---
 
 ## Community
 
-- **Website** — [aipagents.xyz](https://aipagents.xyz/)
-- **Deploy mirror** — [aipagents.up.railway.app](https://aipagents.up.railway.app/)
+- **Website** — [app.aipagents.xyz](https://app.aipagents.xyz)
 - **X / Twitter** — [@aipagents](https://x.com/aipagents)
 - **Telegram** — [@drwilsonempty](https://t.me/drwilsonempty)
 
