@@ -29,7 +29,8 @@ export async function getSmartAccountAddress(svc?: AirService): Promise<string |
   const s = svc ?? (await getAirService());
   try {
     const provider = s.getProvider();
-    const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+    const request = provider.request as (a: { method: string }) => Promise<string[]>;
+    const accounts = await request({ method: "eth_accounts" });
     return accounts?.[0] ?? null;
   } catch {
     return null;
